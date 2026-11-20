@@ -177,7 +177,8 @@ test("the report path is made absolute under the workspace folder", async () => 
   SchedulePanel.show(ctx, store);
   send({ type: "ready" });
   await settle(() => rowMessages().length === 1);
-  assert.equal(lastRows()[0].reportPath, `${dir}/reports/2026.03.04/2026.03.04_090000_status.md`);
+  // The panel joins with the platform separator, so the expectation is joined the same way.
+  assert.equal(lastRows()[0].reportPath, nodePath.join(dir, "reports", "2026.03.04", "2026.03.04_090000_status.md"));
 });
 
 test("the last run is shown as just now, minutes, hours or days ago", async () => {
@@ -246,7 +247,8 @@ test("openReport opens a dated report inside the reports folder", async () => {
   const report = `${dir}/reports/2026.03.04_090000_status.md`;
   send({ type: "openReport", path: report });
   await settle(() => __openedDocuments().length === 1);
-  assert.deepEqual(__openedDocuments(), [Uri.file(report).toString()]);
+  // The panel opens the platform-normalized path (backslashes on Windows), not the forward-slash input.
+  assert.deepEqual(__openedDocuments(), [Uri.file(nodePath.normalize(report)).toString()]);
   assert.deepEqual(__warningMessages(), []);
 });
 

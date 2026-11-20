@@ -235,10 +235,21 @@ test("row menu: Make this a real dependency writes one Needs line with one Undo,
   await flushEvents(50);
   assert.deepEqual([0, 1, 2].map(text), before);
   // Exactly one of the three rows has the asked answer; it gets the line.
+  // The board refuses a request with a busy notice while its first scan is still running (the full suite keeps the
+  // machine busy long enough to hit that), so each id is sent again after a busy refusal rather than lost.
+  const busyCount = (): number => __infoMessages().filter((m) => m.includes("scan is running")).length;
   for (const id of [0, 1, 2]) {
-    panel.webview.__receiveFromClient({ type: "rowMenu", act: "makeDep", id, rev: rev() });
-    await flushEvents(50);
+    for (let tries = 0; tries < 100; tries++) {
+      const refused = busyCount();
+      panel.webview.__receiveFromClient({ type: "rowMenu", act: "makeDep", id, rev: rev() });
+      await flushEvents(50);
+      if (busyCount() === refused) {
+        break;
+      }
+    }
   }
+  // The write and its rescan take real time; flushEvents counts turns, not time, so wait on the file itself.
+  await settle(() => [0, 1, 2].some((n) => text(n) !== before[n]));
   const after = [0, 1, 2].map(text);
   const changed = after.filter((x, i) => x !== before[i]);
   assert.equal(changed.length, 1);

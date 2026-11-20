@@ -116,7 +116,9 @@ test("confirming ends exactly that process, says so and refreshes the list", asy
   await killProcessTab(child.pid!, "node", "Node toolchain", async () => {
     refreshed++;
   });
-  assert.equal(await exited, "SIGTERM");
+  // Windows has no signals: process.kill is TerminateProcess, so the child exits with code 1 and a
+  // null signal. The exit event itself still proves the process was ended.
+  assert.equal(await exited, process.platform === "win32" ? null : "SIGTERM");
   assert.deepEqual(__infoMessages(), [l10n("monitor.kill.done", { name: "node", pid: child.pid! })]);
   assert.equal(refreshed, 1);
 });

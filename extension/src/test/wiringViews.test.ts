@@ -164,9 +164,12 @@ test("a change to the shortcut set republishes which files are shortcuts", async
     __recordedCommands().filter((c) => c.command === "setContext").map((c) => [c.args[0], c.args[1]])
   );
   // The workspace config file is always offered as an automatic shortcut, so it is listed too.
+  // Each path is published in both its fsPath form and its URI-path form (syncShortcutPathContext); on a
+  // Windows drive path the URI form gains a leading slash ("/D:/..."), so expect that second key there.
+  const bothForms = (p: string): Record<string, true> => ({ [p]: true, ...(/^[A-Za-z]:/.test(p) ? { [`/${p}`]: true } : {}) });
   assert.deepEqual(published["saropaWorkspace.projectPinnedPaths"], {
-    [`${fx.dir}/.saropa/saropa-workspace.json`]: true,
-    [`${fx.dir}/a.ts`]: true,
+    ...bothForms(`${fx.dir}/.saropa/saropa-workspace.json`),
+    ...bothForms(`${fx.dir}/a.ts`),
   });
   assert.deepEqual(published["saropaWorkspace.globalPinnedPaths"], {});
 });

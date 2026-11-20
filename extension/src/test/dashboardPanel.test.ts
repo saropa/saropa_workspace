@@ -99,7 +99,13 @@ test("an unknown tab name is ignored", async () => {
 test("activating the processes tab samples and then sends the data", async () => {
   DashboardPanel.show(fakeContext(), store);
   send({ type: "activateTab", tab: "processes" });
-  await settle(() => posted().length === 2, 15_000);
+  // The two-sample poll runs real child processes (PowerShell on Windows, several seconds). settle()
+  // is bounded by event-loop turns (timeout x 20), which a busy-spinning wait burns in about a second
+  // regardless of the clock, so this waits on a real timer instead.
+  const deadline = Date.now() + 60_000;
+  while (posted().length < 2 && Date.now() < deadline) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  }
   assert.deepEqual(posted().map((m) => m.type), ["sampling", "data"]);
 });
 

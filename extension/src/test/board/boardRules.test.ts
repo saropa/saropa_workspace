@@ -47,7 +47,8 @@ test("the rules file is created with a small template when there is none, and ke
   const file = path.join(dir, ".saropa", "release-board.json");
   await openRulesFile();
   assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).version, 1);
-  assert.deepEqual(vs.__openedDocuments(), [file]);
+  // The stub logs opened paths in forward-slash form; path.join gives backslashes on Windows.
+  assert.deepEqual(vs.__openedDocuments(), [file.replace(/\\/g, "/")]);
   fs.writeFileSync(file, '{"version":1,"mine":true}');
   await openRulesFile();
   assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).mine, true);

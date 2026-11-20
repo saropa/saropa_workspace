@@ -70,7 +70,7 @@ test("reports are grouped by ritual with a count, a label and the file name and 
   ]);
   const names = message.reports[0].files.map((f) => f.name).sort();
   assert.deepEqual(names, ["2026.03.04_090000_lint.md", "2026.03.04_100000_lint.md"]);
-  assert.ok(message.reports[0].files.every((f) => f.path.startsWith(`${fx.dir}/reports/2026.03.04/`)));
+  assert.ok(message.reports[0].files.every((f) => f.path.replace(/\\/g, "/").startsWith(`${fx.dir}/reports/2026.03.04/`)));
   assert.ok(message.reports[0].files.every((f) => f.ago === l10n("projectFiles.justNow")));
 });
 

@@ -67,7 +67,9 @@ test("a change made while the write was being prepared wins", async () => {
   let reads = 0;
   fsApi.readFile = async (u) => {
     const bytes = await real.call(fsApi, u);
-    if (u.fsPath === file && ++reads === 1) {
+    // path.normalize: on Windows the stub's joined fsPath uses "/" while `file` (path.join) uses "\", so a plain
+    // === never matched there and the mid-write edit below never ran.
+    if (path.normalize(u.fsPath) === path.normalize(file) && ++reads === 1) {
       fs.writeFileSync(file, "# A\n\nedited by hand\n");
     }
     return bytes;

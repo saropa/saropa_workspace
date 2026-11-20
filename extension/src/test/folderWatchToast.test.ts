@@ -3,6 +3,7 @@
 
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import * as nodePath from "node:path";
 import * as vscode from "vscode";
 import { __externalOpens, __recordedCommands, __resetEnv, __resetRecordedCommands } from "./_stub/vscode";
 import { toastFolderDelta, toastRepoItems } from "../exec/folderWatchToast";
@@ -92,7 +93,8 @@ test("more than five files are cut to five with a count of the rest", async () =
 test("Open shows the first file inside the watched folder", async () => {
   answer = "Open";
   await toastFolderDelta(watch(), { added: ["sub/first.txt", "second.txt"], changed: [] }, false, "dir");
-  assert.deepEqual(opened, ["/p/dir/sub/first.txt"]);
+  // path.join in the source yields backslashes on Windows; build the expectation the same way.
+  assert.deepEqual(opened, [nodePath.join("/p/dir", "sub/first.txt")]);
 });
 
 test("Open on a single watched file shows that file", async () => {
@@ -111,7 +113,7 @@ test("when the file cannot be opened it is revealed in the Explorer instead", as
   answer = "Open";
   openFails = true;
   await toastFolderDelta(watch(), { added: ["x.txt"], changed: [] }, false, "dir");
-  assert.deepEqual(__recordedCommands().map((c) => [c.command, (c.args[0] as vscode.Uri).fsPath]), [["revealInExplorer", "/p/dir/x.txt"]]);
+  assert.deepEqual(__recordedCommands().map((c) => [c.command, (c.args[0] as vscode.Uri).fsPath]), [["revealInExplorer", nodePath.join("/p/dir", "x.txt")]]);
 });
 
 function item(key: string, kind: "issue" | "pr", number: number, updatedAt: string, title = `T${number}`): GitHubWatchItem {

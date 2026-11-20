@@ -93,7 +93,9 @@ test("a group override is saved, then removed again when it is set to undefined"
   assert.ok(await saveGroupOverride(GROUP, { name: "Launch" }));
   assert.equal(JSON.parse(readRulesFile(dir)).organize.groups[GROUP].name, "Launch");
   assert.ok(await saveGroupOverride(GROUP, undefined));
-  assert.equal(JSON.parse(readRulesFile(dir)).organize.groups, undefined, "the empty groups key is dropped, not left behind");
+  // The group was the only organize content, so editOrganize drops the now-empty groups key AND the empty organize
+  // object; reading `.organize.groups` would throw on undefined.
+  assert.equal(JSON.parse(readRulesFile(dir)).organize, undefined, "the empty organize object is dropped, not left behind");
 });
 
 // ---- A stale editor is refused ----

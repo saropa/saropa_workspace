@@ -99,6 +99,9 @@ test("open resolves the url from the cache, marks only that item seen and names 
   assert.deepEqual(__externalOpens(), ["https://github.com/o/r/issues/1"]);
   await settle(() => store.getUnseen("r1").length === 1);
   assert.deepEqual(store.getUnseen("r1"), ["pr:2"]);
+  // The status line is posted after markSeen finishes persisting, which is later than the in-memory
+  // unseen list changing (the disk write is slower on Windows); wait for it instead of reading at once.
+  await settle(() => __statusMessages().length === 1);
   assert.deepEqual(__statusMessages(), [l10n("hubGrid.opened", { name: "#1 First" })]);
 });
 

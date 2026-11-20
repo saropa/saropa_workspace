@@ -4,6 +4,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import * as nodeFs from "node:fs";
+import * as nodePath from "node:path";
 import * as vscode from "./_stub/vscode";
 import {
   Uri, __registeredCommands, __openedDocuments, __resetOpenedDocuments, __infoMessages, __resetInfo,
@@ -150,7 +151,8 @@ test("runNearestScript lists the scripts of the nearest package.json and runs th
   assert.deepEqual(offered, [{ label: "build", description: "tsc" }, { label: "test:watch", description: "node --test --watch" }]);
   assert.deepEqual(options, { placeHolder: l10n("recipe.script.placeholder") });
   const [terminal] = __terminals();
-  assert.deepEqual(terminal.options, { name: l10n("recipe.script.terminal"), cwd: `${fx.dir}/pkg` });
+  // The terminal cwd comes from path.join, so it carries the platform separator; build the expectation the same way.
+  assert.deepEqual(terminal.options, { name: l10n("recipe.script.terminal"), cwd: nodePath.join(fx.dir, "pkg") });
   assert.deepEqual(terminal.sentTexts, ["npm run test:watch"]);
   assert.deepEqual(terminal.shownWith, [true]);
 });

@@ -124,12 +124,15 @@ test("the command writes a dated report under reports, opens it, reports the cou
   commitAll("first");
   registerProjectStatsCommand(registrarContext());
   const file = (await __registeredCommands().get("saropaWorkspace.recipe.projectStats")!(fx.dir)) as string;
-  assert.ok(file.startsWith(`${fx.dir}/reports/`), file);
+  // The command builds the path with the platform separator (backslashes on Windows) while fx.dir is
+  // forward-slashed, so compare both in the platform form.
+  assert.ok(nodePath.normalize(file).startsWith(nodePath.normalize(`${fx.dir}/reports/`)), file);
   assert.match(nodePath.basename(file), /^\d{4}\.\d{2}\.\d{2}_(?:workspace_)?\d{6}_project_stats\.md$/);
   const body = nodeFs.readFileSync(file, "utf8");
   assert.match(body, /\*\*Headline:\*\* 2 lines across 1 files/);
   assert.match(body, /\| TypeScript \| 1 \| 2 \| 100\.0% \|/);
-  assert.deepEqual(__openedDocuments(), [file]);
+  // The returned path keeps the platform separator while the stub records opened documents with forward slashes.
+  assert.deepEqual(__openedDocuments(), [file.split("\\").join("/")]);
   assert.deepEqual(__infoMessages(), [l10n("stats.done", { languages: 1, files: 1, lines: 2 })]);
   assert.equal(__progressRuns().length, 1);
 });

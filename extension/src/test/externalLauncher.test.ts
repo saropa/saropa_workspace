@@ -36,6 +36,7 @@ let spawns: Spawn[] = [];
 let children: FakeChild[] = [];
 let available: Set<string>;
 let throwOnSpawn: Error | undefined;
+const realPathEnv = process.env.PATH;
 
 // Lets the piped stderr data events reach their listeners before the exit is emitted.
 const drain = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
@@ -45,6 +46,9 @@ const setPlatform = (platform: string): void => {
 };
 
 beforeEach(() => {
+  // The Windows launcher picks pwsh.exe over powershell.exe when pwsh is on PATH. An empty PATH keeps
+  // the expected shell the same on a machine that has PowerShell 7 installed and one that does not.
+  process.env.PATH = "";
   spawns = [];
   children = [];
   available = new Set();
@@ -72,6 +76,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  process.env.PATH = realPathEnv;
   (cp as unknown as Record<string, unknown>).spawn = realSpawn;
   (cp as unknown as Record<string, unknown>).spawnSync = realSpawnSync;
   Object.defineProperty(process, "platform", realPlatform);

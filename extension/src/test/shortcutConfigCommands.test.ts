@@ -52,6 +52,28 @@ class FakeChild extends NodeEmitter {
 }
 const asChild = (c: FakeChild): ChildProcess => c as unknown as ChildProcess;
 
+// On Windows the registry ends a process with `taskkill` (a real spawn) instead of a signal, so the
+// fake child never sees one and the real command would be aimed at a made-up pid. Spawn is replaced
+// for the test and the request is reported in one platform-neutral form: the signal name, or the
+// taskkill arguments.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const cpBag = require("node:child_process") as Record<string, unknown>;
+async function killRequest(child: FakeChild, act: () => Promise<unknown>): Promise<string[]> {
+  const spawnMock = mock.method(cpBag, "spawn", () => ({}));
+  try {
+    await act();
+    if (process.platform === "win32") {
+      return spawnMock.mock.calls.map((c) => `${String(c.arguments[0])} ${(c.arguments[1] as string[]).join(" ")}`);
+    }
+    return child.signals.map(String);
+  } finally {
+    spawnMock.mock.restore();
+  }
+}
+// What a graceful stop and a forced kill request on the current platform, for pid `pid`.
+const expectedStop = (pid: number): string[] => (process.platform === "win32" ? [`taskkill /pid ${pid} /T`] : ["SIGTERM"]);
+const expectedKill = (pid: number): string[] => (process.platform === "win32" ? [`taskkill /pid ${pid} /T /F`] : ["SIGKILL"]);
+
 async function addFile(rel: string, scope: "project" | "global" = "project"): Promise<Shortcut> {
   fx.write(rel, "x");
   await store.addShortcut(asUri(`${fx.dir}/${rel}`), scope);
@@ -199,8 +221,7 @@ test("stop asks the running process to end, marks it stopping and logs the stop"
   const child = new FakeChild(4242);
   processRegistry.register(shortcut.id, asChild(child));
   try {
-    await run("stopPin", shortcut);
-    assert.deepEqual(child.signals, ["SIGTERM"]);
+    assert.deepEqual(await killRequest(child, () => run("stopPin", shortcut)), expectedStop(4242));
     assert.equal(processRegistry.isStopping(shortcut.id), true);
     assert.deepEqual(infos(), [l10n("run.stopMessage", { name: "a.ts" })]);
     assert.equal(outputLines().length, 1);
@@ -215,8 +236,7 @@ test("force kill ends the process at once with a kill signal", async () => {
   const child = new FakeChild(4243);
   processRegistry.register(shortcut.id, asChild(child));
   try {
-    await run("forceKillPin", shortcut);
-    assert.deepEqual(child.signals, ["SIGKILL"]);
+    assert.deepEqual(await killRequest(child, () => run("forceKillPin", shortcut)), expectedKill(4243));
     assert.deepEqual(infos(), [l10n("run.forceKillMessage", { name: "a.ts" })]);
     assert.match(outputLines()[0], /^\[.+\] Force-killed: a\.ts$/);
   } finally {

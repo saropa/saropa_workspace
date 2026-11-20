@@ -15,7 +15,7 @@ test("isValidRepoSlug rejects a missing repo segment", () => {
 });
 
 test("isValidRepoSlug rejects a URL instead of a slug", () => {
-  assert.equal(isValidRepoSlug("https://github.com/saropa/saropa-workspace"), false);
+  assert.equal(isValidRepoSlug("https://github.com/saropa/saropa_workspace"), false);
 });
 
 test("isValidRepoSlug rejects extra path segments", () => {
@@ -39,8 +39,8 @@ test("parseRepoSlug returns undefined for an invalid slug", () => {
 
 test("repoIssuesUrl builds the repo's issues page", () => {
   assert.equal(
-    repoIssuesUrl({ owner: "saropa", repo: "saropa-workspace" }),
-    "https://github.com/saropa/saropa-workspace/issues"
+    repoIssuesUrl({ owner: "saropa", repo: "saropa_workspace" }),
+    "https://github.com/saropa/saropa_workspace/issues"
   );
 });
 

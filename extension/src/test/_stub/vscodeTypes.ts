@@ -46,7 +46,11 @@ export class Uri {
   }
 
   static file(p: string): Uri {
-    return new Uri("file", p, p);
+    // toString() never carries backslashes in the real vscode.Uri (a Windows path serializes as
+    // "file:///d%3A/a/b"), so production code that hands over a backslashed path (path.join output)
+    // and a test that expects the forward-slash form must yield the same string. fsPath keeps the
+    // path as given, like the real fsPath keeps the OS form.
+    return new Uri("file", p, p.replace(/\\/g, "/"));
   }
 
   // Builds a URI from parts, as vscode.Uri.from does; only scheme and path are modeled.
@@ -66,7 +70,10 @@ export class Uri {
   // relative segments). A trailing slash on the base is collapsed so the result
   // never contains a double slash.
   static joinPath(base: Uri, ...segments: string[]): Uri {
-    const head = base.fsPath.replace(/[\\/]+$/, "");
+    // Backslashes become "/" first: posix.normalize treats a Windows path ("C:\a\b.json") as ONE segment, so a ".."
+    // collapsed the whole path to "." and the temp file of writeFileSafe landed in the cwd, whose rename onto the
+    // target then failed with EXDEV across drives. Node's fs accepts forward slashes on Windows.
+    const head = base.fsPath.replace(/\\/g, "/").replace(/\/+$/, "");
     // Resolve "." and ".." like the real vscode.Uri.joinPath does; without this a
     // ".." segment leaves a path such as "a/package.json/../x" that the OS rejects.
     const joined = nodePath.posix.normalize([head, ...segments].join("/"));

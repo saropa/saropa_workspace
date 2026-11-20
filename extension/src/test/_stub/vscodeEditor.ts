@@ -132,7 +132,10 @@ export async function showTextDocument(
   options?: { viewColumn?: number }
 ): Promise<FakeTextEditor> {
   const uri = "uri" in doc ? doc.uri : doc;
-  openedDocuments.push(uri.fsPath);
+  // Recorded with forward slashes: the vscode URI form never has backslashes, and tests build the
+  // expected path with "/" (template strings over a temp dir). A raw fsPath uses backslashes on
+  // Windows, so every opened-file assertion failed there while passing on POSIX.
+  openedDocuments.push(uri.fsPath.replace(/\\/g, "/"));
   const editor = fakeTextEditor(uri, options);
   shownEditors.push(editor);
   return editor;

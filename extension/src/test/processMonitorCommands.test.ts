@@ -4,6 +4,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import * as nodeFs from "node:fs";
+import * as nodePath from "node:path";
 import {
   __registeredCommands, __lastWebviewPanel, __resetWebviewPanels, __infoMessages, __resetInfo, __warningMessages,
   __resetWarnings, __openedDocuments, __resetOpenedDocuments, __setWorkspaceFolders, __progressRuns, __resetHosts,
@@ -81,8 +82,10 @@ test("a snapshot samples the processes, writes a dated report under reports and 
   await run("recipe.snapshotProcesses");
   assert.equal(__progressRuns().length, 1);
   const [file] = __openedDocuments();
-  assert.ok(file.startsWith(`${fx.dir}/reports/`), file);
+  // The command builds the path with the platform separator (backslashes on Windows) while fx.dir is
+  // forward-slashed, so compare both in the platform form.
+  assert.ok(nodePath.normalize(file).startsWith(nodePath.normalize(`${fx.dir}/reports/`)), file);
   assert.match(file, /_processes\.md$/);
   assert.match(nodeFs.readFileSync(file, "utf8"), /^# Toolchain process snapshot/);
-  assert.deepEqual(__infoMessages(), [l10n("monitor.snapshot.wrote", { path: file })]);
+  assert.deepEqual(__infoMessages(), [l10n("monitor.snapshot.wrote", { path: nodePath.normalize(file) })]);
 });

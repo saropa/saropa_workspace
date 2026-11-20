@@ -37,7 +37,8 @@ test("showTextDocument returns an editor over the file's lines and logs the path
   assert.deepEqual(editor.document.lineAt(2).range.end, new vscode.Position(2, 5));
   assert.equal(editor.document.getText(), "one\ntwo\nthree");
   assert.equal(editor.viewColumn, 2);
-  assert.deepEqual(vscode.__openedDocuments(), [file]);
+  // The log is forward-slash form on every OS; path.join returns backslashes on Windows.
+  assert.deepEqual(vscode.__openedDocuments(), [file.replace(/\\/g, "/")]);
   assert.equal(vscode.__shownEditors()[0], editor);
   assert.throws(() => editor.document.lineAt(9), /no line 9/);
 });

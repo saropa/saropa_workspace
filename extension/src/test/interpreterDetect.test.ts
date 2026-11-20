@@ -24,6 +24,10 @@ let bin: string;
 beforeEach(() => {
   bin = tmp("interp-");
   process.env.PATH = bin;
+  // Pin a non-Windows platform: detectInterpreters also scans the real Windows Python install roots
+  // (C:\Users, D:\Tools\Python ...), which on a Windows machine adds the host's own Pythons to
+  // every result. The header says install scanning is not exercised here; tests that need win32 set it.
+  Object.defineProperty(process, "platform", { value: "linux", configurable: true });
   clearInterpreterCache();
 });
 

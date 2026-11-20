@@ -146,12 +146,16 @@ test("a macro lists its steps in order with the target each would use", async ()
   );
 });
 
+// The runner rewrites a leading `python3` to `python` on Windows (no `python3` executable there; see
+// exec/commandPlan.ts), so the dry-run report shows the rewritten name on that platform.
+const PY = process.platform === "win32" ? "python" : "python3";
+
 test("a file shortcut shows its command line, folder, location and an empty environment", async () => {
   await simulateRun(store, fileShortcut("job.py", { command: "python3", args: ["--fast", "a b"], runLocation: "background" }));
   assert.equal(
     report(),
     head("Thing") +
-      `## Command\n\n\`\`\`sh\npython3 ${dir}/job.py --fast "a b"\n\`\`\`\n\n` +
+      `## Command\n\n\`\`\`sh\n${PY} ${dir}/job.py --fast "a b"\n\`\`\`\n\n` +
       `## Working directory\n\n\`\`\`\n${dir}\n\`\`\`\n\n` +
       "## Run location\n\nBackground output channel\n\n" +
       "## Environment overrides\n\n_(none)_\n"
@@ -191,7 +195,7 @@ test("answered prompts are used in the command and listed", async () => {
   __setInputHandler(async () => "Bob");
   await simulateRun(store, fileShortcut("job.py", { command: "python3", args: ["${prompt:Who}"], runLocation: "background" }));
   const text = report();
-  assert.ok(text.includes(`python3 ${dir}/job.py Bob`));
+  assert.ok(text.includes(`${PY} ${dir}/job.py Bob`));
   assert.ok(text.endsWith("## Answered prompts\n\n- `${prompt:Who}` → `Bob`\n"));
 });
 

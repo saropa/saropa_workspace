@@ -3,6 +3,7 @@
 
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import * as nodePath from "node:path";
 import * as vscode from "vscode";
 import { surfaceRunResult, offerMissedRuns } from "../views/scheduleFeedback";
 
@@ -18,6 +19,10 @@ let origWarn: unknown;
 let calls: Array<{ level: "info" | "warn"; message: string; buttons: string[] }>;
 let press: "first" | undefined;
 
+// The report check resolves paths with path.resolve, which prefixes a drive letter on Windows, so the
+// workspace folder is a drive-qualified path there ("/proj" alone would never contain the report).
+const PROJ = nodePath.resolve("/proj");
+
 beforeEach(() => {
   origInfo = win.showInformationMessage;
   origWarn = win.showWarningMessage;
@@ -30,7 +35,7 @@ beforeEach(() => {
   win.showInformationMessage = make("info");
   win.showWarningMessage = make("warn");
   stub.__resetOpenedDocuments();
-  stub.__setWorkspaceFolders([{ uri: vscode.Uri.file("/proj"), name: "p", index: 0 }]);
+  stub.__setWorkspaceFolders([{ uri: vscode.Uri.file(PROJ), name: "p", index: 0 }]);
 });
 
 afterEach(() => {
@@ -51,15 +56,16 @@ test("failure is a warning toast", async () => {
 });
 
 test("a report adds an Open report button", async () => {
-  await surfaceRunResult("Nightly", "success", "/proj/reports/2026.06.25/2026.06.25_090000_lint.md");
+  await surfaceRunResult("Nightly", "success", nodePath.join(PROJ, "reports", "2026.06.25", "2026.06.25_090000_lint.md"));
   assert.deepEqual(calls[0].buttons, ["Open report"]);
 });
 
 test("pressing Open report opens a valid report", async () => {
   press = "first";
-  const report = "/proj/reports/2026.06.25_090000_lint.md";
+  const report = nodePath.join(PROJ, "reports", "2026.06.25_090000_lint.md");
   await surfaceRunResult("Nightly", "failure", report);
-  assert.deepEqual(stub.__openedDocuments(), [report]);
+  // The stub records opened documents with forward slashes, while the path built above uses the platform separator.
+  assert.deepEqual(stub.__openedDocuments(), [report.split("\\").join("/")]);
 });
 
 test("pressing Open report refuses a path outside the reports folder", async () => {
@@ -69,7 +75,7 @@ test("pressing Open report refuses a path outside the reports folder", async () 
 });
 
 test("an unpressed button opens nothing", async () => {
-  await surfaceRunResult("Nightly", "success", "/proj/reports/2026.06.25_090000_lint.md");
+  await surfaceRunResult("Nightly", "success", nodePath.join(PROJ, "reports", "2026.06.25_090000_lint.md"));
   assert.deepEqual(stub.__openedDocuments(), []);
 });
 

@@ -28,7 +28,14 @@ test("the startup open catches a rejection and leaves nothing unhandled", async 
   };
   try {
     registerBoardBackground(context);
-    await settle(() => attempts > 0, 15000);
+    // The background scan starts after a real 3 s setTimeout (START_DELAY_MS in boardBackground.ts).
+    // settle() is bounded by event-loop turns (timeout x 20), which a busy-spinning wait burns in about
+    // a second regardless of the clock, so it gave up before the timer fired. Poll on a real timer.
+    const deadline = Date.now() + 15_000;
+    while (attempts === 0 && Date.now() < deadline) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    }
+    assert.ok(attempts > 0, "the startup open never attempted to create the board panel");
     await settle(() => false, 200).catch(() => undefined);
     assert.deepEqual(unhandled, []);
   } finally {

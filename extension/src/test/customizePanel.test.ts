@@ -122,7 +122,9 @@ test("the shortcut name is escaped in the title, heading and subtitle", async ()
   assert.equal(html.includes("<img src=x"), false);
 });
 
-test("the footer keeps the file name as the preview fallback, escaped", async () => {
+// Windows forbids a double quote and "<" in a file name, so the file cannot even be created there;
+// the same escaping is still covered on every OS by the shortcut-name test above.
+test("the footer keeps the file name as the preview fallback, escaped", { skip: process.platform === "win32" }, async () => {
   CustomizePanel.show(context(), store, await stored(`we"ird<.sh`));
   assert.match(panel().webview.html, /data-fallback="we&quot;ird&lt;\.sh"/);
 });

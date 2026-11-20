@@ -201,7 +201,8 @@ test("a settings file that cannot be parsed is left untouched and a warning name
   nodeFs.writeFileSync(`${fx.dir}/.vscode/settings.json`, text);
   await run("guardProject", fx.dir, "**/dist/**");
   assert.equal(nodeFs.readFileSync(`${fx.dir}/.vscode/settings.json`, "utf8"), text);
-  assert.deepEqual(__warningMessages(), [l10n("bloat.guardUnparseable", { path: `${fx.dir}/.vscode/settings.json` })]);
+  assert.deepEqual(__warningMessages(), [l10n("bloat.guardUnparseable", { path: nodePath.join(fx.dir, ".vscode", "settings.json") })]);
+  // The warning names the OS-native path (backslashes on Windows), so the expectation is built with path.join.
 });
 
 test("pruning a project with no .vscode-test folder says there is nothing to prune", async () => {

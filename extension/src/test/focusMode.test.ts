@@ -29,7 +29,10 @@ const saved: Record<string, unknown> = {};
 
 beforeEach(() => {
   dir = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "focus-")).replace(/\\/g, "/");
-  folder = { uri: Uri.file(dir), name: "p", index: 0 };
+  // The production code compares fsPath against path.sep, and the real vscode fsPath is OS-native
+  // (backslashes on Windows). The stub keeps a path as given, so hand it the native form here;
+  // a forward-slash fsPath never matched the "\\" boundary and every shortcut looked outside the folder.
+  folder = { uri: Uri.file(nodePath.normalize(dir)), name: "p", index: 0 };
   __setWorkspaceFolders([folder]);
   exclude = undefined;
   writes = [];
@@ -78,7 +81,7 @@ function store(shortcuts: Array<Partial<Shortcut> & { path: string }>): Shortcut
   return {
     getProjectShortcuts: () => all,
     getGlobalShortcuts: () => [],
-    resolveUri: (s: Shortcut) => (s.path.startsWith("/") ? Uri.file(s.path) : Uri.file(`${dir}/${s.path}`)),
+    resolveUri: (s: Shortcut) => (s.path.startsWith("/") ? Uri.file(s.path) : Uri.file(nodePath.join(dir, s.path))),
   } as unknown as ShortcutStore;
 }
 

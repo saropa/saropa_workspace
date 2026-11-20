@@ -230,7 +230,14 @@ export class FolderWatchEngine implements vscode.Disposable {
       const watch = enabled.get(id);
       if (!watch || watchKind(watch) !== "repo") {
         this.repoItemsCache.delete(id);
-        // Same lifetime as the cache: a removed watch must not leave a stale banner.
+      }
+    }
+    // A removed watch must not leave a stale banner. Swept from its own map, not from the cache
+    // loop above: a scan that FAILED records an error but never fills the item cache, so an
+    // error-only watch was unreachable there and its banner survived the watch's removal.
+    for (const id of this.repoScanErrors.keys()) {
+      const watch = enabled.get(id);
+      if (!watch || watchKind(watch) !== "repo") {
         this.repoScanErrors.delete(id);
       }
     }
