@@ -110,6 +110,47 @@ test("the host refuses every malformed state, whole", () => {
   bad.forEach((b, i) => assert.equal(checkState(b).ok, false, `case ${i}`));
 });
 
+test("checkState rejects malformed inference and folders values", () => {
+  // Every new field has validation; bad values must be caught.
+  const bad: unknown[] = [
+    fresh((x) => (x.inference.seqWords = ["HAS SPACE"])),
+    fresh((x) => (x.inference.seqWords = ["123"])),
+    fresh((x) => (x.inference.kinds = ["bad word!"])),
+    fresh((x) => (x.inference.kindOrder = ["not-a-kind"])),
+    fresh((x) => (x.inference.seqWords = Array.from({ length: 25 }, (_, i) => `w${i}`))),
+    fresh((x) => (x.folders.statusWords = ["123"])),
+    fresh((x) => (x.folders.containerWords = ["has space"])),
+    fresh((x) => (x.folders.containerWords = Array.from({ length: 35 }, (_, i) => `w${i}`))),
+    { ...defaultState(), inference: "bad" },
+    { ...defaultState(), folders: null },
+  ];
+  bad.forEach((b, i) => assert.equal(checkState(b).ok, false, `inference/folders case ${i}`));
+});
+
+test("checkState accepts valid inference and folders values", () => {
+  // Custom words that meet the pattern pass validation.
+  const s = fresh((x) => {
+    x.inference.seqWords = ["chapter", "step"];
+    x.inference.kinds = ["spec", "plan"];
+    x.inference.kindOrder = ["plan"];
+    x.folders.statusWords = ["wip", "in-progress"];
+    x.folders.containerWords = ["shared"];
+  });
+  const c = checkState(s);
+  assert.ok(c.ok, "valid inference and folders pass");
+});
+
+test("inference and folders store only what differs from defaults", () => {
+  // Unchanged inference and folders do not appear in the stored form.
+  const s = fresh((x) => {
+    x.inference.seqWords = ["chapter"];
+    x.folders.containerWords = [...defaultState().folders.containerWords];
+  });
+  const stored = organizeFromState(s);
+  assert.deepEqual(stored.inference?.seqWords, ["chapter"]);
+  assert.equal(stored.folders, undefined, "unchanged folders not stored");
+});
+
 test("a checked state is a copy with duplicates folded and nothing extra", () => {
   const s = fresh((x) => {
     (x.tags[0] as unknown as Record<string, unknown>).extra = "x";

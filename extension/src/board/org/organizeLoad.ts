@@ -4,7 +4,8 @@
 
 import { isObject } from "../ruleAssign";
 import { DEFAULT_TAGS, TagDef, TagsConfig } from "./tags";
-import { ACRONYM, DEFAULT_ACRONYMS, DEFAULT_LINK_PHRASES, DEFAULT_PREFIXES, EFFECTS, EditorState, KIND_WORD, LIMITS, PHRASE, TagRow, WHERES, cleanRow, defaultRow, defaultState, listProblem, rowProblem, tagOfRow } from "./organizeEditCore";
+import { ACRONYM, DEFAULT_ACRONYMS, DEFAULT_LINK_PHRASES, DEFAULT_PREFIXES, EFFECTS, EditorState, KIND_WORD, LIMITS, PHRASE, SEQ_WORD, STATUS_WORD, TagRow, WHERES, cleanRow, defaultRow, defaultState, listProblem, rowProblem, tagOfRow } from "./organizeEditCore";
+import { DEFAULT_CONTAINER_WORDS, DEFAULT_KINDS, DEFAULT_KIND_ORDER, DEFAULT_SEQ_WORDS, DEFAULT_STATUS_WORDS } from "./organizeEditCore";
 
 const SHIPPED = new Set(DEFAULT_TAGS.map((t) => t.id));
 
@@ -12,7 +13,7 @@ const sameList = (a: readonly string[], b: readonly string[]): boolean => a.leng
 const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x) => b.includes(x));
 
 // The parts of the state where a saved copy would drop something the file holds.
-export type LossyPart = "tags" | "linkWords" | "naming";
+export type LossyPart = "tags" | "linkWords" | "naming" | "inference" | "folders";
 
 // What an `organize` key gives, and the parts where a saved copy would drop something the file holds: a tag or
 // patch that fails the checks, a list with an unusable value. The editor shows the parts and asks before a save.
@@ -135,6 +136,54 @@ function readNamingPart(organize: Record<string, unknown>, out: EditorState, los
   }
 }
 
+// The inference part: sequence words, document kinds, and the dependency order among kinds.
+function readInferencePart(organize: Record<string, unknown>, out: EditorState, lossy: Set<LossyPart>): void {
+  const inf = isObject(organize.inference) ? organize.inference : {};
+  if (inf.seqWords !== undefined) {
+    if (listProblem(inf.seqWords, LIMITS.seqWords, LIMITS.seqWord, (s) => SEQ_WORD.test(s))) {
+      out.inference.seqWords = [...new Set(inf.seqWords)];
+    } else {
+      lossy.add("inference");
+    }
+  }
+  if (inf.kinds !== undefined) {
+    if (listProblem(inf.kinds, LIMITS.kinds, LIMITS.kind, (s) => KIND_WORD.test(s))) {
+      out.inference.kinds = [...new Set(inf.kinds)];
+    } else {
+      lossy.add("inference");
+    }
+  }
+  if (inf.kindOrder !== undefined) {
+    // kindOrder must be a subset of the resolved kinds list; unknown entries are dropped.
+    if (listProblem(inf.kindOrder, LIMITS.kindOrder, LIMITS.kind, (s) => KIND_WORD.test(s))) {
+      const kindsSet = new Set(out.inference.kinds);
+      const valid = (inf.kindOrder as string[]).filter((k) => kindsSet.has(k));
+      out.inference.kindOrder = [...new Set(valid)];
+    } else {
+      lossy.add("inference");
+    }
+  }
+}
+
+// The folders part: status-folder words and container-folder words.
+function readFoldersPart(organize: Record<string, unknown>, out: EditorState, lossy: Set<LossyPart>): void {
+  const f = isObject(organize.folders) ? organize.folders : {};
+  if (f.statusWords !== undefined) {
+    if (listProblem(f.statusWords, LIMITS.statusWords, LIMITS.statusWord, (s) => STATUS_WORD.test(s))) {
+      out.folders.statusWords = [...new Set(f.statusWords)];
+    } else {
+      lossy.add("folders");
+    }
+  }
+  if (f.containerWords !== undefined) {
+    if (listProblem(f.containerWords, LIMITS.containerWords, LIMITS.containerWord, (s) => KIND_WORD.test(s))) {
+      out.folders.containerWords = [...new Set(f.containerWords)];
+    } else {
+      lossy.add("folders");
+    }
+  }
+}
+
 // The rows a project's `organize` key gives, in priority order: the user's own order, then own tags, then shipped.
 // A value that does not pass the checks is dropped (a patch falls back to the shipped tag), so a hostile or
 // out-of-date file can never reach the page; `lossy` names the parts where that happened.
@@ -147,17 +196,21 @@ export function loadOrganize(organize: unknown): Loaded {
   readTagsPart(organize, out, lossy);
   readLinkWordsPart(organize, out, lossy);
   readNamingPart(organize, out, lossy);
+  readInferencePart(organize, out, lossy);
+  readFoldersPart(organize, out, lossy);
   return { state: out, lossy: [...lossy] };
 }
 
 // The editable state an `organize` key gives (what loadOrganize drops is not reported here).
 export const stateFromOrganize = (organize: unknown): EditorState => loadOrganize(organize).state;
 
-// The stored form: the three parts of the `organize` key that the editor owns.
+// The stored form: the five parts of the `organize` key that the editor owns.
 export interface OrganizeParts {
   tags?: TagsConfig;
   linkWords?: { off?: string[]; add?: string[] };
   naming?: { dates?: false; prefixes?: string[]; acronyms?: string[] };
+  inference?: { seqWords?: string[]; kinds?: string[]; kindOrder?: string[] };
+  folders?: { statusWords?: string[]; containerWords?: string[] };
 }
 
 // The `replace` entries: only the fields of a shipped tag that differ from the shipped dictionary.
@@ -250,6 +303,34 @@ function namingOf(s: EditorState): NonNullable<OrganizeParts["naming"]> {
   return nm;
 }
 
+// The inference part of the stored form: only lists that differ from the shipped defaults.
+function inferenceOf(s: EditorState): NonNullable<OrganizeParts["inference"]> {
+  const inf: NonNullable<OrganizeParts["inference"]> = {};
+  if (!sameSet(s.inference.seqWords, DEFAULT_SEQ_WORDS)) {
+    inf.seqWords = s.inference.seqWords;
+  }
+  if (!sameSet(s.inference.kinds, DEFAULT_KINDS)) {
+    inf.kinds = s.inference.kinds;
+  }
+  // kindOrder is compared with sameList because the order matters for dependency direction.
+  if (!sameList(s.inference.kindOrder, DEFAULT_KIND_ORDER)) {
+    inf.kindOrder = s.inference.kindOrder;
+  }
+  return inf;
+}
+
+// The folders part of the stored form.
+function foldersOf(s: EditorState): NonNullable<OrganizeParts["folders"]> {
+  const f: NonNullable<OrganizeParts["folders"]> = {};
+  if (!sameSet(s.folders.statusWords, DEFAULT_STATUS_WORDS)) {
+    f.statusWords = s.folders.statusWords;
+  }
+  if (!sameSet(s.folders.containerWords, DEFAULT_CONTAINER_WORDS)) {
+    f.containerWords = s.folders.containerWords;
+  }
+  return f;
+}
+
 // Only what differs from the shipped dictionary is stored.
 export function organizeFromState(s: EditorState): OrganizeParts {
   const out: OrganizeParts = {};
@@ -264,6 +345,14 @@ export function organizeFromState(s: EditorState): OrganizeParts {
   const nm = namingOf(s);
   if (Object.keys(nm).length) {
     out.naming = nm;
+  }
+  const inf = inferenceOf(s);
+  if (Object.keys(inf).length) {
+    out.inference = inf;
+  }
+  const fl = foldersOf(s);
+  if (Object.keys(fl).length) {
+    out.folders = fl;
   }
   return out;
 }

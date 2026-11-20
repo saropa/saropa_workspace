@@ -4,9 +4,10 @@
 
 import { AssignRefusal, Parsed, isObject, parseForEdit, serialize } from "../ruleAssign";
 import { isAllowedColour, COLOUR_HEX } from "./appearance";
+import { DEFAULT_KINDS, DEFAULT_KIND_ORDER, DEFAULT_SEQ_WORDS } from "./linksSignals";
 import { ACRONYMS } from "./naming";
 import { DEFAULT_TAGS, TagDef, TagEffect, TagWhere, refusal } from "./tags";
-import { KIND } from "./tokens";
+import { DEFAULT_CONTAINER_WORDS, DEFAULT_STATUS_WORDS, KIND } from "./tokens";
 import type { OrgColour } from "./orgTypes";
 
 // Caps on every list and string the page can send; read and write paths share them so a saved file always reloads.
@@ -28,6 +29,17 @@ export const LIMITS = {
   groupName: 60,
   assigns: 5000,
   importBytes: 262144,
+  // Inference constants: sequence words, kind words, kind order.
+  seqWords: 20,
+  seqWord: 15,
+  kinds: 40,
+  kind: 20,
+  kindOrder: 40,
+  // Folder classification constants: status words, container words.
+  statusWords: 40,
+  statusWord: 20,
+  containerWords: 30,
+  containerWord: 20,
 } as const;
 
 // The fixed effect set and its order; rows are normalized to this order so equal rows compare equal when diffed.
@@ -43,6 +55,12 @@ export const DEFAULT_LINK_PHRASES: readonly string[] = ["blocked by", "depends o
 export const DEFAULT_PREFIXES: readonly string[] = [...KIND];
 // Aliases the naming list so the editor's shipped acronyms can never differ from what cleanName applies.
 export const DEFAULT_ACRONYMS: readonly string[] = ACRONYMS;
+
+// Re-exported so the editor and its tests can read all shipped constants from one place.
+export { DEFAULT_KINDS, DEFAULT_KIND_ORDER, DEFAULT_SEQ_WORDS } from "./linksSignals";
+export { DEFAULT_CONTAINER_WORDS, DEFAULT_STATUS_WORDS } from "./tokens";
+// A status-folder word: lowercase letters with optional hyphens ("in-progress").
+export const STATUS_WORD = /^[a-z]+(-[a-z]+)*$/;
 
 // One editable tag as the page holds it; unlike TagDef it carries `off` so a shipped tag is disabled, not deleted.
 export interface TagRow {
@@ -64,6 +82,10 @@ export interface EditorState {
   // `off`: shipped phrases switched off; `add`: phrases of your own.
   linkWords: { off: string[]; add: string[] };
   naming: { dates: boolean; prefixes: string[]; acronyms: string[] };
+  // Link inference constants: the sequence tokens, document kinds, and the dependency order among kinds.
+  inference: { seqWords: string[]; kinds: string[]; kindOrder: string[] };
+  // Folder classification constants: which folder names mark state vs. topic, and which are too generic.
+  folders: { statusWords: string[]; containerWords: string[] };
 }
 
 const noControl = (s: string): boolean => ![...s].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127);
@@ -80,11 +102,14 @@ export const PHRASE = /^[a-z][a-z ]*[a-z]$/;
 export const ACRONYM = /^[A-Za-z][A-Za-z0-9]*$/;
 // A file-name prefix word for the naming rules.
 export const KIND_WORD = /^[a-z]+$/;
+// A sequence word: lowercase letters only (same rule as kind words). Declared after KIND_WORD:
+// a const read before its declaration throws at module load (temporal dead zone).
+export const SEQ_WORD = KIND_WORD;
 
 // Deep-copies arrays so editing a row in the draft cannot mutate the shipped tag definitions.
 export const defaultRow = (t: TagDef): TagRow => ({ id: t.id, label: t.label, emoji: t.emoji, colour: t.colour, patterns: [...t.patterns], effects: [...(t.effects ?? EFFECTS)], ...(t.where ? { where: [...t.where] } : {}), off: false });
 // The state shown when the file says nothing, and the target of a reset to shipped values.
-export const defaultState = (): EditorState => ({ tags: DEFAULT_TAGS.map(defaultRow), linkWords: { off: [], add: [] }, naming: { dates: true, prefixes: [...DEFAULT_PREFIXES], acronyms: [...DEFAULT_ACRONYMS] } });
+export const defaultState = (): EditorState => ({ tags: DEFAULT_TAGS.map(defaultRow), linkWords: { off: [], add: [] }, naming: { dates: true, prefixes: [...DEFAULT_PREFIXES], acronyms: [...DEFAULT_ACRONYMS] }, inference: { seqWords: [...DEFAULT_SEQ_WORDS], kinds: [...DEFAULT_KINDS], kindOrder: [...DEFAULT_KIND_ORDER] }, folders: { statusWords: [...DEFAULT_STATUS_WORDS], containerWords: [...DEFAULT_CONTAINER_WORDS] } });
 
 // Drops the page-only `off` flag so the engine and the refusal check see a plain tag definition.
 export const tagOfRow = (r: TagRow): TagDef => ({ id: r.id, label: r.label, emoji: r.emoji, colour: r.colour, patterns: r.patterns, effects: r.effects, ...(r.where ? { where: r.where } : {}) });

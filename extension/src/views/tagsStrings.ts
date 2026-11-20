@@ -10,10 +10,14 @@ export const TAGS_LABEL_KEYS = [
   "eff_name", "eff_emoji", "eff_colour", "removePhrase", "duplicate", "invalid", "problem_shape", "problem_tags", "problem_id", "problem_label", "problem_emoji", "problem_colour",
   "problem_patterns", "problem_where", "problem_effects", "problem_linkWords", "problem_naming", "problem_invalid",
   "search", "searchTip", "defaultPill", "defaultTip", "duplicateTag", "rename", "resetTag", "addWord", "patternSpace", "badWord", "copySuffix", "folder", "folderTip", "file", "whereTip",
-  "external", "reload", "reloadTip", "dismiss", "dismissTip", "importApply", "importApplyTip", "importCancel", "importCancelTip", "importPreview", "importOther", "openJson", "openJsonTip", "namingPreview", "namingPreviewTip",
+  "external", "reload", "reloadTip", "dismiss", "dismissTip", "importApply", "importApplyTip", "importCancel", "importCancelTip", "importPreview", "importOther", "openJson", "openJsonTip", "namingPreview", "namingPreviewTip", "landing", "landingTip", "landingMoved", "landingNone",
+  "linkPreview", "linkPreviewTip", "linkPreviewTotal", "linkPreviewNone",
+  "seqWords", "seqWordsTip", "kinds", "kindsTip", "kindOrder", "kindOrderTip",
+  "statusWords", "statusWordsTip", "containerWords", "containerWordsTip",
+  "problem_inference", "problem_folders",
 ] as const;
 
 // Count and problem placeholders are passed through unchanged, so the page can fill them at display time.
 export function tagsLabels(): Record<string, string> {
-  return Object.fromEntries(TAGS_LABEL_KEYS.map((k) => [k, l10n(`releaseBoard.tags.label.${k}`, { count: "{count}", phrase: "{phrase}", problem: "{problem}", adds: "{adds}", replaces: "{replaces}", removes: "{removes}" })]));
+  return Object.fromEntries(TAGS_LABEL_KEYS.map((k) => [k, l10n(`releaseBoard.tags.label.${k}`, { count: "{count}", phrase: "{phrase}", problem: "{problem}", group: "{group}", adds: "{adds}", replaces: "{replaces}", removes: "{removes}" })]));
 }

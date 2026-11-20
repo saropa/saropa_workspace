@@ -1,15 +1,42 @@
 // Signals read from a path and a title: logical folders, file-name tokens, word stems.
 
-const STATUS = new Set(["done", "finished", "complete", "completed", "archive", "archived", "history", "old", "deferred", "future", "backlog", "later", "wip", "in-progress", "active", "current", "blocked", "todo", "open", "closed", "inbox"]);
+// Status-folder words: folder names describing state, not topic; exported so the editor can offer them as defaults.
+export const DEFAULT_STATUS_WORDS: readonly string[] = ["done", "finished", "complete", "completed", "archive", "archived", "history", "old", "deferred", "future", "backlog", "later", "wip", "in-progress", "active", "current", "blocked", "todo", "open", "closed", "inbox"];
+const STATUS = new Set(DEFAULT_STATUS_WORDS);
 const MONTHS = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*$/;
+// Folder names too generic to name a group; exported as an array so the editor can offer them as defaults.
+export const DEFAULT_CONTAINER_WORDS: readonly string[] = ["docs", "doc", "documentation", "notes", "misc", "files", "content", "src", "md"];
 // Folder names too generic to name a group; shared with naming so both skip the same words.
-export const CONTAINER = new Set(["docs", "doc", "documentation", "notes", "misc", "files", "content", "src", "md"]);
+export const CONTAINER = new Set(DEFAULT_CONTAINER_WORDS);
 // Document-type words set aside from the stem so a plan and a spec on one subject still share it.
 export const KIND = new Set(["plan", "spec", "bug", "issue", "handover", "owner", "adr", "rfc", "research", "design", "impl", "test", "release", "notes", "draft", "report", "guide"]);
 // Filler words dropped from file names and headings so group and tag names keep only topic words.
 export const STOP =new Set(["the", "and", "for", "with", "from", "into", "this", "that", "how", "what", "why", "are", "was", "not", "all", "new", "add", "use", "using", "our", "its", "of", "to", "in", "on", "a", "an", "is", "be", "or"]);
 
 const SEQ_LABEL: Record<string, string> = { phase: "phase", part: "part", pt: "part", step: "step", stage: "stage", v: "version", m: "milestone" };
+
+// Builds the fileTokens sequence regex from the word list; long words allow a letter or digit value, short ones require a digit.
+function fileSeqRegex(words: readonly string[]): RegExp {
+  const long = words.filter((w) => w.length > 1);
+  const short = words.filter((w) => w.length === 1);
+  const parts: string[] = [];
+  if (long.length) {
+    parts.push(`\\b(${long.join("|")})\\s?(\\d+|[a-z])\\b`);
+  }
+  if (short.length) {
+    parts.push(`\\b(${short.join("|")})(\\d+)\\b`);
+  }
+  if (parts.length === 0) {
+    // No words: return a regex that never matches.
+    return /(?!)/;
+  }
+  return new RegExp(parts.join("|"));
+}
+
+// Default sequence label map; custom words get a label equal to the word itself.
+function seqLabelOf(word: string): string {
+  return SEQ_LABEL[word] ?? word;
+}
 
 // A file name broken into the parts grouping needs: the subject stem, the kind and the sequence marker.
 export interface FileTokens {
@@ -31,13 +58,15 @@ export function isDateSegment(s: string): boolean {
 }
 
 // Status folders (done, archive) describe state, not topic, so they never name or split a group.
-export function isStatusSegment(s: string): boolean {
-  return STATUS.has(s.toLowerCase());
+// Custom `statusSet` lets the editor's draft constants take effect.
+export function isStatusSegment(s: string, statusSet: ReadonlySet<string> = STATUS): boolean {
+  return statusSet.has(s.toLowerCase());
 }
 
 // Folder segments of a project-relative path with status and date segments removed.
-export function logicalFolders(path: string): string[] {
-  return path.split("/").slice(0, -1).filter((s) => s !== "" && !isStatusSegment(s) && !isDateSegment(s));
+// Custom `statusSet` threads through to isStatusSegment.
+export function logicalFolders(path: string, statusSet?: ReadonlySet<string>): string[] {
+  return path.split("/").slice(0, -1).filter((s) => s !== "" && !isStatusSegment(s, statusSet) && !isDateSegment(s));
 }
 
 // Takes only the last extension and handles "/" only, since board paths are normalized to forward slashes.
@@ -70,7 +99,9 @@ export function titleWords(title: string | undefined): string[] {
 }
 
 // Reads the file name of a path: leading date removed, one sequence token taken out, kind words set aside.
-export function fileTokens(path: string): FileTokens {
+// Custom `kinds` and `seqWords` let the editor's draft constants take effect without changing the shipped defaults.
+export function fileTokens(path: string, kinds?: ReadonlySet<string>, seqWords?: readonly string[]): FileTokens {
+  const kindSet = kinds ?? KIND;
   let base = baseName(path).replace(/^(\d{8}|\d{4}-\d{2}-\d{2})[_\- ]+/, "");
   let seq: FileTokens["seq"];
   const lead = /^(\d{1,3})[_\- .]+(?=\D)/.exec(base);
@@ -79,16 +110,19 @@ export function fileTokens(path: string): FileTokens {
     base = base.slice(lead[0].length);
   }
   let text = splitWords(base).join(" ").toLowerCase();
-  const m = /\b(phase|part|pt|step|stage)\s?(\d+|[a-z])\b|\b(v|m)(\d+)\b/.exec(text);
+  const seqRe = seqWords ? fileSeqRegex(seqWords) : /\b(phase|part|pt|step|stage)\s?(\d+|[a-z])\b|\b(v|m)(\d+)\b/;
+  const m = seqRe.exec(text);
   if (m) {
-    const label = SEQ_LABEL[m[1] ?? m[3]];
+    // The regex has two alternations: long words (groups 1,2) and short words (groups 3,4).
+    const word = m[1] ?? m[3];
+    const label = seqLabelOf(word);
     const raw = m[2] ?? m[4];
     seq = { label, n: /^\d+$/.test(raw) ? Number(raw) : raw.charCodeAt(0) - 96 };
     text = (text.slice(0, m.index) + " " + text.slice(m.index + m[0].length)).trim();
   }
   const all = text.split(/\s+/).filter(Boolean);
-  const kind = all.find((w) => KIND.has(w));
-  const words = all.filter((w) => !KIND.has(w) && !STOP.has(w) && !/^\d+$/.test(w));
+  const kind = all.find((w) => kindSet.has(w));
+  const words = all.filter((w) => !kindSet.has(w) && !STOP.has(w) && !/^\d+$/.test(w));
   const kept = words.length > 0 ? words : all;
   return { words: kept, stem: kept.join("_"), kind, seq };
 }

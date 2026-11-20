@@ -17,6 +17,13 @@ export interface OrgSettings {
   linkPhrases: string[];
   // OrgOptions.naming.
   naming: NonNullable<OrgOptions["naming"]>;
+  // Link inference constants: the sequence tokens, document-type words, and dependency order.
+  seqWords: string[];
+  kinds: string[];
+  kindOrder: string[];
+  // Folder classification: which folder names mark state and which are too generic to name a group.
+  statusWords: ReadonlySet<string>;
+  containerWords: ReadonlySet<string>;
 }
 
 // Goes through stateFromOrganize so a bad value in a hand-edited file falls back to the shipped default instead of throwing.
@@ -26,6 +33,11 @@ export function settingsOf(organize: unknown): OrgSettings {
     tags: s.tags.filter((r) => !r.off).map(tagOfRow),
     linkPhrases: [...DEFAULT_LINK_PHRASES.filter((p) => !s.linkWords.off.includes(p)), ...s.linkWords.add],
     naming: { dates: s.naming.dates, prefixes: new Set(s.naming.prefixes), acronyms: s.naming.acronyms },
+    seqWords: s.inference.seqWords,
+    kinds: s.inference.kinds,
+    kindOrder: s.inference.kindOrder,
+    statusWords: new Set(s.folders.statusWords),
+    containerWords: new Set(s.folders.containerWords),
   };
 }
 

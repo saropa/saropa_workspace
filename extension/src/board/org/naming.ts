@@ -20,8 +20,9 @@ export interface NameRules {
 }
 
 // A folder like "docs" says nothing about its contents, so callers skip it as a group name and use a deeper segment.
-export function isContainerOnly(name: string): boolean {
-  return CONTAINER.has(name.trim().toLowerCase());
+// Custom `containerSet` lets the editor's draft constants take effect.
+export function isContainerOnly(name: string, containerSet: ReadonlySet<string> = CONTAINER): boolean {
+  return containerSet.has(name.trim().toLowerCase());
 }
 
 // Dates, leading order numbers, leading kind words and version or sequence tokens removed; sentence case; acronyms kept.

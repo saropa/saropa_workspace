@@ -111,4 +111,12 @@ export interface OrgOptions {
   previous?: Record<string, { band: number; max: number }>;
   // The naming settings (settingsOf(...).naming).
   naming?: { acronyms?: readonly string[]; dates?: boolean; prefixes?: ReadonlySet<string> };
+  // Custom kind words for fileTokens (settingsOf(...).kinds); default: the shipped KIND set.
+  kinds?: ReadonlySet<string>;
+  // Custom sequence words for fileTokens (settingsOf(...).seqWords); default: the shipped list.
+  seqWords?: readonly string[];
+  // Custom status-folder words for logicalFolders (settingsOf(...).statusWords); default: the shipped STATUS set.
+  statusWords?: ReadonlySet<string>;
+  // Custom container-folder words for folderLabel (settingsOf(...).containerWords); default: the shipped CONTAINER set.
+  containerWords?: ReadonlySet<string>;
 }

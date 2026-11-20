@@ -32,6 +32,43 @@ test("a key with unusable values drops them, names the parts, and stores nothing
   assert.deepEqual(organizeFromState(l.state), {});
 });
 
+test("inference constants round-trip through store and load", () => {
+  // Custom sequence words, kinds and kind order store only what differs from defaults.
+  const org = { inference: { seqWords: ["chapter", "step"], kinds: ["spec", "plan", "readme"], kindOrder: ["plan", "spec"] } };
+  const l = loadOrganize(org);
+  assert.deepEqual(l.lossy, []);
+  assert.deepEqual(l.state.inference.seqWords, ["chapter", "step"]);
+  assert.deepEqual(l.state.inference.kinds, ["spec", "plan", "readme"]);
+  assert.deepEqual(l.state.inference.kindOrder, ["plan", "spec"]);
+  const stored = organizeFromState(l.state);
+  assert.deepEqual(stored.inference?.seqWords, ["chapter", "step"]);
+  assert.deepEqual(stored.inference?.kinds, ["spec", "plan", "readme"]);
+  assert.deepEqual(stored.inference?.kindOrder, ["plan", "spec"]);
+  // Load back produces the same state.
+  assert.deepEqual(loadOrganize(JSON.parse(JSON.stringify(stored))).state, l.state);
+});
+
+test("folders constants round-trip through store and load", () => {
+  // Custom status and container words store only what differs from defaults.
+  const org = { folders: { statusWords: ["wip", "done"], containerWords: ["shared"] } };
+  const l = loadOrganize(org);
+  assert.deepEqual(l.lossy, []);
+  assert.deepEqual(l.state.folders.statusWords, ["wip", "done"]);
+  assert.deepEqual(l.state.folders.containerWords, ["shared"]);
+  const stored = organizeFromState(l.state);
+  assert.deepEqual(stored.folders?.statusWords, ["wip", "done"]);
+  assert.deepEqual(stored.folders?.containerWords, ["shared"]);
+  assert.deepEqual(loadOrganize(JSON.parse(JSON.stringify(stored))).state, l.state);
+});
+
+test("inference and folders at default values store nothing", () => {
+  // When the user hasn't changed inference or folders, nothing is stored.
+  const s = defaultState();
+  const stored = organizeFromState(s);
+  assert.equal(stored.inference, undefined);
+  assert.equal(stored.folders, undefined);
+});
+
 test("anything that is not an object, and the empty key, give the default state", () => {
   assert.deepEqual(loadOrganize("text"), { state: defaultState(), lossy: [] });
   assert.deepEqual(loadOrganize({}).state, defaultState());

@@ -36,6 +36,17 @@ test("organize: in an over-size folder a numbered family, a stem group and Other
   assert.equal(r.groups.find((g) => g.kind === "other")!.total, 12);
 });
 
+test("organize: a naming prefix is stripped from the file stem, so grouping agrees with the cleaned names", () => {
+  // "ticket" is not a shipped kind word; only the user's naming.prefixes list names it.
+  const input: OrgDoc[] = [
+    ...["a", "b", "c", "d"].map((x) => doc("app", `docs/ticket_search_${x}.md`)),
+    ...Array.from({ length: 12 }, (_v, i) => doc("app", `docs/zz${i}q.md`)),
+  ];
+  const stemOf = (r: ReturnType<typeof run>): string | undefined => r.groups.find((g) => g.kind === "stem")?.id.split(":")[2];
+  assert.equal(stemOf(run(input)), "docs/ticket");
+  assert.equal(stemOf(run(input, { naming: { prefixes: new Set(["ticket"]) } })), "docs/search");
+});
+
 test("organize: an over-size stem group is split by the next word", () => {
   const input = ["invoice", "refund", "tax"].flatMap((p) => Array.from({ length: 6 }, (_v, i) => doc("app", `docs/billing_${p}_${i}.md`)));
   const r = run(input);

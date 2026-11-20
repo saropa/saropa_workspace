@@ -25,6 +25,8 @@ export interface OrgBuilt {
   groupOf: Map<string, GroupView>;
   hubs: Set<string>;
   layouts: Record<string, Layout>;
+  // The documents the engine saw, kept so the Tags editor can re-run the grouping with a draft dictionary.
+  docs: OrgDoc[];
 }
 
 const text = (w: Why): string => l10n(w.key, w.params);
@@ -42,9 +44,9 @@ function organizeCached(docs: OrgDoc[], cfg: BoardConfig, previous: OrgPrevious 
   // The settings go in by content (settingsOf builds fresh arrays), so a Save changes the board without a document change.
   const s = settingsOf(cfg.organize);
   const overrides = overridesOf(cfg.organize);
-  const key = JSON.stringify([docs, cfg.groups, previous, s.tags, s.naming.dates, [...(s.naming.prefixes ?? [])], s.naming.acronyms, overrides]);
+  const key = JSON.stringify([docs, cfg.groups, previous, s.tags, s.naming.dates, [...(s.naming.prefixes ?? [])], s.naming.acronyms, s.kinds, s.seqWords, [...s.statusWords], [...s.containerWords], overrides]);
   if (last?.key !== key) {
-    last = { key, res: organize(docs, s.tags, { manual: cfg.groups, previous, naming: s.naming }, overrides) };
+    last = { key, res: organize(docs, s.tags, { manual: cfg.groups, previous, naming: s.naming, kinds: new Set(s.kinds), seqWords: s.seqWords, statusWords: s.statusWords, containerWords: s.containerWords }, overrides) };
   }
   return last.res;
 }
@@ -134,5 +136,5 @@ export function buildOrg(rows: Classified[], snapshot: ScanSnapshot | undefined,
   }
   const res = organizeCached(docs, cfg, previous);
   const { layout, layouts } = layoutsFor(docs, res);
-  return { groupOf: groupViews(res, layout), hubs: res.hubs, layouts };
+  return { groupOf: groupViews(res, layout), hubs: res.hubs, layouts, docs };
 }

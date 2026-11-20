@@ -33,6 +33,9 @@ export interface Env {
   hubs: Set<string>;
   // Name cleaning under the project's naming settings.
   nameOf: (raw: string) => string;
+  // Custom folder-classification sets; default: the shipped STATUS and CONTAINER sets.
+  statusWords?: ReadonlySet<string>;
+  containerWords?: ReadonlySet<string>;
 }
 
 // A folder in the tree of one project's documents; `n` counts the documents under it.
@@ -49,7 +52,8 @@ export const byKey = (a: OrgDoc, b: OrgDoc): number => (a.key < b.key ? -1 : a.k
 // Builds the name cleaner for the naming settings (the project's, or the shipped ones).
 export const cleanerOf = (n: OrgOptions["naming"] = {}): ((raw: string) => string) => (raw) => cleanName(raw, n.acronyms, n) || raw.trim();
 // The folder of a document without the folders that only hold dates or states.
-export const folderOf = (d: OrgDoc): string => logicalFolders(d.path).join("/");
+// The logical folder path with status and date segments removed; custom `statusSet` threads through.
+export const folderOf = (d: OrgDoc, statusSet?: ReadonlySet<string>): string => logicalFolders(d.path, statusSet).join("/");
 // A key inside a context (a folder path), so the same stem in two folders gives two ids.
 export const scoped = (ctx: string, k: string): string => (ctx ? `${ctx}/${k}` : k);
 
@@ -64,9 +68,10 @@ export function push<K, V>(m: Map<K, V[]>, k: K, v: V): void {
 }
 
 // The folder's own name, or its nearest parent when it is only a container (docs, notes).
-export function folderLabel(folder: string): string {
+// Custom `containerSet` lets the editor's draft constants take effect.
+export function folderLabel(folder: string, containerSet?: ReadonlySet<string>): string {
   const segs = folder.split("/").filter(Boolean);
-  return [...segs].reverse().find((s) => !isContainerOnly(s)) ?? segs[segs.length - 1] ?? "";
+  return [...segs].reverse().find((s) => !isContainerOnly(s, containerSet)) ?? segs[segs.length - 1] ?? "";
 }
 
 // A group of the given kind with a stable id built from the key, never from a member.

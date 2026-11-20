@@ -17,6 +17,8 @@ import type { OrderEntry } from "./orderAsk";
 import type { OrgPrevious } from "./boardOrg";
 import type { ProposalView } from "./boardProposals";
 import type { Layout } from "./org/layout";
+import type { LinkContext } from "./org/linksPreview";
+import type { OrgDoc } from "./org/orgTypes";
 
 // The shapes of the board's view model (what the first screen shows), and the helpers that
 // turn one document or one link into the pieces of the model. buildBoard puts them together.
@@ -187,6 +189,10 @@ export interface SittingsView {
 export interface BoardModel {
   // The group layout of each project (row limits, which groups open), by project id.
   orgLayouts?: Record<string, Layout>;
+  // The documents the grouping engine saw (host only: the board renders server-side, so this never reaches the page).
+  orgDocs?: OrgDoc[];
+  // The link engine's input, for the Tags editor's link-word preview (host only, like orgDocs).
+  linkCtx?: LinkContext;
   projects: BoardProject[];
   chains: ChainStep[][];
   // Every Needs link as resolved, for the Waits on picker (it never reaches the page).

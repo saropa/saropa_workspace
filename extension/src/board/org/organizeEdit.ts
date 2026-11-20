@@ -12,6 +12,8 @@ import {
   KIND_WORD,
   LIMITS,
   PHRASE,
+  SEQ_WORD,
+  STATUS_WORD,
   TagRow,
   cleanRow,
   editOrganize,
@@ -21,7 +23,7 @@ import {
 } from "./organizeEditCore";
 import { Loaded, loadOrganize, organizeFromState } from "./organizeLoad";
 
-export { COLOUR_NAMES, DEFAULT_ACRONYMS, DEFAULT_LINK_PHRASES, DEFAULT_PREFIXES, EFFECTS, ID, LIMITS, WHERES, defaultRow, defaultState, tagOfRow } from "./organizeEditCore";
+export { COLOUR_NAMES, DEFAULT_ACRONYMS, DEFAULT_CONTAINER_WORDS, DEFAULT_KINDS, DEFAULT_KIND_ORDER, DEFAULT_LINK_PHRASES, DEFAULT_PREFIXES, DEFAULT_SEQ_WORDS, DEFAULT_STATUS_WORDS, EFFECTS, ID, LIMITS, WHERES, defaultRow, defaultState, tagOfRow } from "./organizeEditCore";
 export type { EditOutcome, EditorState, TagRow } from "./organizeEditCore";
 export { loadOrganize, organizeFromState, stateFromOrganize } from "./organizeLoad";
 export type { Loaded, LossyPart, OrganizeParts } from "./organizeLoad";
@@ -34,7 +36,7 @@ export type StateCheck = { ok: true; state: EditorState } | { ok: false; problem
 
 // The page's whole state, checked. Anything out of range refuses the whole state.
 export function checkState(raw: unknown): StateCheck {
-  if (!isObject(raw) || !isObject(raw.linkWords) || !isObject(raw.naming)) {
+  if (!isObject(raw) || !isObject(raw.linkWords) || !isObject(raw.naming) || !isObject(raw.inference) || !isObject(raw.folders)) {
     return { ok: false, problem: "shape" };
   }
   if (!strList(raw.tags, LIMITS.tags)) {
@@ -59,17 +61,41 @@ export function checkState(raw: unknown): StateCheck {
   if (typeof dates !== "boolean" || !listProblem(prefixes, LIMITS.prefixes, LIMITS.prefix, (s) => KIND_WORD.test(s)) || !listProblem(acronyms, LIMITS.acronyms, LIMITS.acronym, (s) => ACRONYM.test(s))) {
     return { ok: false, problem: "naming" };
   }
+  // Inference constants: sequence words, document kinds, dependency order.
+  const { seqWords, kinds, kindOrder } = raw.inference;
+  if (!listProblem(seqWords, LIMITS.seqWords, LIMITS.seqWord, (s) => SEQ_WORD.test(s)) || !listProblem(kinds, LIMITS.kinds, LIMITS.kind, (s) => KIND_WORD.test(s)) || !listProblem(kindOrder, LIMITS.kindOrder, LIMITS.kind, (s) => KIND_WORD.test(s))) {
+    return { ok: false, problem: "inference" };
+  }
+  // Folder constants: status words, container words.
+  const { statusWords, containerWords } = raw.folders;
+  if (!listProblem(statusWords, LIMITS.statusWords, LIMITS.statusWord, (s) => STATUS_WORD.test(s)) || !listProblem(containerWords, LIMITS.containerWords, LIMITS.containerWord, (s) => KIND_WORD.test(s))) {
+    return { ok: false, problem: "folders" };
+  }
   const uniq = (l: string[], fold = false): string[] => [...new Map(l.map((s) => [fold ? s.toLowerCase() : s, s])).values()];
-  return { ok: true, state: { tags, linkWords: { off: uniq(off), add: uniq(add) }, naming: { dates, prefixes: uniq(prefixes), acronyms: uniq(acronyms, true) } } };
+  // kindOrder entries must be in the kinds list; unknown entries are silently dropped.
+  const kindsSet = new Set(kinds as string[]);
+  const validKindOrder = (kindOrder as string[]).filter((k) => kindsSet.has(k));
+  return {
+    ok: true,
+    state: {
+      tags,
+      linkWords: { off: uniq(off), add: uniq(add) },
+      naming: { dates, prefixes: uniq(prefixes), acronyms: uniq(acronyms, true) },
+      inference: { seqWords: uniq(seqWords as string[]), kinds: uniq(kinds as string[]), kindOrder: uniq(validKindOrder) },
+      folders: { statusWords: uniq(statusWords as string[]), containerWords: uniq(containerWords as string[]) },
+    },
+  };
 }
 
-const PART_KEYS = ["tags", "linkWords", "naming"] as const;
+const PART_KEYS = ["tags", "linkWords", "naming", "inference", "folders"] as const;
 
 // The keys each part holds that the editor owns; any other key inside a part (from a newer version) stays on a save.
 const OWN_KEYS: Record<(typeof PART_KEYS)[number], readonly string[]> = {
   tags: ["add", "replace", "off", "order"],
   linkWords: ["off", "add"],
   naming: ["dates", "prefixes", "acronyms"],
+  inference: ["seqWords", "kinds", "kindOrder"],
+  folders: ["statusWords", "containerWords"],
 };
 
 // Sets the tags, link words and naming of the file from the state; the other `organize` keys stay, and so do

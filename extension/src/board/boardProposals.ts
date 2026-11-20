@@ -5,7 +5,7 @@ import { ScanSnapshot } from "./scanner";
 import { BoardConfig } from "./types";
 import { BoardItem, factsFor } from "./boardModelParts";
 import { inferLinkProposals } from "./org/linksInfer";
-import type { Confidence } from "./org/linksSignals";
+import type { Confidence, LinkDoc } from "./org/linksSignals";
 import { settingsOf } from "./org/settings";
 import { PatchRow, PatchTarget, checkList } from "./patch";
 
@@ -48,18 +48,25 @@ function fingerprint(parts: Iterable<string>): string {
   return (a >>> 0).toString(36) + (b >>> 0).toString(36);
 }
 
-// Proposals between the open documents. A document that does not read Needs lines (.sql) takes no part.
-// A pair the older dashed suggestions (`offered`) already show is left to them when it is only a
-// mention or a weak guess, whatever the signal; a stronger pair of another signal (a phrase, a
-// sequence) is shown here once, and the caller takes it off the dashed ones.
-export function buildProposals(all: BoardItem[], snapshot: ScanSnapshot | undefined, cfg: BoardConfig, links: Link[], rejected: string[] | undefined, offered: ReadonlySet<string>): ProposalView[] {
-  const phrases = settingsOf(cfg.organize).linkPhrases;
-  const docs = all
+// The open documents as the link engine reads them. Shared by the board's proposals and the Tags editor's
+// link-word preview, so both see the same text and the same exclusions (a document that does not read Needs
+// lines, such as .sql, takes no part).
+export function linkDocsOf(all: readonly BoardItem[], snapshot: ScanSnapshot | undefined): LinkDoc[] {
+  return all
     .filter((it) => readsNeeds(it.path))
     .map((it) => {
       const f = factsFor(snapshot, it.project, it.path);
       return { project: it.project, path: it.path, title: it.title, text: f?.linkText ?? "", ...(f?.linkEarly ? { early: f.linkEarly } : {}) };
     });
+}
+
+// Proposals between the open documents.
+// A pair the older dashed suggestions (`offered`) already show is left to them when it is only a
+// mention or a weak guess, whatever the signal; a stronger pair of another signal (a phrase, a
+// sequence) is shown here once, and the caller takes it off the dashed ones.
+export function buildProposals(all: BoardItem[], snapshot: ScanSnapshot | undefined, cfg: BoardConfig, links: Link[], rejected: string[] | undefined, offered: ReadonlySet<string>): ProposalView[] {
+  const phrases = settingsOf(cfg.organize).linkPhrases;
+  const docs = linkDocsOf(all, snapshot);
   const existing = links.filter((l) => l.toProject && l.toPath);
   const key = fingerprint([
     ...docs.map((d) => `${d.project}\t${d.path}\t${d.title}\t${d.text}\t${d.early ?? 0}`),

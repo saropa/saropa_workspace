@@ -51,10 +51,12 @@ cspell:disable
 Folder-watch alerts can now be dismissed without muting or disabling the watch. [log](https://github.com/saropa/saropa_workspace/blob/vX.Y.Z/CHANGELOG.md)
 
 ### Added
+- Release Board: the Tags editor now exposes five engine constants — sequence tokens, document kinds, kind dependency order, status-folder words and container-folder words — as editable word lists on the Link words and Naming tabs, so the grouping and link engines can be tuned without editing JSON.
 - Folder watches: the new/changed-files alert now has a Dismiss button next to Open. Dismiss clears those files from the unseen count and the activity-bar badge and leaves the watch running, so the next new file still alerts.
 - Folder watches: the alert also has a Mute 1 hour button. The watch keeps detecting files and counting them on the badge, but shows no alerts for an hour, and a message names the watch and the time the mute ends.
 
 ### Fixed
+- Release Board: a word added to the Naming tab's prefixes list now also stops splitting automatic groups, so `ticket_login.md` and `login.md` group together the same way their cleaned names read.
 - Release Board: a few tooltips and labels now use the American spelling "color".
 - Release Board: a document's Needs lines inside a `~~~` fenced block are now skipped the same way as inside a backtick fence, so the reader, the editor and the patch writer agree on which lines count. An unclosed fence now hides the rest of the document from the reader.
 - Release Board: Restore defaults for the severity keywords now offers Undo, so a restore that wiped a customized keyword list can be reverted from the board's Undo bar.
@@ -62,6 +64,8 @@ Folder-watch alerts can now be dismissed without muting or disabling the watch. 
 - Release Board: the Future tab and the Tidy sweep now refuse to change or move a document that is a symbolic link, or whose destination folder is one, and say so by name.
 - Release Board: a new bug document is no longer written when the project's bugs folder is, or sits inside, a symbolic link; the folder is named in the warning.
 - Use as Template now refuses to create the copy when the file's folder is a symbolic link, and names the new file in the warning.
+- Release Board: the Tags editor's test-match preview now shows which group each tag's documents land in, and how many documents saving the draft would move to another group.
+- Release Board: the Tags editor's Link words tab now previews the links the draft words would propose from the open documents (the strongest few, with the reason and the total), so a phrase can be checked before it is saved.
 - Release Board: moving a document to another group through a patch now behaves like dragging it on the board. Emptied groups stay, an `ungrouped` entry is removed, and a move into the same group is reported as no change.
 
 ## [2.8.0]

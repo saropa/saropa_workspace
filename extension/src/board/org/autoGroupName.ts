@@ -19,7 +19,7 @@ function splitOver(env: Env, g: G, ctx: string): { parts: G[]; released: OrgDoc[
     return w && w.length >= 3 && !KIND.has(w) ? w : undefined;
   };
   const signals: Array<{ sep: string; of: (d: OrgDoc) => string | undefined; label: (b: string) => string }> = [
-    { sep: "/", of: (d) => logicalFolders(d.path)[depth], label: env.nameOf },
+    { sep: "/", of: (d) => logicalFolders(d.path, env.statusWords)[depth], label: env.nameOf },
     { sep: "+", of: wordAt, label: env.nameOf },
     { sep: "#", of: topTag, label: (b) => env.tagById.get(b)?.label ?? b },
   ];
@@ -92,7 +92,7 @@ function sequenceFamilies({ env, add, loose }: Layer): void {
   for (const d of loose()) {
     const t = env.tok.get(d.key)!;
     if (t.seq && t.stem) {
-      push(fam, folderOf(d) + "\t" + t.stem, d);
+      push(fam, folderOf(d, env.statusWords) + "\t" + t.stem, d);
     }
   }
   for (const [k, list] of [...fam].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
@@ -108,7 +108,7 @@ function sequenceFamilies({ env, add, loose }: Layer): void {
     if (same.length < 2) {
       continue;
     }
-    const plain = loose().filter((d) => !env.tok.get(d.key)!.seq && env.tok.get(d.key)!.stem === stem && folderOf(d) === folder);
+    const plain = loose().filter((d) => !env.tok.get(d.key)!.seq && env.tok.get(d.key)!.stem === stem && folderOf(d, env.statusWords) === folder);
     const ns = same.map((d) => env.tok.get(d.key)!.seq!.n);
     const name = env.nameOf(stem.replace(/_/g, " "));
     const g = make("seq", env, scoped(folder, stem), stem, name, folder, [...same, ...plain], why("sequence", { stem, count: same.length + plain.length }));

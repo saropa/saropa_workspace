@@ -37,10 +37,23 @@ export interface Candidate {
   why: LinkWhy;
 }
 
-const KINDS = ["plan", "spec", "bug", "issue", "handover", "owner", "adr", "rfc", "research", "design", "impl", "test", "release", "notes", "draft", "report", "guide"];
+// Document-type words the engine recognizes; exported so the editor can offer them as defaults.
+export const DEFAULT_KINDS: readonly string[] = ["plan", "spec", "bug", "issue", "handover", "owner", "adr", "rfc", "research", "design", "impl", "test", "release", "notes", "draft", "report", "guide"];
 // Kinds that have a natural order; a later one waits on an earlier one.
-const KIND_ORDER = ["research", "design", "spec", "rfc", "adr", "plan", "impl", "test", "release"];
-const SEQ_RE = /(?:^|[-_. ])(phase|part|pt|step|stage|v|m)[-_ ]?(\d{1,3}(?:\.\d{1,3})*|[a-z])(?=$|[-_. ])/;
+export const DEFAULT_KIND_ORDER: readonly string[] = ["research", "design", "spec", "rfc", "adr", "plan", "impl", "test", "release"];
+// The word part of sequence tokens; exported so the editor can let users add domain-specific words (e.g. "chapter").
+export const DEFAULT_SEQ_WORDS: readonly string[] = ["phase", "part", "pt", "step", "stage", "v", "m"];
+
+// Builds the sequence regex from the word list so custom words are recognized the same way as shipped ones.
+export function seqRegex(words: readonly string[]): RegExp {
+  if (words.length === 0) {
+    // No words: return a regex that never matches.
+    return /(?!)/;
+  }
+  return new RegExp(`(?:^|[-_. ])(${words.join("|")})[-_ ]?(\\d{1,3}(?:\\.\\d{1,3})*|[a-z])(?=$|[-_. ])`);
+}
+
+const SEQ_RE = seqRegex(DEFAULT_SEQ_WORDS);
 
 
 // A document's name read as folder, sequence token, kind and stem.
@@ -55,15 +68,24 @@ export interface NameParts {
   seq?: { word: string; parts: number[]; label: string };
 }
 
+// Options that customize which words the signal engines recognize; default: the shipped constants.
+export interface SignalOptions {
+  phrases?: readonly string[];
+  seqWords?: readonly string[];
+  kinds?: readonly string[];
+  kindOrder?: readonly string[];
+}
+
 // Strips the date, splits camel case and pulls out the sequence token and kind once, so every signal compares the same normalized name.
-export function parseName(path: string): NameParts {
+// Custom `kinds` and `seqRe` let the editor's draft constants take effect without changing the shipped defaults.
+export function parseName(path: string, kinds: readonly string[] = DEFAULT_KINDS, seqRe: RegExp = SEQ_RE): NameParts {
   const slash = path.lastIndexOf("/");
   const folder = slash < 0 ? "" : path.slice(0, slash);
   let base = path.slice(slash + 1).replace(/\.[^.]*$/, "");
   base = base.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
   base = base.replace(/^(?:\d{8}|\d{4}[-_]\d{2}[-_]\d{2})[-_ ]*/, "");
   let seq: NameParts["seq"];
-  const m = SEQ_RE.exec(base);
+  const m = seqRe.exec(base);
   if (m && (/\d/.test(m[2]) || m[1] === "part")) {
     const word = m[1] === "pt" ? "part" : m[1];
     const num = /\d/.test(m[2]);
@@ -71,7 +93,7 @@ export function parseName(path: string): NameParts {
     base = base.slice(0, m.index) + " " + base.slice(m.index + m[0].length);
   }
   const tokens = base.split(/[-_. ]+/).filter(Boolean);
-  const kind = tokens.find((t) => KINDS.includes(t));
+  const kind = tokens.find((t) => kinds.includes(t));
   return {
     folder,
     full: tokens.join(" "),
@@ -133,10 +155,11 @@ export function sequenceSignals(docs: LinkDoc[], names: NameParts[]): Candidate[
 }
 
 // The same subject in two kinds of document (a spec and a plan): the later kind waits.
-export function stemSignals(docs: LinkDoc[], names: NameParts[]): Candidate[] {
+// Custom `kindOrder` lets the editor's draft constants override the shipped dependency chain.
+export function stemSignals(docs: LinkDoc[], names: NameParts[], kindOrder: readonly string[] = DEFAULT_KIND_ORDER): Candidate[] {
   const groups = new Map<string, number[]>();
   names.forEach((n, i) => {
-    if (n.kind && KIND_ORDER.includes(n.kind) && !n.seq && n.bare.length >= 3) {
+    if (n.kind && kindOrder.includes(n.kind) && !n.seq && n.bare.length >= 3) {
       push(groups, docs[i].project + "\t" + n.bare, i);
     }
   });
@@ -147,7 +170,7 @@ export function stemSignals(docs: LinkDoc[], names: NameParts[]): Candidate[] {
     if (members.length < 2 || kinds.size !== members.length) {
       continue;
     }
-    members.sort((a, b) => KIND_ORDER.indexOf(names[a].kind!) - KIND_ORDER.indexOf(names[b].kind!));
+    members.sort((a, b) => kindOrder.indexOf(names[a].kind!) - kindOrder.indexOf(names[b].kind!));
     for (let k = 1; k < members.length; k++) {
       out.push({
         from: members[k],
@@ -243,10 +266,12 @@ export function mentionSignals(docs: LinkDoc[], resolver: Resolver): Candidate[]
   return out;
 }
 
-// Every candidate from every signal.
-export function allSignals(docs: LinkDoc[], phrases?: readonly string[]): Candidate[] {
-  const names = docs.map((d) => parseName(d.path));
+// Every candidate from every signal. Custom constants in `opt` let the editor preview with draft values.
+export function allSignals(docs: LinkDoc[], phrases?: readonly string[], opt?: SignalOptions): Candidate[] {
+  const kinds = opt?.kinds ?? DEFAULT_KINDS;
+  const seqRe = opt?.seqWords ? seqRegex(opt.seqWords) : SEQ_RE;
+  const names = docs.map((d) => parseName(d.path, kinds, seqRe));
   const resolver = new Resolver(docs);
-  return [...phraseSignals(docs, resolver, phrases), ...sequenceSignals(docs, names), ...stemSignals(docs, names), ...mentionSignals(docs, resolver)];
+  return [...phraseSignals(docs, resolver, opt?.phrases ?? phrases), ...sequenceSignals(docs, names), ...stemSignals(docs, names, opt?.kindOrder), ...mentionSignals(docs, resolver)];
 }
 

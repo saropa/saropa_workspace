@@ -3,6 +3,10 @@ import * as vscode from "vscode";
 import { BoardItem } from "../board/boardModel";
 import { TagsTab, renderTagsEditor } from "../board/tagsEditorHtml";
 import { EditorState, LIMITS, checkState, exportText, importDiff, namingPreview, parseImport, testMatch } from "../board/org/organizeEdit";
+import { LinkContext, previewLinks } from "../board/org/linksPreview";
+import type { OrgDoc } from "../board/org/orgTypes";
+import { groupLanding } from "../board/org/organizeLanding";
+import { overridesOf, settingsOf } from "../board/org/settings";
 import { Profile, SeverityDict } from "../board/severity";
 import { BoardConfig } from "../board/types";
 import { RULES_FILE } from "../commands/boardConfigLoad";
@@ -22,6 +26,10 @@ export interface BoardView {
   items: readonly BoardItem[];
   projectNames: ReadonlyMap<string, string>;
   profile: Profile;
+  // The documents the grouping engine saw; absent when the board has not grouped yet.
+  orgDocs?: readonly OrgDoc[];
+  // The link engine's input; absent when the board has not been built yet.
+  linkCtx?: LinkContext;
 }
 
 // What the Tags editor needs from the board that opened it, plus the callback that refreshes the board after a save.
@@ -199,7 +207,25 @@ class TagsEditorPanel {
       this.post({ type: "invalid", seq, problem: checked.problem });
       return;
     }
-    this.post({ type: "preview", seq, result: testMatch(this.input.items, checked.state.tags), naming: namingPreview(this.input.items, checked.state.naming) });
+    // The landing needs the engine's documents; a board that has not grouped yet simply shows no landing.
+    const landing = this.input.orgDocs
+      ? groupLanding(this.input.orgDocs, this.expected, checked.state, { manual: this.input.cfg.groups, overrides: overridesOf(this.input.cfg.organize) })
+      : undefined;
+    this.post({ type: "preview", seq, result: testMatch(this.input.items, checked.state.tags), naming: namingPreview(this.input.items, checked.state.naming), landing: landing?.byTag ?? {}, moved: landing?.moved ?? -1, links: this.linkPreview(checked.state) });
+  }
+
+  // The links the draft's phrases would propose, as words (the engine's reason text, document titles); no paths
+  // leave the host. Null when the board has not been built yet, so the page shows the wait line.
+  private linkPreview(draft: EditorState): { total: number; rows: { from: string; to: string; confidence: string; why: string }[] } | null {
+    if (!this.input.linkCtx) {
+      return null;
+    }
+    const titles = new Map(this.input.linkCtx.docs.map((d) => [`${d.project}\t${d.path}`, d.title || d.path.slice(d.path.lastIndexOf("/") + 1)]));
+    // Thread the draft inference constants so the preview reflects changes to sequence words, kinds, and kind order.
+    const s = settingsOf({ linkWords: draft.linkWords, inference: draft.inference, folders: draft.folders });
+    const found = previewLinks(this.input.linkCtx, s.linkPhrases, { seqWords: s.seqWords, kinds: s.kinds, kindOrder: s.kindOrder });
+    const name = (project: string, path: string): string => titles.get(`${project}\t${path}`) ?? path;
+    return { total: found.total, rows: found.rows.map((p) => ({ from: name(p.fromProject, p.fromPath), to: name(p.toProject, p.toPath), confidence: p.confidence, why: l10n(p.why.key, p.why.params) })) };
   }
 
   private async save(raw: unknown): Promise<void> {

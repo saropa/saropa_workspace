@@ -13,12 +13,12 @@ import { dedupNames } from "./naming";
 import type { OrgDoc, OrgGroup, OrgOptions, OrgResult, OrgSource } from "./orgTypes";
 import { OrganizeConfig, resolveByPrecedence } from "./overrides";
 import { CompiledTags, TagDef, compileTags, hasEffect, matchTags, subjectOf } from "./tags";
-import { fileTokens, logicalFolders, splitWords, stemWord } from "./tokens";
+import { KIND, fileTokens, logicalFolders, splitWords, stemWord } from "./tokens";
 
 
 // The leftovers of an over-size level: one "Other" group once there are more than MAX, else loose rows.
 function other(env: Env, rest: OrgDoc[], folder: string): G {
-  const label = folderLabel(folder);
+  const label = folderLabel(folder, env.containerWords);
   const g = make("other", env, folder, label, label === "" ? "" : env.nameOf(label), folder, rest, why("other", { folder: label }, "low"));
   g.oversize = rest.length > env.layout.max;
   return g;
@@ -29,7 +29,7 @@ function buildTree(env: Env, docs: OrgDoc[]): { groups: G[]; loose: OrgDoc[] } {
   const root: Node = { segs: [], docs: [], kids: new Map(), n: 0 };
   for (const d of docs) {
     let node = root;
-    const segs = logicalFolders(d.path);
+    const segs = logicalFolders(d.path, env.statusWords);
     segs.forEach((s, i) => {
       node = node.kids.get(s) ?? node.kids.set(s, { segs: segs.slice(0, i + 1), docs: [], kids: new Map(), n: 0 }).get(s)!;
     });
@@ -58,7 +58,7 @@ function buildTree(env: Env, docs: OrgDoc[]): { groups: G[]; loose: OrgDoc[] } {
     if (node.n < min) {
       return { groups: [], loose: all(node) };
     }
-    const label = folderLabel(folder);
+    const label = folderLabel(folder, env.containerWords);
     const folderGroup = (docsIn: OrgDoc[]): G => make("folder", env, folder, label, env.nameOf(label), folder, docsIn, why("folder", { folder, count: node.n }));
     if (node.n <= max) {
       return { groups: [folderGroup(all(node))], loose: [] };
@@ -119,7 +119,11 @@ export function organize(input: OrgDoc[], tags: TagDef[], opt: OrgOptions = {}, 
   const untag = new Set((cfg.untag ?? []).map((u) => `${u.project}\t${slashed(u.path)}\t${u.tag.toLowerCase()}`));
   const known = new Set(tags.flatMap((t) => [t.id.toLowerCase(), t.label.toLowerCase()]));
   const unknownTags = docs.flatMap((d) => (d.tags ?? []).filter((n) => !known.has(n.toLowerCase())).map((tag) => ({ key: d.key, tag })));
-  const tok = new Map(docs.map((d) => [d.key, fileTokens(d.path)]));
+  // Grouping strips leading document-kind words from the stem. naming.prefixes is the user's list of such words, so it
+  // must strip here too; otherwise a prefix added in the editor cleaned display names but still split "ticket_login" from
+  // "login" into separate stem groups. The union keeps the kinds list in force (fileTokens reads one set for both).
+  const strip = opt.naming?.prefixes && opt.naming.prefixes.size > 0 ? new Set([...(opt.kinds ?? KIND), ...opt.naming.prefixes]) : opt.kinds;
+  const tok = new Map(docs.map((d) => [d.key, fileTokens(d.path, strip, opt.seqWords)]));
   const matches = new Map(
     docs.map((d) => [d.key, matchTags(subjectOf(d.path, d.title), compiled, d.tags).filter((m) => !untag.has(`${d.project}\t${d.path}\t${m.tagId.toLowerCase()}`))]),
   );
@@ -163,7 +167,7 @@ export function organize(input: OrgDoc[], tags: TagDef[], opt: OrgOptions = {}, 
   for (const project of projects) {
     const mine = docs.filter((d) => d.project === project);
     result.layouts[project] = { band: layout.band, min: layout.min, max: layout.max };
-    const env: Env = { project, layout, tok, matches, tagById, hubs, nameOf };
+    const env: Env = { project, layout, tok, matches, tagById, hubs, nameOf, statusWords: opt.statusWords, containerWords: opt.containerWords };
     const pool = poolOf.get(project) ?? [];
 
     const tree = buildTree(env, pool);

@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_ACRONYMS, DEFAULT_LINK_PHRASES, DEFAULT_PREFIXES } from "../../../board/org/organizeEdit";
+import { DEFAULT_ACRONYMS, DEFAULT_CONTAINER_WORDS, DEFAULT_KINDS, DEFAULT_KIND_ORDER, DEFAULT_LINK_PHRASES, DEFAULT_PREFIXES, DEFAULT_SEQ_WORDS, DEFAULT_STATUS_WORDS } from "../../../board/org/organizeEdit";
 import { matchedTagIds, overridesOf, settingsOf } from "../../../board/org/settings";
 import { DEFAULT_TAGS } from "../../../board/org/tags";
 
@@ -68,6 +68,32 @@ test("settingsOf: a naming value of the wrong kind keeps its default", () => {
   assert.equal(n.dates, true);
   // An upper-case prefix fails the word check, so the whole list is ignored.
   assert.deepEqual([...(n.prefixes ?? [])].sort(), [...DEFAULT_PREFIXES].sort());
+});
+
+test("settingsOf: no organize key gives shipped inference and folder constants", () => {
+  const s = settingsOf(undefined);
+  assert.deepEqual(s.seqWords, [...DEFAULT_SEQ_WORDS]);
+  assert.deepEqual(s.kinds, [...DEFAULT_KINDS]);
+  assert.deepEqual(s.kindOrder, [...DEFAULT_KIND_ORDER]);
+  assert.deepEqual([...s.statusWords].sort(), [...DEFAULT_STATUS_WORDS].sort());
+  assert.deepEqual([...s.containerWords].sort(), [...DEFAULT_CONTAINER_WORDS].sort());
+});
+
+test("settingsOf: custom inference constants are threaded through", () => {
+  // A rules file with custom sequence words and kinds exposes them in the settings.
+  const s = settingsOf({ inference: { seqWords: ["chapter"], kinds: ["spec"], kindOrder: ["spec"] } });
+  assert.deepEqual(s.seqWords, ["chapter"]);
+  assert.deepEqual(s.kinds, ["spec"]);
+  assert.deepEqual(s.kindOrder, ["spec"]);
+});
+
+test("settingsOf: custom folder constants are threaded through as sets", () => {
+  // A rules file with custom status and container words produces the right sets.
+  const s = settingsOf({ folders: { statusWords: ["wip"], containerWords: ["shared"] } });
+  assert.ok(s.statusWords.has("wip"));
+  assert.equal(s.statusWords.size, 1);
+  assert.ok(s.containerWords.has("shared"));
+  assert.equal(s.containerWords.size, 1);
 });
 
 const empty = { groups: {}, assign: [], untag: [] };
