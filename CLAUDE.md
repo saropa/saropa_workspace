@@ -42,3 +42,9 @@
   only when the brief allows it. The owner runs the full suite.
 - Never resume a stopped agent without first checking its worktree state
   (`git status`, `git diff --stat`) and reporting it to the owner.
+
+# Changelog
+
+- The only changelog to edit is the repo-root `CHANGELOG.md`. Every change that
+  users can see gets an `[Unreleased]` entry there in the same PR. Never edit
+  `extension/CHANGELOG.md`; it is a generated copy.
