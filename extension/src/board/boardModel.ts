@@ -5,7 +5,7 @@ import { customizedParts } from "./severityEdit";
 import { SafetyResult } from "./safety";
 import { orderLists } from "./boardOrder";
 import { buildOrg } from "./boardOrg";
-import { buildProposals } from "./boardProposals";
+import { buildProposals, linkDocsOf } from "./boardProposals";
 import { mergeNeeds, stepMinutes, stepNeeds } from "./needs";
 import { Link, resolveLinks } from "./links";
 import { OrgSettings, settingsOf } from "./org/settings";
@@ -234,6 +234,35 @@ function makeContext(cfg: BoardConfig, rows: Classified[], accepted: boolean, sn
   };
 }
 
+// The open workspace's projects first, then the extra ones; importance orders within each.
+function orderedDefs(cfg: BoardConfig): ProjectDef[] {
+  return [...cfg.projects].sort((a, b) => Number(a.extra === true) - Number(b.extra === true) || (IMPORTANCE[a.importance ?? "normal"] ?? 1) - (IMPORTANCE[b.importance ?? "normal"] ?? 1));
+}
+
+// Dashed suggestions and solid proposals together: a proposal needs the suggestion keys to
+// avoid duplicating them, and a pair shown as a proposal is dropped from the dashed list.
+function suggestionsAndProposals(
+  all: BoardItem[],
+  links: Link[],
+  byKey: Map<string, BoardItem>,
+  names: Map<string, string>,
+  cfg: BoardConfig,
+  snapshot: ScanSnapshot | undefined,
+  extra: BoardExtra | undefined
+): { suggestions: ReturnType<typeof buildSuggestions>; proposals: ReturnType<typeof buildProposals> } {
+  const dashed = buildSuggestions(all, links, byKey, names, snapshot, extra?.rejected);
+  const proposals = buildProposals(all, snapshot, cfg, links, extra?.rejected, new Set(dashed.map((s) => s.key)));
+  const proposed = new Set(proposals.map((p) => p.key));
+  return { suggestions: dashed.filter((s) => !proposed.has(s.key)), proposals };
+}
+
+// Targets whose work is finished, titled from the scan when it knows the document. Reference
+// documents are excluded by the callback because they are never "done".
+function finishedOf(links: Link[], rows: Classified[], snapshot: ScanSnapshot | undefined): ReturnType<typeof finishedTargets> {
+  const reference = new Set(rows.filter((r) => r.status === "reference").map((r) => r.project + "	" + r.path));
+  return finishedTargets(links, (project, path) => factsFor(snapshot, project, path)?.title || titleFromPath(path), (project, path) => reference.has(project + "	" + path));
+}
+
 // Builds the board model from the classified rows, the safety verdict, the accepted flag and the optional evidence.
 export function buildBoard(
   cfg: BoardConfig,
@@ -247,9 +276,7 @@ export function buildBoard(
 ): BoardModel {
   const all: BoardItem[] = [];
   const ctx = makeContext(cfg, rows, accepted, snapshot, previous, health, extra);
-  // The open workspace's projects first, then the extra ones; importance orders within each.
-  const defs: ProjectDef[] = [...cfg.projects].sort((a, b) => Number(a.extra === true) - Number(b.extra === true) || (IMPORTANCE[a.importance ?? "normal"] ?? 1) - (IMPORTANCE[b.importance ?? "normal"] ?? 1));
-  const projects = defs.map((def) => buildProject(def, ctx, all));
+  const projects = orderedDefs(cfg).map((def) => buildProject(def, ctx, all));
   // Groups, linkages and chains need every open item, so they are computed once all
   // projects are built.
   const order = orderLists(cfg.order);
@@ -260,16 +287,11 @@ export function buildBoard(
   attachLinks(all, links, grouping, byKey);
   attachOrder(projects, all, extra?.order);
   flagMakeDep(all, links);
-  const dashed = buildSuggestions(all, links, byKey, ctx.names, snapshot, extra?.rejected);
-  const proposals = buildProposals(all, snapshot, cfg, links, extra?.rejected, new Set(dashed.map((s) => s.key)));
-  // A pair shown as a proposal is not shown again as a dashed suggestion.
-  const proposed = new Set(proposals.map((p) => p.key));
-  const suggestions = dashed.filter((s) => !proposed.has(s.key));
+  const { suggestions, proposals } = suggestionsAndProposals(all, links, byKey, ctx.names, cfg, snapshot, extra);
   attachChats(all, extra?.outside);
   const liveUnnamed = extra?.live ? attachLive(all, ctx, extra.live) : undefined;
   const customParts = customizedParts(cfg.severity);
-  const reference = new Set(rows.filter((r) => r.status === "reference").map((r) => r.project + "\t" + r.path));
-  const finished = finishedTargets(links, (project, path) => factsFor(snapshot, project, path)?.title || titleFromPath(path), (project, path) => reference.has(project + "\t" + path));
+  const finished = finishedOf(links, rows, snapshot);
   return {
     tidy: extra?.tidy ? buildTidyView(all, ctx, extra.tidy) : undefined,
     inProgress: extra?.inProgress ? pickInProgress(all, new Set(extra.inProgress.edited), extra.inProgress.max) : undefined,
@@ -277,6 +299,8 @@ export function buildBoard(
     sittings: extra?.sittings ? sittingsView(cfg, rows, snapshot, byKey, extra.sittings) : undefined,
     projects,
     orgLayouts: grouping.layouts,
+    orgDocs: grouping.docs,
+    linkCtx: { docs: linkDocsOf(all, snapshot), existing: links.filter((l) => l.toProject && l.toPath), rejected: extra?.rejected ?? [] },
     ...(finished.length > 0 ? { finished } : {}),
     ...(cfg.skipped && cfg.skipped.length > 0 ? { skipped: cfg.skipped } : {}),
     ...(cfg.hidden && cfg.hidden > 0 ? { hidden: cfg.hidden } : {}),
