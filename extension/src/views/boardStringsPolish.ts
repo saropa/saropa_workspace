@@ -140,6 +140,7 @@ export const POLISH_KEYS = [
   "fpRemove",
   "fpClear",
   "fpClearTip",
+  // The chat hand-off indicator: whether a chat is active, and the pause and resume controls.
   "chatActive",
   "chatActiveTip",
   "chatPause",
@@ -182,6 +183,7 @@ export const POLISH_KEYS = [
   "stepDoc",
   "stepNeeds",
   "untagged",
+  // Tidy rows: moving documents out of place and the report of what moved.
   "tidyRow",
   "tidyMove",
   "tidyReportRow",
@@ -189,6 +191,7 @@ export const POLISH_KEYS = [
   "liveRow",
   "liveStart",
   "liveHeading",
+  // Documents with no rule: the heading, the row, and the assign and preview actions with their counts.
   "noRuleHeading",
   "noRuleRow",
   "noRuleAssign",
@@ -196,6 +199,7 @@ export const POLISH_KEYS = [
   "noRulePreview",
   "noRulePreviewTip",
   "noRuleCount",
+  // Row limits: the show-more control and the strip that counts the rows left hidden.
   "showMore",
   "showMoreTip",
   "rowsShown",

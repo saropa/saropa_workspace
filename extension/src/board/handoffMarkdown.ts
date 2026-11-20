@@ -3,6 +3,7 @@ import { oneLine } from "./futureBlock";
 
 // A fence longer than any run of backticks in the text, so the text cannot close it.
 function fenceFor(text: string): string {
+  // Document text may itself contain code fences; a fixed three-backtick fence would let it close early and turn the rest into instructions.
   const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((r) => r.length));
   return "`".repeat(Math.max(3, longest + 1));
 }
@@ -23,6 +24,7 @@ const COMMON = [
 
 // The instructions for one task kind. Tasks that change nothing say so first, because the safe default for a reader is to leave files alone.
 function preamble(task: HandoffTask, date: string): string[] {
+  // A Record over every task kind makes a new kind a compile error here until its rules are written, so no task ships without instructions.
   const rules: Record<HandoffTask, string[]> = {
     fix: [
       "Work through the items in the given order. Read each file first, then make the change and tick the checklist step you finished.",
@@ -62,6 +64,7 @@ function itemBlock(it: HandoffInput["items"][number], i: number, task: HandoffTa
   if (facts.length > 0) {
     out.push(`- ${facts.join(" · ")}`);
   }
+  // `blocks` is undefined when the board did not judge the item at all, which differs from a judged "no", so the line is skipped rather than guessed.
   if (it.blocks !== undefined) {
     out.push(`- Blocks the release: ${it.blocks ? `yes (${it.why})` : "no"}`);
   }
@@ -94,6 +97,7 @@ function itemBlock(it: HandoffInput["items"][number], i: number, task: HandoffTa
 // Why: one project's heading, light, evidence and its items, split out so the document builder stays under the 50-line limit.
 function projectBlock(p: HandoffInput["projects"][number], inp: HandoffInput): string[] {
   const out: string[] = ["", `## Project: ${code(p.id)}`, `- Folder: ${code(p.root)}`];
+  // The light and its reasons give the reader the project's release state up front, so it can weigh the items against it.
   if (p.light) {
     out.push(`- Light: ${p.light}${p.reasons && p.reasons.length > 0 ? ` (${p.reasons.join(", ")})` : ""}`);
   }
@@ -116,6 +120,7 @@ export function markdown(inp: HandoffInput): string {
   const title = inp.task[0].toUpperCase() + inp.task.slice(1);
   const n = inp.items.length;
   const out = [`# Release Board hand-off: ${title}`, `Hand-off id: ${inp.id} · ${inp.profile ? `Profile: ${inp.profile} · ` : ""}${n} item${n === 1 ? "" : "s"}`, "", "## Instructions", ...preamble(inp.task, inp.date).map((r) => `- ${r}`)];
+  // One section per project, in the order the board passed them, so the reader sees the same order as the board.
   for (const p of inp.projects) {
     out.push(...projectBlock(p, inp));
   }

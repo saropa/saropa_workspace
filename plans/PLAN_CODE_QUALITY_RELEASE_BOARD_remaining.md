@@ -10,9 +10,9 @@ Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 <!-- quality-table:start -->
 | File | Now | Target | Plan |
 |---|---|---|---|
-| commands/boardRuleAssign.ts | 369 | under 330 | trim by moving the remaining helpers next to `boardRuleText.ts` / `boardRuleUndo.ts`; split `applyTextChangeNow` into check-unsaved and write-and-verify |
+| commands/boardRuleAssign.ts | 276 | under 330 | trim by moving the remaining helpers next to `boardRuleText.ts` / `boardRuleUndo.ts`; split `applyTextChangeNow` into check-unsaved and write-and-verify |
 | views/boardPanelCore.ts | 432 | under 390 | move `refreshEdited` / `scheduleEdited` / `refreshOutside` to a helper class, or leave (decision D3) |
-| board/boardModel.ts | 301 | under 390 | create `boardModelLinks.ts` for the `attach*` / `build*` helpers and split `buildBoard` into `makeContext` and the assembly; widest fan-in (35 importers), do last |
+| board/boardModel.ts | 302 | under 390 | create `boardModelLinks.ts` for the `attach*` / `build*` helpers and split `buildBoard` into `makeContext` and the assembly; widest fan-in (35 importers), do last |
 <!-- quality-table:end -->
 
 - Refresh the Now column with `python3 scripts/plan_quality_table.py --write`, then re-run `python3 scripts/audit.py --quality --strict`; line ranges and function lengths in the archived plan are pre-extraction and no longer match.
@@ -29,7 +29,7 @@ Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 
 ## 2. Phase 2: documentation
 
-Metric today: exports documented 2348 of 2355 (99.7%); 7 undocumented, all in files with in-flight edits.
+Metric today: the nine exports the gate listed (boardHtmlMenus `item` and `pillMenus`, linksPreview `LinkPreview`, organizeLanding `Landing`, scanner `FailedProject`, types `GroupBy` and `GanttLayout`, boardGroupOps `GroupOpAct` and `isGroupOpAct`) now carry a doc comment; the gate was not re-run after the edit, so the count is unverified. Low-comment files `views/boardStringsPolish.ts` (0.8%) and `board/handoffMarkdown.ts` (4.5%) now carry more WHY comments; the gate was not re-run, so the percentages are unverified.
 
 ### What a good doc comment looks like here (house style)
 
@@ -66,6 +66,8 @@ Metric today: exports documented 2348 of 2355 (99.7%); 7 undocumented, all in fi
 
 ### Group A: pure logic first (highest value, no host needed)
 
+Status: every module named below already has a same-name test file (checked by listing `src/test`); the bullets describe behavior to confirm, not missing files. Not checked: whether each test covers every behavior listed.
+
 - `board/ganttModel.ts`: row ordering, date-span and clamping on empty and single-item input; same input gives same output.
 - `board/boardProposals.ts`: which proposals are offered, rejected keys are excluded, ordering is stable.
 - `board/org/layout.ts`: band and MAX stability against `OrgPrevious` (layouts stay stable between runs; a changed group count moves bands as designed).
@@ -77,6 +79,8 @@ Metric today: exports documented 2348 of 2355 (99.7%); 7 undocumented, all in fi
 - Small pure ones in the same batch: `board/placement.ts`, `board/reportSignals.ts`, `board/org/naming.ts`, `board/org/tags.ts`, `board/org/settings.ts`, `board/org/overrides.ts`, `board/org/orgTypes.ts` (types only: exempt, see D5), `board/patchApply.ts`.
 
 ### Group B: page-script and HTML modules (headless render)
+
+Done so far, all written and not run: `test/board/ruleHide.test.ts` (hideDoc, isHidden), `docSteps.test.ts` (headingText), `boardHtmlPartsEdges.test.ts` (edge cases for Handoff, Projects, Chats), `boardWebviewFixture.test.ts`, `keywordEditorHtml.test.ts`, `keywordStrings.test.ts`. Already covered by earlier tests, no new file needed: `boardHtmlDrag` (`boardHtmlDragPage.test.ts`), `boardHtmlMenus` (`boardMenusAria.test.ts`), the page scripts of `boardHtmlHandoff`, `boardHtmlProjects`, `boardHtmlChats`, and `keywordEditorAssets`, `tagsEditorHtml/Assets` (via `keywordEditor.test.ts`, `tagsEditorPage.test.ts`). Also written, not run: `boardModelLinks.test.ts`, `boardGanttStrips.test.ts`, `ruleTextEdit.test.ts`, `severityPreviewAcc.test.ts`, `org/linksPhrase.test.ts`, `org/autoGroupTypes.test.ts`, `org/organizeEditCore.test.ts`. Already covered by earlier tests: `blockersAsk`, `gitIgnored`, `orderAsk`, `docNeeds`, `scanFacts`, `handoffMarkdown`, `severityDraft`, `severityText`, `ruleSeverity`, `org/{organizeOverrides,organizePreview,organizeLoad,linksSignals}`. Moved to Group C (import vscode): `exec/feedJobs`, `exec/schedulerFire`. Type-only, exempt (D5): `model/shortcutAction`, `model/shortcutExec`. `org/autoGroupName.test.ts` drives `nameLayer` directly through a hand-built `Env` (20 tests, run alone: 20 pass).
 
 - Approach already in the repo: `src/test/_stub/fakeDom*.ts` with a fixture per webview (`launcherWebviewFixture.ts`, `plannerWebviewFixture.ts`, `dashboardWebviewFixture.ts`) and tests such as `launcherScriptFolded.test.ts`. Build a `boardWebviewFixture.ts` the same way (render `renderBoard`, load the page script into the fake DOM, collect posted messages).
 - `boardHtmlDrag.ts`: dragging a row onto a band posts a `drop` message with ids only; Alt+Up/Down posts a keyboard move; a drag with no valid target posts nothing.
@@ -142,3 +146,30 @@ D1 and D2 are closed (Phase 0 only before release, extractions A and B as two co
 - D7. Closed: the four checks are `check-types`, `lint`, `build`, `test`; the owner runs `test`.
 - D8. Closed: order by risk, lowest first.
 - D9. Closed: doc comments in the same commit as each move.
+
+## 7. Leftovers folded from the deferred file
+
+Source: `plans/deferred/20261027_release_board_leftovers.md` (status 2026-10-27). Folded here as open items; nothing in this section is started.
+
+Code, actionable:
+
+- [ ] L1. Audit slot count: `scripts/audit.py` item 1.2 fails because the pins view title bar has 4 navigation slots (the Release Board button is `navigation@9` in `extension/package.json`). Either move the button to the overflow menu or raise the limit to 4 and update `plans/MASTER_PLAN.md`. The publish audit is not affected. Needs the owner's choice of the two.
+- [ ] L2. Flaky dashboard test: "activating the processes tab samples and then sends the data" fails intermittently on main. Fix per the timing-test rules (wait on the result, best-of-3, generous budget).
+- [ ] L3. Type tightening: `BoardConfig.severity` still requires all four weight keys although partial weights work. Make the weights optional or partial.
+- [ ] L4. Keyword editor tests: no test drives `BoardPanel`'s `keywords` and `keywordsRestore` messages. Add them.
+- [ ] L5. Keyword editor gaps: no Command Palette command (opens from the board only); `minBodyDensity` and the audience words are kept but not editable. Feature work: frozen, see below.
+
+Frozen, needs the owner's go-ahead before any work:
+
+- L5 above (new command, new editable fields).
+- Open beside: the board's group is taken from the panel's own column, which may not match if the board is dragged into a floating window (not verified). Locating it through the board's tab would be sturdier.
+
+Needs a person (not code):
+
+- Check the board in one real VS Code window: theme contrast, real git status, quick picks, confirm dialogs.
+- Check Cursor's chat command names in `extension/src/board/handAgent.ts`; the least certain part of Hand to chat.
+- "Hand to chat opens a new Claude Code": the button path only copies; ask for the installed version if it persists.
+- Delete the merged remote branches per `bugs/20261027_remote_branch_cleanup.md`; add `release-board-severity-edit`, `release-board-keyword-editor`, `release-board-open-beside`, `release-board-startup-checkbox`.
+- Turn on "Automatically delete head branches" in each repo.
+
+Skipped: phone access (`plans/deferred/20261027_board_phone_access_design.md`) is deferred by the owner and stays out of this plan.
