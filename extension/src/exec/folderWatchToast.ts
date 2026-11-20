@@ -38,6 +38,62 @@ function formatFiles(files: string[]): string {
 // toast need no caller action and resolve undefined.
 export type FolderToastOutcome = "dismiss" | "mute";
 
+// Builds the toast sentence for a folder-watch delta. Split out of
+// toastFolderDelta so the wording rules live apart from the button handling.
+function folderDeltaMessage(
+  delta: FolderWatchDelta,
+  isStartup: boolean,
+  label: string,
+  summary: string
+): string {
+  const hasAdded = delta.added.length > 0;
+  const hasChanged = delta.changed.length > 0;
+  // Name new vs changed precisely rather than collapsing both into one
+  // ambiguous "new or changed" verb: a mixed batch states each count so the
+  // reader knows which files arrived vs which were edited. The startup variants
+  // add the "while you were away" framing for closed-window arrivals.
+  if (hasAdded && hasChanged) {
+    return l10n(
+      isStartup ? "folderWatch.mixedFilesStartup" : "folderWatch.mixedFiles",
+      {
+        added: delta.added.length,
+        changed: delta.changed.length,
+        label,
+        files: summary,
+      }
+    );
+  }
+  // A batch that is purely edits must read as "changed" (not "new").
+  if (hasChanged) {
+    return l10n(
+      isStartup
+        ? "folderWatch.changedFilesStartup"
+        : "folderWatch.changedFiles",
+      { count: delta.changed.length, label, files: summary }
+    );
+  }
+  // Remaining case: purely new files.
+  return l10n(
+    isStartup ? "folderWatch.newFilesStartup" : "folderWatch.newFiles",
+    { count: delta.added.length, label, files: summary }
+  );
+}
+
+// Opens the first changed/new file (folder watch) or the target itself (file
+// watch), so the Open action lands the user on the thing the toast named.
+async function openFirst(watch: FolderWatch, files: string[]): Promise<void> {
+  const first = files[0];
+  const toOpen = watch.isFile
+    ? vscode.Uri.file(watch.target)
+    : vscode.Uri.file(path.join(watch.target, first));
+  try {
+    await vscode.window.showTextDocument(toOpen, { preview: true });
+  } catch {
+    // A binary or unopenable file: reveal it in the Explorer instead of failing.
+    await vscode.commands.executeCommand("revealInExplorer", toOpen);
+  }
+}
+
 /**
  * Shows one toast for the new and changed files of a folder watch, worded for a startup scan or a live change.
  * Resolves "dismiss" or "mute" when the caller must update the store, otherwise undefined.
@@ -51,38 +107,7 @@ export async function toastFolderDelta(
   // Ordered new-then-changed so the listed filenames line up with the split
   // counts the message states.
   const files = [...delta.added, ...delta.changed];
-  const summary = formatFiles(files);
-  const hasAdded = delta.added.length > 0;
-  const hasChanged = delta.changed.length > 0;
-  // Name new vs changed precisely rather than collapsing both into one
-  // ambiguous "new or changed" verb: a batch that is purely edits must read as
-  // "changed" (not "new"), and a mixed batch states each count so the reader
-  // knows which files arrived vs which were edited. The startup variants add
-  // the "while you were away" framing for closed-window arrivals.
-  let message: string;
-  if (hasAdded && hasChanged) {
-    message = l10n(
-      isStartup ? "folderWatch.mixedFilesStartup" : "folderWatch.mixedFiles",
-      {
-        added: delta.added.length,
-        changed: delta.changed.length,
-        label,
-        files: summary,
-      }
-    );
-  } else if (hasChanged) {
-    message = l10n(
-      isStartup
-        ? "folderWatch.changedFilesStartup"
-        : "folderWatch.changedFiles",
-      { count: delta.changed.length, label, files: summary }
-    );
-  } else {
-    message = l10n(
-      isStartup ? "folderWatch.newFilesStartup" : "folderWatch.newFiles",
-      { count: delta.added.length, label, files: summary }
-    );
-  }
+  const message = folderDeltaMessage(delta, isStartup, label, formatFiles(files));
 
   const open = l10n("folderWatch.open");
   // Dismiss is the middle ground between ignoring the toast (the badge keeps
@@ -93,26 +118,16 @@ export async function toastFolderDelta(
   // without losing detection or the badge.
   const mute = l10n("folderWatch.muteHour");
   const choice = await vscode.window.showInformationMessage(message, open, dismiss, mute);
+  // Dismiss and mute need the caller's store, so they are reported, not handled.
   if (choice === dismiss) {
     return "dismiss";
   }
   if (choice === mute) {
     return "mute";
   }
-  if (choice !== open) {
-    return undefined;
-  }
-  // Open the first changed/new file (folder watch) or the target itself (file
-  // watch), so the action lands the user on the thing the toast named.
-  const first = files[0];
-  const toOpen = watch.isFile
-    ? vscode.Uri.file(watch.target)
-    : vscode.Uri.file(path.join(watch.target, first));
-  try {
-    await vscode.window.showTextDocument(toOpen, { preview: true });
-  } catch {
-    // A binary or unopenable file: reveal it in the Explorer instead of failing.
-    await vscode.commands.executeCommand("revealInExplorer", toOpen);
+  // Only an explicit Open acts here; a closed toast (undefined) does nothing.
+  if (choice === open) {
+    await openFirst(watch, files);
   }
   return undefined;
 }
