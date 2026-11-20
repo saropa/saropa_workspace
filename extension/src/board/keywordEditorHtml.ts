@@ -16,6 +16,7 @@ export const EXTRA_LISTS = {
   negation: { prefix: "neg", chars: LIMITS.negationChars },
   audience: { prefix: "aud", chars: LIMITS.audienceChars },
 } as const;
+// The union of extra (non-level) list keys the severity editor supports: negation and audience words.
 export type ExtraList = keyof typeof EXTRA_LISTS;
 type ListKind = EditLevel | ExtraList;
 const isExtra = (k: ListKind): k is ExtraList => k in EXTRA_LISTS;
