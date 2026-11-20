@@ -80,12 +80,13 @@ test("with no open document read the confirmation makes no claim about the effec
 
 test("an existing file keeps its other content, its formatting and its other severity keys", async () => {
   const { file } = setup();
-  put(file, '{\n    "version": 1,\n    "pinned": ["app/docs/x.md"],\n    "severity": {"audience": {"pro": ["vip"]}}\n}\n');
+  // The audience words are editable now, so the severity key this test keeps is one the editor does not know.
+  put(file, '{\n    "version": 1,\n    "pinned": ["app/docs/x.md"],\n    "severity": {"futureKey": {"keep": ["vip"]}}\n}\n');
   confirm("Save keywords");
   assert.equal(await saveSeverity({ kind: "draft", draft: lower }), "saved");
   const after = fs.readFileSync(file, "utf8");
   assert.ok(after.includes('    "pinned": [\n        "app/docs/x.md"\n    ]'), after);
-  assert.deepEqual(JSON.parse(after).severity, { audience: { pro: ["vip"] }, threshold: 4 });
+  assert.deepEqual(JSON.parse(after).severity, { futureKey: { keep: ["vip"] }, threshold: 4 });
 });
 
 test("without a confirmation nothing is written", async () => {
@@ -510,4 +511,18 @@ test("a second Severity save passes the changed-since-open check and offers Undo
   assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).severity.threshold, 8);
   assert.equal(panel().disposed, false);
   assert.ok(vs.__infoMessages().some((m) => m.includes("saved to")));
+});
+
+test("a confirmed save of the body density and the audience words writes them under severity and names the file", async () => {
+  const { file } = setup();
+  confirm("Save keywords");
+  const draft = draftWith((d) => {
+    d.minBodyDensity = 7;
+    d.audience = [...d.audience, "enterprise"];
+  });
+  assert.equal(await saveSeverity({ kind: "draft", draft }), "saved");
+  const sev = JSON.parse(fs.readFileSync(file, "utf8")).severity;
+  assert.equal(sev.minBodyDensity, 7);
+  assert.ok(sev.audience.pro.includes("enterprise"));
+  assert.ok(vs.__infoMessages()[0].includes("keywords saved"), "the save is announced, not silent");
 });

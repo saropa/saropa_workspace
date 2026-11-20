@@ -30,6 +30,7 @@ test("each number field is held to the range the host also uses", () => {
   assert.deepEqual(NUMBER_RANGES["n-head"], LIMITS.weight);
   assert.deepEqual(NUMBER_RANGES["n-body"], LIMITS.weight);
   assert.deepEqual(NUMBER_RANGES["n-perPhraseCap"], LIMITS.cap);
+  assert.deepEqual(NUMBER_RANGES["n-density"], LIMITS.density);
 });
 
 test("the body has one section per level, the scoring numbers, the negation words and the buttons", () => {
@@ -107,4 +108,35 @@ test("the script data carries the text, the draft, the saved draft, the shipped 
   assert.equal(data.t, t);
   const saved = defaultDraft();
   assert.deepEqual((severityData(t, draft, saved) as { saved: unknown }).saved, saved);
+});
+
+test("the body density is a number field with its range, and the audience words are a list held to their own length", () => {
+  const d = defaultDraft();
+  const html = renderSeverityBody(t, d);
+  assert.ok(html.includes(`id="n-density" step="1" min="${LIMITS.density.min}" max="${LIMITS.density.max}" value="${d.minBodyDensity}"`));
+  assert.ok(html.includes('aria-describedby="n-density-h"') && html.includes('id="n-density-h"'));
+  const aud = sectionOf(html, "audience");
+  assert.ok(aud.includes(`maxlength="${LIMITS.audienceChars}"`));
+  assert.ok(aud.includes('data-count="audience"') && aud.includes(`>${d.audience.length}<`));
+  assert.ok(/data-edited="audience" hidden/.test(aud), "the shipped words are not marked as changed");
+  for (const w of d.audience) {
+    assert.ok(aud.includes(`data-rm="${w}"`), w);
+  }
+});
+
+test("a changed audience list is marked, and an audience word is escaped", () => {
+  const html = renderSeverityBody(t, withDraft((d) => d.audience.push('<img src=x onerror="a">')));
+  const aud = sectionOf(html, "audience");
+  assert.ok(!/data-edited="audience" hidden/.test(aud));
+  assert.ok(aud.includes("&#60;img"), "the word was not entity-escaped");
+  assert.ok(!html.includes("<img"), "a raw tag reached the page");
+});
+
+test("the audience and density labels all resolve to text, and the script data names the extra lists", () => {
+  for (const k of ["densityLabel", "densityHelp", "audTitle", "audTip", "audHelp", "audChipTip", "audRemoveTip", "audInputTip", "audAddTip", "audRestoreTip", "audListTip"]) {
+    assert.ok(t[k as keyof typeof t].length > 0 && !t[k as keyof typeof t].startsWith("releaseBoard."), k);
+  }
+  const data = severityData(t, defaultDraft()) as { extras: Record<string, { prefix: string; chars: number }> };
+  assert.deepEqual(Object.keys(data.extras).sort(), ["audience", "negation"]);
+  assert.equal(data.extras.audience.chars, LIMITS.audienceChars);
 });

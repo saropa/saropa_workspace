@@ -93,16 +93,18 @@ test("a draft made from a dictionary falls back for values a hand edit broke", (
   assert.deepEqual(d.phrases.high, ["ok"]);
 });
 
-test("a dictionary made from a draft keeps the parts the editor does not show", () => {
+test("a dictionary made from a draft takes the draft's values for every part the editor shows and keeps the rest of the base", () => {
   const d = clone(defaultDraft());
   d.threshold = 5;
   d.phrases.extreme = ["payment"];
-  const base = { ...DEFAULT_SEVERITY, minBodyDensity: 9, audience: { pro: ["vip"] } };
+  // The body density and the audience words are editable now: the draft's values win over the base's.
+  const base = { ...DEFAULT_SEVERITY, minBodyDensity: 9, audience: { pro: ["vip"], other: ["x"] } } as typeof DEFAULT_SEVERITY;
   const dict = dictFromDraft(d, base);
   assert.equal(dict.threshold, 5);
   assert.deepEqual(dict.phrases.extreme, ["payment"]);
-  assert.equal(dict.minBodyDensity, 9);
-  assert.deepEqual(dict.audience.pro, ["vip"]);
+  assert.equal(dict.minBodyDensity, DEFAULT_SEVERITY.minBodyDensity);
+  assert.deepEqual(dict.audience.pro, DEFAULT_SEVERITY.audience.pro);
+  assert.deepEqual((dict.audience as unknown as Record<string, unknown>).other, ["x"], "an audience key the editor does not show stays");
   assert.deepEqual(dict.phrases.critical, DEFAULT_SEVERITY.phrases.critical);
 });
 
@@ -145,7 +147,8 @@ test("a draft equal to the shipped dictionary removes the parts it set and leave
   const r = applyDraft(before, defaultDraft());
   assert.ok(r.ok && r.changed);
   const doc = JSON.parse(r.ok ? r.text : "{}");
-  assert.deepEqual(doc, { version: 1, pinned: ["a/b.md"], severity: { phrases: { medium: ["keep"] }, audience: { pro: ["vip"] } } });
+  // The audience words are editable now, so a draft at the shipped words removes the file's list too.
+  assert.deepEqual(doc, { version: 1, pinned: ["a/b.md"], severity: { phrases: { medium: ["keep"] } } });
 });
 
 test("when nothing is left in severity the key goes", () => {
@@ -336,4 +339,64 @@ test("the editor names a spelling it would change when it writes a list back", (
 test("an empty phrase never matches and never hangs the scorer", () => {
   const dict = { ...DEFAULT_SEVERITY, phrases: { ...DEFAULT_SEVERITY.phrases, low: ["", ...DEFAULT_SEVERITY.phrases.low!] } };
   assert.deepEqual(scoreDocument("# Some plain title\n\nbody\n", "docs/a.md", dict), scoreDocument("# Some plain title\n\nbody\n", "docs/a.md"));
+});
+
+test("body density and audience words are held to their limits on the host", () => {
+  const bad = (f: (d: SeverityDraft) => void): string[] => {
+    const d = clone(defaultDraft());
+    f(d);
+    const c = checkDraft(d);
+    return c.ok ? [] : c.problems;
+  };
+  assert.deepEqual(bad((d) => (d.minBodyDensity = 0)), ["density"]);
+  assert.deepEqual(bad((d) => (d.minBodyDensity = LIMITS.density.max + 1)), ["density"]);
+  assert.deepEqual(bad((d) => (d.minBodyDensity = 2.5)), ["density"]);
+  assert.deepEqual(bad((d) => (d.minBodyDensity = "3" as unknown as number)), ["density"]);
+  assert.deepEqual(bad((d) => (d.minBodyDensity = LIMITS.density.min)), []);
+  assert.deepEqual(bad((d) => (d.minBodyDensity = LIMITS.density.max)), []);
+  assert.deepEqual(bad((d) => (d.audience = Array.from({ length: LIMITS.audience + 1 }, (_x, i) => `a${i}`))), ["tooMany"]);
+  assert.deepEqual(bad((d) => (d.audience = ["x".repeat(LIMITS.audienceChars + 1)])), ["tooLong"]);
+  assert.deepEqual(bad((d) => (d.audience = ["tab\there"])), ["badChar"]);
+  assert.deepEqual(bad((d) => (d.audience = "vip" as unknown as string[])), ["shape"]);
+  const d = clone(defaultDraft());
+  d.audience = ["VIP  Tier", "vip tier", "", "paywall"];
+  const c = checkDraft(d);
+  assert.ok(c.ok);
+  assert.deepEqual(c.ok && c.draft.audience, ["vip tier", "paywall"], "lower case, white space folded, duplicates and empties dropped");
+});
+
+test("a saved file holds the density and the audience words only when they differ from the shipped ones", () => {
+  const d = clone(defaultDraft());
+  d.minBodyDensity = 8;
+  d.audience = [...d.audience, "enterprise"];
+  const r = applyDraft("{}", d);
+  assert.ok(r.ok && r.changed);
+  const doc = JSON.parse(r.ok ? r.text : "{}");
+  assert.deepEqual(doc.severity, { minBodyDensity: 8, audience: { pro: [...DEFAULT_SEVERITY.audience.pro, "enterprise"] } });
+  // The written file scores the way the draft does.
+  assert.deepEqual(dictOfSeverity(doc.severity), dictFromDraft(d));
+  const back = applyDraft(r.ok ? r.text : "{}", defaultDraft());
+  assert.ok(back.ok && back.changed);
+  assert.equal(JSON.parse(back.ok ? back.text : "{}").severity, undefined, "back to the shipped values leaves no severity key");
+});
+
+test("an unchanged density and audience leave the file text alone, and a draft's changes are named", () => {
+  const same = applyDraft('{"version": 1}', defaultDraft());
+  assert.ok(same.ok && !same.changed);
+  const d = clone(defaultDraft());
+  d.minBodyDensity = 9;
+  d.audience = ["vip"];
+  assert.deepEqual(draftDiffers(d), ["minBodyDensity", "audience"]);
+  assert.deepEqual(draftDiffers(defaultDraft()), []);
+});
+
+test("a hand-edited density outside its limits is replaced and reported, the audience words read like the other lists", () => {
+  const odd = { ...DEFAULT_SEVERITY, minBodyDensity: 500, audience: { pro: ["ok", "x".repeat(99), "a\tb"] } } as unknown as typeof DEFAULT_SEVERITY;
+  const { draft, replaced } = draftFromDictChecked(odd);
+  assert.equal(draft.minBodyDensity, DEFAULT_SEVERITY.minBodyDensity);
+  assert.deepEqual(draft.audience, ["ok"]);
+  assert.deepEqual(replaced.sort(), ["audience", "minBodyDensity"]);
+  assert.deepEqual(draftFromDictChecked(DEFAULT_SEVERITY).replaced, []);
+  const missing = draftFromDict({ ...DEFAULT_SEVERITY, audience: undefined } as unknown as typeof DEFAULT_SEVERITY);
+  assert.equal(missing.audience.length, DEFAULT_SEVERITY.audience.pro.length, "a missing audience falls back to the shipped words");
 });

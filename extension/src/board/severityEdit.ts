@@ -10,8 +10,8 @@ export { DraftCheck, DraftProblem, EDIT_LEVELS, EditLevel, LIMITS, SeverityDraft
 import { EDIT_LEVELS, SeverityDraft, defaultDraft, defaultLevel, sameList } from "./severityDraft";
 
 // The keyword editor of the board, pure part. A draft holds the parts of the severity
-// dictionary a person may change: the phrase lists of four levels, the threshold, the weights
-// and the negation words. This module checks a draft (the page's values are never trusted),
+// dictionary a person may change: the phrase lists of four levels, the threshold, the weights,
+// the negation words, the body density and the audience words. This module checks a draft (the page's values are never trusted),
 // turns it into the part of the dictionary that differs from the shipped one, writes that into
 // the text of the rules file, and counts which open documents would change level.
 
@@ -41,13 +41,19 @@ export function draftDiffers(draft: SeverityDraft): string[] {
       out.push(`phrases.${level}`);
     }
   }
+  if (draft.minBodyDensity !== d.minBodyDensity) {
+    out.push("minBodyDensity");
+  }
+  if (!sameList(draft.audience, d.audience)) {
+    out.push("audience");
+  }
   return out;
 }
 
 // The parts of a user's `severity` key that differ from the shipped dictionary, by part, judged
 // on the raw values the board scores with (so an out-of-range number, a null list or a part of
-// the wrong type counts as a change, even though the editor cannot show it). Also covers the
-// parts the editor does not show ("minBodyDensity", "audience").
+// the wrong type counts as a change, even though the editor cannot show it). Covers every part
+// the editor shows, including "minBodyDensity" and "audience".
 export function customizedParts(over: unknown): string[] {
   if (!isObject(over)) {
     return [];

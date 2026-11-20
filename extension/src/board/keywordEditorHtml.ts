@@ -10,26 +10,37 @@ export type KeywordLabelTable = Record<string, string>;
 const fillText = (s: string, vars: Record<string, string | number>): string => s.replace(/\{(\w+)\}/g, (m, k: string) => (vars[k] === undefined ? m : String(vars[k])));
 const e = escapeHtml;
 
+// The lists that are not a level's phrases, each with the prefix of its label keys ("neg" gives negTitle, negHelp ...) and its
+// length cap; the page script holds the same table. Adding a list here and in LIMITS is all the markup needs.
+export const EXTRA_LISTS = {
+  negation: { prefix: "neg", chars: LIMITS.negationChars },
+  audience: { prefix: "aud", chars: LIMITS.audienceChars },
+} as const;
+export type ExtraList = keyof typeof EXTRA_LISTS;
+type ListKind = EditLevel | ExtraList;
+const isExtra = (k: ListKind): k is ExtraList => k in EXTRA_LISTS;
+
 // One chip of a list, as the page script draws it.
-function chip(t: KeywordLabelTable, kind: EditLevel | "negation", text: string): string {
-  const neg = kind === "negation";
-  const level = neg ? t.negTitle : t[`sev_${kind}`];
-  const tip = e(fillText(neg ? t.negRemoveTip : t.removeTip, { phrase: text, level }));
-  return `<span class="chip" title="${e(fillText(neg ? t.negChipTip : t.chipTip, { phrase: text, level }))}"><span class="ct">${e(text)}</span><button type="button" class="x" data-rm="${e(text)}" title="${tip}" aria-label="${tip}">×</button></span>`;
+function chip(t: KeywordLabelTable, kind: ListKind, text: string): string {
+  const x = isExtra(kind) ? EXTRA_LISTS[kind].prefix : "";
+  const level = isExtra(kind) ? t[`${x}Title`] : t[`sev_${kind}`];
+  const tip = e(fillText(isExtra(kind) ? t[`${x}RemoveTip`] : t.removeTip, { phrase: text, level }));
+  return `<span class="chip" title="${e(fillText(isExtra(kind) ? t[`${x}ChipTip`] : t.chipTip, { phrase: text, level }))}"><span class="ct">${e(text)}</span><button type="button" class="x" data-rm="${e(text)}" title="${tip}" aria-label="${tip}">×</button></span>`;
 }
 
-// One list section: a level's phrases or the negation words.
-function listSection(t: KeywordLabelTable, kind: EditLevel | "negation", items: readonly string[], edited: boolean): string {
-  const neg = kind === "negation";
-  const name = neg ? t.negTitle : t[`sev_${kind}`];
-  const help = neg ? t.negHelp : t[`help_${kind}`];
-  const max = neg ? LIMITS.negationChars : LIMITS.phraseChars;
+// One list section: a level's phrases, the negation words or the audience words.
+function listSection(t: KeywordLabelTable, kind: ListKind, items: readonly string[], edited: boolean): string {
+  const extra = isExtra(kind);
+  const x = extra ? EXTRA_LISTS[kind].prefix : "";
+  const name = extra ? t[`${x}Title`] : t[`sev_${kind}`];
+  const help = extra ? t[`${x}Help`] : t[`help_${kind}`];
+  const max = extra ? EXTRA_LISTS[kind].chars : LIMITS.phraseChars;
   const countTip = e(fillText(t.levelTip, { level: name, count: items.length }));
-  const input = e(fillText(neg ? t.negInputTip : t.inputTip, { level: name }));
-  const addTip = e(fillText(neg ? t.negAddTip : t.addTip, { level: name }));
-  const restoreTip = e(fillText(neg ? t.negRestoreTip : t.restoreLevelTip, { level: name }));
-  const summaryTip = e(neg ? t.negTip : fillText(t.levelTip, { level: name, count: items.length }));
-  const listTip = e(neg ? t.negListTip : fillText(t.listTip, { level: name }));
+  const input = e(fillText(extra ? t[`${x}InputTip`] : t.inputTip, { level: name }));
+  const addTip = e(fillText(extra ? t[`${x}AddTip`] : t.addTip, { level: name }));
+  const restoreTip = e(fillText(extra ? t[`${x}RestoreTip`] : t.restoreLevelTip, { level: name }));
+  const summaryTip = e(extra ? t[`${x}Tip`] : fillText(t.levelTip, { level: name, count: items.length }));
+  const listTip = e(extra ? t[`${x}ListTip`] : fillText(t.listTip, { level: name }));
   return `<details class="box" open data-sec="${kind}"><summary title="${summaryTip}" aria-describedby="h-${kind}">${e(name)} <span class="pill" data-count="${kind}" title="${countTip}">${items.length}</span><span class="edited" data-edited="${kind}"${edited ? "" : " hidden"} title="${e(t.changedTip)}">${e(t.changedMark)}</span></summary>
 <p class="help" id="h-${kind}">${e(help)}</p>
 <div class="chips" data-list="${kind}" title="${listTip}">${items.map((p) => chip(t, kind, p)).join("")}</div>
@@ -49,14 +60,15 @@ export const NUMBER_RANGES: Record<string, { min: number; max: number }> = {
   "n-head": LIMITS.weight,
   "n-body": LIMITS.weight,
   "n-perPhraseCap": LIMITS.cap,
+  "n-density": LIMITS.density,
 };
 
 // The data the keyword script starts from, as a plain object for the page's data block.
 export function severityData(t: KeywordLabelTable, draft: SeverityDraft, saved: SeverityDraft = draft): unknown {
-  return { t, draft, saved, defaults: defaultDraft(), levels: EDIT_LEVELS, limits: LIMITS, ranges: NUMBER_RANGES };
+  return { t, draft, saved, defaults: defaultDraft(), levels: EDIT_LEVELS, extras: EXTRA_LISTS, limits: LIMITS, ranges: NUMBER_RANGES };
 }
 
-// The markup of the Severity tab: the intro, the preview, every level, the numbers, the negation words and the
+// The markup of the Severity tab: the intro, the preview, every level, the numbers, the negation words, the audience words and the
 // buttons. Its ids are all prefixed or unique on the Tags page.
 export function renderSeverityBody(t: KeywordLabelTable, draft: SeverityDraft, note = ""): string {
   const differs = new Set(draftDiffers(draft));
@@ -67,7 +79,8 @@ ${numberField(t, "n-threshold", t.thresholdLabel, t.thresholdHelp, draft.thresho
 ${numberField(t, "n-title", t.wTitleLabel, t.wTitleHelp, w.title, LIMITS.weight)}
 ${numberField(t, "n-head", t.wHeadLabel, t.wHeadHelp, w.head, LIMITS.weight)}
 ${numberField(t, "n-body", t.wBodyLabel, t.wBodyHelp, w.body, LIMITS.weight)}
-${numberField(t, "n-perPhraseCap", t.wCapLabel, t.wCapHelp, w.perPhraseCap, LIMITS.cap)}</details>`;
+${numberField(t, "n-perPhraseCap", t.wCapLabel, t.wCapHelp, w.perPhraseCap, LIMITS.cap)}
+${numberField(t, "n-density", t.densityLabel, t.densityHelp, draft.minBodyDensity, LIMITS.density)}</details>`;
   const why = [t.intro, t.warn, t.mediumNote, t.phrasesHint].join("\n");
   return `<p class="qrow"><span class="qm" tabindex="0" role="note" aria-describedby="qm-sev" title="${e(why)}" data-tip="${e(why)}">?</span><span id="qm-sev" hidden>${e(why)}</span></p>
 ${note ? `<p class="warn" id="sev-lossy" role="note" title="${e(note)}">${e(note)}</p>` : ""}
@@ -77,5 +90,6 @@ ${note ? `<p class="warn" id="sev-lossy" role="note" title="${e(note)}">${e(note
 ${sections}
 ${scoring}
 ${listSection(t, "negation", draft.negation, differs.has("negation"))}
+${listSection(t, "audience", draft.audience, differs.has("audience"))}
 <div class="sevbar"><button type="button" id="sev-save" class="primary" disabled title="${e(t.saveTip)}">${e(t.save)}</button><button type="button" id="sev-restoreAll" class="secondary" title="${e(t.restoreAllTip)}">${e(t.restoreAll)}</button><span id="sev-msg" role="alert" aria-live="assertive" title="${e(t.previewTitleTip)}"></span></div>`;
 }

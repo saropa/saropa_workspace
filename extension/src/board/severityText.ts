@@ -88,6 +88,18 @@ export function applyDraft(text: string | undefined, draft: SeverityDraft): Edit
       }
       put(sev, "phrases", Object.keys(p).length === 0 ? undefined : p);
     }
+    // Body density and the audience words are written the same way as the other parts: only when they differ from
+    // the shipped ones, so a draft equal to the shipped values leaves the file without those keys.
+    put(sev, "minBodyDensity", draft.minBodyDensity === d.minBodyDensity ? undefined : draft.minBodyDensity);
+    if (sev.audience !== undefined && !isObject(sev.audience)) {
+      return false;
+    }
+    if (sev.audience !== undefined || !sameList(draft.audience, d.audience)) {
+      // Keys of `audience` other than `pro` stay as the file has them.
+      const a: Record<string, unknown> = isObject(sev.audience) ? sev.audience : {};
+      put(a, "pro", sameList(draft.audience, d.audience) ? undefined : draft.audience);
+      put(sev, "audience", Object.keys(a).length === 0 ? undefined : a);
+    }
     put(doc, "severity", Object.keys(sev).length === 0 ? undefined : sev);
     return true;
   });

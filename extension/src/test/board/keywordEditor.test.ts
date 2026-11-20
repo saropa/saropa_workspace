@@ -275,3 +275,57 @@ test("the tab bar starts on the tab it is given, and the other panels stay hidde
     assert.equal((html.match(/role="tabpanel"[^>]* hidden>/g) ?? []).length, 3, tab);
   }
 });
+
+test("the audience words are a list on the page: add, remove and restore reach the draft the host is sent", () => {
+  const page = open();
+  page.timers.advance(250);
+  page.takePosted();
+  assert.equal(page.all('[data-list="audience"] .chip').length, DEFAULT_SEVERITY.audience.pro.length);
+  const input = page.one('[data-add="audience"]');
+  page.type(input, "  Enterprise  Tier ");
+  page.click(page.one('[data-addbtn="audience"]'));
+  assert.ok(page.all('[data-list="audience"] .ct').some((c) => c.textContent === "enterprise tier"), "normalized like the other lists");
+  assert.equal(hidden(page.one('[data-edited="audience"]')), false);
+  page.timers.advance(250);
+  const [added] = previews(page);
+  assert.ok(added.draft.audience.includes("enterprise tier"));
+  // A repeat is refused and says so.
+  page.type(input, "enterprise tier");
+  page.click(page.one('[data-addbtn="audience"]'));
+  assert.equal(page.byId("sev-msg").textContent, t.problemDuplicate);
+  page.click(page.one('[data-restore="audience"]'));
+  assert.equal(page.all('[data-list="audience"] .chip').length, DEFAULT_SEVERITY.audience.pro.length);
+  assert.equal(hidden(page.one('[data-edited="audience"]')), true);
+});
+
+test("an audience word over its length or past the list cap is refused on the page, with the number named", () => {
+  const draft = clone(defaultDraft());
+  draft.audience = Array.from({ length: 30 }, (_x, i) => `word${i}`);
+  const page = open(draft);
+  page.type(page.one('[data-add="audience"]'), "one more");
+  page.click(page.one('[data-addbtn="audience"]'));
+  assert.ok(page.byId("sev-msg").textContent.includes("30"), "the cap is named");
+  assert.equal(page.all('[data-list="audience"] .chip').length, 30);
+});
+
+test("the body density is flagged outside its range and sent when valid; Restore all puts back the shipped density and audience", () => {
+  const draft = clone(defaultDraft());
+  draft.minBodyDensity = 9;
+  draft.audience = ["vip"];
+  const page = open(draft);
+  page.timers.advance(250);
+  page.takePosted();
+  const n = page.byId("n-density");
+  assert.equal(n.value, "9");
+  page.type(n, "0");
+  assert.equal(n.getAttribute("aria-invalid"), "true");
+  assert.equal(page.byId("sev-save").disabled, true);
+  page.type(n, "12");
+  assert.equal(n.getAttribute("aria-invalid"), null);
+  page.timers.advance(250);
+  const [m] = previews(page);
+  assert.equal(m.draft.minBodyDensity, 12);
+  page.click(page.byId("sev-restoreAll"));
+  assert.equal(page.byId("n-density").value, String(DEFAULT_SEVERITY.minBodyDensity));
+  assert.equal(page.all('[data-list="audience"] .chip').length, DEFAULT_SEVERITY.audience.pro.length);
+});

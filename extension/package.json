@@ -808,6 +808,12 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "saropaWorkspace.releaseBoard.editKeywords",
+        "title": "%command.releaseBoard.editKeywords.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(edit)"
+      },
+      {
         "command": "saropaWorkspace.releaseBoard.openSettings",
         "title": "%command.releaseBoard.openSettings.title%",
         "category": "%extension.displayName%",
@@ -2147,6 +2153,10 @@
         {
           "command": "saropaWorkspace.releaseBoard.openRules",
           "when": "config.saropaWorkspace.releaseBoard.enabled"
+        },
+        {
+          "command": "saropaWorkspace.releaseBoard.editKeywords",
+          "when": "config.saropaWorkspace.releaseBoard.enabled && config.saropaWorkspace.releaseBoard.keywordEditor.enabled"
         },
         {
           "command": "saropaWorkspace.releaseBoard.mark",

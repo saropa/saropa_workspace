@@ -13,7 +13,8 @@ export const KEYWORD_LABEL_KEYS = [
   "changedMark", "changedTip", "scoringTitle", "scoringTip", "thresholdLabel", "thresholdHelp", "wTitleLabel", "wTitleHelp", "wHeadLabel",
   "wHeadHelp", "wBodyLabel", "wBodyHelp", "wCapLabel", "wCapHelp", "numTip", "negTitle", "negTip", "negHelp", "negChipTip", "negRemoveTip",
   "negInputTip", "negAddTip", "negRestoreTip", "save", "saveTip", "cancel", "cancelTip", "problemTooLong", "problemTooMany", "problemDuplicate",
-  "problemBadChar", "problemNumber", "listTip", "negListTip",
+  "problemBadChar", "problemNumber", "listTip", "negListTip", "densityLabel", "densityHelp", "audTitle", "audTip", "audHelp", "audChipTip",
+  "audRemoveTip", "audInputTip", "audAddTip", "audRestoreTip", "audListTip",
 ] as const;
 
 // Keys of the board's keyword-line text; one list drives both the lookup and the label type.

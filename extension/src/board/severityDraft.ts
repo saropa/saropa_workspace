@@ -18,6 +18,10 @@ export interface SeverityDraft {
   weights: { title: number; head: number; body: number; perPhraseCap: number };
   negation: string[];
   phrases: Record<EditLevel, string[]>;
+  // Phrase hits per 1000 words a body needs before body hits count at all; the scorer compares against it.
+  minBodyDensity: number;
+  // The words that mark a document as for paying users ("pro"); the scorer matches them as lower-case substrings.
+  audience: string[];
 }
 
 // The limits every value is held to, on the page and again on the host.
@@ -29,10 +33,15 @@ export const LIMITS = {
   threshold: { min: 1, max: 30 },
   weight: { min: 0, max: 10 },
   cap: { min: 1, max: 10 },
+  // Body density is hits per 1000 words; 0 would make every body count, and past 50 no body ever would.
+  density: { min: 1, max: 50 },
+  // Audience words: the shipped list is 7, so 30 leaves room; the length matches the negation words.
+  audience: 30,
+  audienceChars: 40,
 } as const;
 
 // Each way a draft can be refused, so the page can say what to fix.
-export type DraftProblem = "shape" | "threshold" | "weight" | "cap" | "tooMany" | "tooLong" | "badChar";
+export type DraftProblem = "shape" | "threshold" | "weight" | "cap" | "density" | "tooMany" | "tooLong" | "badChar";
 
 // Letters lower case, runs of white space one space, no space at either end.
 export function normalizeText(raw: string): string {
@@ -128,6 +137,14 @@ export function checkDraft(raw: unknown): DraftCheck {
   if (neg.problem) {
     problems.add(neg.problem);
   }
+  // The audience words are held to the same cleaning as the other lists, with their own caps.
+  const aud = cleanList(raw.audience, DEFAULT_SEVERITY.audience.pro, LIMITS.audience, LIMITS.audienceChars);
+  if (aud.problem) {
+    problems.add(aud.problem);
+  }
+  if (!isWhole(raw.minBodyDensity, LIMITS.density)) {
+    problems.add("density");
+  }
   if (problems.size > 0) {
     return { ok: false, problems: [...problems] };
   }
@@ -136,6 +153,8 @@ export function checkDraft(raw: unknown): DraftCheck {
     weights: { title: w.title as number, head: w.head as number, body: w.body as number, perPhraseCap: w.perPhraseCap as number },
     negation: neg.list,
     phrases,
+    minBodyDensity: raw.minBodyDensity as number,
+    audience: aud.list,
   };
   return { ok: true, draft };
 }
@@ -188,11 +207,18 @@ export function draftFromDictChecked(dict: SeverityDict): { draft: SeverityDraft
   if (!isObject(dict.weights) || !wt.title.ok || !wt.head.ok || !wt.body.ok || !wt.perPhraseCap.ok) {
     replaced.push("weights");
   }
+  // The same density bounds as on write, so a hand-edited out-of-range value is reported and replaced by the shipped one.
+  const dens = num(dict.minBodyDensity, d.minBodyDensity, LIMITS.density);
+  if (!dens.ok) {
+    replaced.push("minBodyDensity");
+  }
   const draft: SeverityDraft = {
     threshold: t.n,
     weights: { title: wt.title.n, head: wt.head.n, body: wt.body.n, perPhraseCap: wt.perPhraseCap.n },
     negation: list(dict.negation, d.negation, LIMITS.negation, LIMITS.negationChars, "negation", (x) => x.trim()),
     phrases,
+    minBodyDensity: dens.n,
+    audience: list(isObject(dict.audience) ? dict.audience.pro : undefined, d.audience.pro, LIMITS.audience, LIMITS.audienceChars, "audience"),
   };
   return { draft, replaced: [...new Set(replaced)] };
 }
@@ -205,9 +231,17 @@ export const draftFromDict = (dict: SeverityDict): SeverityDraft => draftFromDic
 export const defaultDraft = (): SeverityDraft => draftFromDict(DEFAULT_SEVERITY);
 
 // The dictionary a draft makes: the draft's parts over `base`, which keeps what the editor does
-// not change (the audience words and the body density).
+// not change (any other key a user's file carries).
 export function dictFromDraft(draft: SeverityDraft, base: SeverityDict = DEFAULT_SEVERITY): SeverityDict {
-  return { ...base, threshold: draft.threshold, weights: { ...draft.weights }, negation: [...draft.negation], phrases: { ...base.phrases, ...draft.phrases } };
+  return {
+    ...base,
+    threshold: draft.threshold,
+    weights: { ...draft.weights },
+    negation: [...draft.negation],
+    phrases: { ...base.phrases, ...draft.phrases },
+    minBodyDensity: draft.minBodyDensity,
+    audience: { ...base.audience, pro: [...draft.audience] },
+  };
 }
 
 // The same phrases in any order once normalized; exported so the writer can leave a list that equals the shipped one out of the file.

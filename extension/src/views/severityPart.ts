@@ -143,7 +143,7 @@ function problemText(problems: readonly DraftProblem[]): string {
       ? l10n("releaseBoard.keywords.label.problemTooLong", { max: LIMITS.phraseChars })
       : p === "tooMany"
         ? l10n("releaseBoard.keywords.label.problemTooMany", { max: LIMITS.phrases })
-        : p === "threshold" || p === "weight" || p === "cap"
+        : p === "threshold" || p === "weight" || p === "cap" || p === "density"
           ? l10n("releaseBoard.keywords.label.problemNumber")
           : l10n("releaseBoard.keywords.label.problemBadChar");
   return [...new Set(problems.map(one))].join(" ");

@@ -34,7 +34,7 @@ button.secondary:hover:not(:disabled){background:var(--vscode-button-secondaryHo
 // A function the Tags page script calls with the one acquireVsCodeApi() result and INIT.sev (see tagsEditorHtml.ts).
 export const SEVERITY_SCRIPT = String.raw`
 function startSeverity(vscode,K){
-const T=K.t,LEVELS=K.levels,LIM=K.limits,DEF=K.defaults;
+const T=K.t,LEVELS=K.levels,LIM=K.limits,DEF=K.defaults,EXTRA=K.extras,XK=Object.keys(EXTRA),ALL=LEVELS.concat(XK);
 let SAVED=K.saved;
 const clone=x=>JSON.parse(JSON.stringify(x));
 let D=clone(K.draft),seq=0,timer=0;const bad={};
@@ -42,17 +42,20 @@ const $=(s)=>document.querySelector(s);
 const fill=(s,o)=>{let r=s;for(const k in o){r=r.split('{'+k+'}').join(String(o[k]));}return r;};
 const norm=s=>s.toLowerCase().split(/\s+/).filter(Boolean).join(' ');
 const hasControl=s=>{for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);if(c<32||c===127){return true;}}return false;};
-const listOf=(k)=>k==='negation'?D.negation:D.phrases[k];
-const defOf=(k)=>k==='negation'?DEF.negation:DEF.phrases[k];
-const nameOf=(k)=>k==='negation'?T.negTitle:T['sev_'+k];
+// The lists beyond the four levels (negation words, audience words) are keyed by their draft field; a level's phrases sit in D.phrases.
+const FIELD={negation:'negation',audience:'audience'};
+const isX=(k)=>Object.prototype.hasOwnProperty.call(EXTRA,k);
+const listOf=(k)=>isX(k)?D[FIELD[k]]:D.phrases[k];
+const defOf=(k)=>isX(k)?DEF[FIELD[k]]:DEF.phrases[k];
+const nameOf=(k)=>isX(k)?T[EXTRA[k].prefix+'Title']:T['sev_'+k];
 const key=(a)=>a.map(norm).sort().join('\n');
 const msg=(text)=>{$('#sev-msg').textContent=text||'';};
 function chip(k,text){
-  const neg=k==='negation',s=document.createElement('span');
-  s.className='chip';s.setAttribute('title',fill(neg?T.negChipTip:T.chipTip,{phrase:text,level:nameOf(k)}));
+  const x=isX(k)?EXTRA[k].prefix:'',s=document.createElement('span');
+  s.className='chip';s.setAttribute('title',fill(isX(k)?T[x+'ChipTip']:T.chipTip,{phrase:text,level:nameOf(k)}));
   const t=document.createElement('span');t.className='ct';t.textContent=text;s.appendChild(t);
   const b=document.createElement('button');b.type='button';b.className='x';b.textContent='×';
-  const tip=fill(neg?T.negRemoveTip:T.removeTip,{phrase:text,level:nameOf(k)});
+  const tip=fill(isX(k)?T[x+'RemoveTip']:T.removeTip,{phrase:text,level:nameOf(k)});
   b.setAttribute('title',tip);b.setAttribute('aria-label',tip);b.setAttribute('data-rm',text);
   s.appendChild(b);return s;
 }
@@ -66,6 +69,7 @@ function renderList(k){
 function renderNumbers(){
   $('#n-threshold').value=String(D.threshold);
   for(const w of ['title','head','body','perPhraseCap']){$('#n-'+w).value=String(D.weights[w]);}
+  $('#n-density').value=String(D.minBodyDensity);
 }
 function changed(){return JSON.stringify(D)!==JSON.stringify(SAVED);}
 function refresh(){
@@ -80,7 +84,8 @@ function add(k){
   const input=$('[data-add="'+k+'"]'),raw=input.value;
   if(hasControl(raw)){msg(T.problemBadChar);return;}
   const n=norm(raw);if(n===''){return;}
-  const neg=k==='negation',max=neg?LIM.negation:LIM.phrases,chars=neg?LIM.negationChars:LIM.phraseChars,items=listOf(k);
+  // Each extra list has its own caps (LIMITS.negation / LIMITS.audience, with the Chars variants), the same ones the host checks.
+  const max=isX(k)?LIM[k]:LIM.phrases,chars=isX(k)?EXTRA[k].chars:LIM.phraseChars,items=listOf(k);
   if(n.length>chars){msg(fill(T.problemTooLong,{max:chars}));return;}
   if(items.some(x=>norm(x)===n)){msg(T.problemDuplicate);return;}
   if(items.length>=max){msg(fill(T.problemTooMany,{max:max}));return;}
@@ -111,8 +116,8 @@ document.addEventListener('click',(ev)=>{
   if(rm!==null){const k=el.closest('[data-list]').getAttribute('data-list'),a=listOf(k),i=a.indexOf(rm);if(i>=0){a.splice(i,1);renderList(k);edit();}return;}
   const addk=el.getAttribute('data-addbtn');if(addk){add(addk);return;}
   const res=el.getAttribute('data-restore');
-  if(res){const d=defOf(res);if(res==='negation'){D.negation=clone(d);}else{D.phrases[res]=clone(d);}renderList(res);edit();return;}
-  if(el.id==='sev-restoreAll'){D=clone(DEF);for(const k of LEVELS.concat(['negation'])){renderList(k);}renderNumbers();for(const id in bad){delete bad[id];}document.querySelectorAll('input[type=number]').forEach(i=>i.removeAttribute('aria-invalid'));edit();return;}
+  if(res){const d=defOf(res);if(isX(res)){D[FIELD[res]]=clone(d);}else{D.phrases[res]=clone(d);}renderList(res);edit();return;}
+  if(el.id==='sev-restoreAll'){D=clone(DEF);for(const k of ALL){renderList(k);}renderNumbers();for(const id in bad){delete bad[id];}document.querySelectorAll('input[type=number]').forEach(i=>i.removeAttribute('aria-invalid'));edit();return;}
   if(el.id==='sev-save'){vscode.postMessage({type:'sevSave',draft:D});}
 });
 document.addEventListener('keydown',(ev)=>{
@@ -124,7 +129,7 @@ document.querySelectorAll('input[type=number]').forEach(inp=>inp.addEventListene
   const ok=inp.value.trim()!==''&&Number.isInteger(v)&&v>=r.min&&v<=r.max;
   if(!ok){bad[id]=true;inp.setAttribute('aria-invalid','true');msg(T.problemNumber);$('#sev-save').disabled=true;return;}
   delete bad[id];inp.removeAttribute('aria-invalid');
-  if(id==='n-threshold'){D.threshold=v;}else{D.weights[id.slice(2)]=v;}
+  if(id==='n-threshold'){D.threshold=v;}else if(id==='n-density'){D.minBodyDensity=v;}else{D.weights[id.slice(2)]=v;}
   edit();
 }));
 window.addEventListener('message',(ev)=>{
@@ -134,10 +139,10 @@ window.addEventListener('message',(ev)=>{
   else if(m&&m.type==='sevSaved'){
     // The file holds the draft now: it is the new saved copy, the unusable-values note no longer applies.
     SAVED=clone(m.draft);D=clone(m.draft);const w=$('#sev-lossy');if(w){w.hidden=true;}
-    LEVELS.concat(['negation']).forEach(renderList);renderNumbers();refresh();
+    ALL.forEach(renderList);renderNumbers();refresh();
   }
 });
-LEVELS.concat(['negation']).forEach(renderList);
+ALL.forEach(renderList);
 refresh();
 return {dirty:changed};
 }

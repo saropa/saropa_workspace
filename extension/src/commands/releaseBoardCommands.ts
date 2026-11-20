@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "node:path";
 import { ScanResult, completeFacts, dropFailed, scanAll, snapshotFingerprint } from "../board/scanner";
 import { checkScan } from "../board/safety";
-import { openBoard } from "../views/boardPanel";
+import { openBoard, openKeywordEditor } from "../views/boardPanel";
 import { ProjectHealth } from "../board/health";
 import { collectHealth, findHealthShortcut, startHealthRecorder } from "./boardHealth";
 import { enableFeedSchedule } from "./boardRecipeEvidence";
@@ -258,6 +258,7 @@ export function registerReleaseBoard(context: vscode.ExtensionContext, store: Sh
     vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration("saropaWorkspace.releaseBoard.enabled") && showButton()),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.scan", () => scanCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.open", () => openBoard(context)),
+    vscode.commands.registerCommand("saropaWorkspace.releaseBoard.editKeywords", () => openKeywordEditor(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.mark", () => markCommand(context, loadConfig)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.exportMarks", () => exportMarksCommand(context)),
     vscode.commands.registerCommand("saropaWorkspace.releaseBoard.openRules", () => openRulesFile()),

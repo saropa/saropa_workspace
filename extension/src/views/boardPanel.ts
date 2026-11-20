@@ -388,6 +388,12 @@ class BoardPanel extends BoardPanelFuture {
     return !at ? [] : scope === "group" ? items.filter((x) => x.project === at.project && x.group === at.group) : items.filter((x) => x.project === at.project);
   }
 
+  // The keyword editor from outside the page (the Command Palette command), through the same path as the board's own
+  // button so the disabled, no-board and busy messages stay one set of words.
+  async openKeywordEditor(): Promise<void> {
+    await this.keywords(false);
+  }
+
   // The keyword editor, or Restore defaults. Both change what every document's severity is, and so
   // possibly the light, so each asks first (the editor on Save). The editor gets the model this
   // panel painted; nothing the page names is trusted.
@@ -575,4 +581,12 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
   }
   await current.showCached();
   await current.refresh();
+}
+
+// The Command Palette entry for the keyword editor: reveals the board (opening it when it is closed), then opens the editor from
+// the board it painted, since the editor previews against that board's documents. When the board has nothing painted yet, the editor
+// answers with its own "open the board first" message, so the command never ends silently.
+export async function openKeywordEditor(context: vscode.ExtensionContext): Promise<void> {
+  await openBoard(context);
+  await current?.openKeywordEditor();
 }

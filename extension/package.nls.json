@@ -254,6 +254,7 @@
   "config.releaseBoard.enabled.description": "Show the Release Board: scans the workspace folders' bugs, docs and plans documents and reports their state. On by default; turn it off to hide the status bar button and the commands.",
   "command.releaseBoard.open.title": "Release Board: Open",
   "command.releaseBoard.openRules.title": "Release Board: Open Rules File",
+  "command.releaseBoard.editKeywords.title": "Release Board: Edit Keywords",
   "command.releaseBoard.openSettings.title": "Release Board: Settings",
   "command.releaseBoard.projects.title": "Release Board: Choose Projects",
   "config.releaseBoard.projects.description": "Folders the Release Board includes in addition to the folders open in the window, one absolute path each. The open folders are always included and listed first. Empty (the default) shows only the open folders. Set it from the Projects button on the board. This is a user setting: a workspace cannot change it. Each folder is read like a workspace folder, with its own .saropa/release-board.json when it has one.",
