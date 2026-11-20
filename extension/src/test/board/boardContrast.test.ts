@@ -83,7 +83,9 @@ function ratio(a: Rgb, b: Rgb): number {
 
 // The value of a declaration in the rule with exactly this selector.
 function decl(selector: string, prop: string): string {
-  const rule = new RegExp(`(?:^|\\})${selector.replace(/[.[\]]/g, "\\$&")}\\{([^}]*)\\}`, "m").exec(STYLE) ?? new RegExp(`${selector.replace(/[.[\]]/g, "\\$&")}\\{([^}]*)\\}`).exec(STYLE);
+  // Escape all regex meta-chars including backslash to satisfy CodeQL js/incomplete-sanitization
+  const esc = selector.replace(/[\\.[/\]]/g, "\\$&");
+  const rule = new RegExp(`(?:^|\\})${esc}\\{([^}]*)\\}`, "m").exec(STYLE) ?? new RegExp(`${esc}\\{([^}]*)\\}`).exec(STYLE);
   assert.ok(rule, `rule ${selector}`);
   const d = new RegExp(`(?:^|;)${prop}:([^;]*(?:\\([^)]*\\)[^;]*)*)`).exec(rule[1]);
   assert.ok(d, `${selector} has ${prop}`);
