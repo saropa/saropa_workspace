@@ -61,6 +61,8 @@ A new HubGrid table lists the open issues and pull requests from every watched G
 - Release Board: documents that git ignores are now hidden by default. A new setting, `releaseBoard.includeGitIgnored`, brings them back. A folder that is not a git repository hides nothing.
 
 ### Fixed
+- Release Board: a document in `plans/` with no work-item prefix (a generated review queue, a checklist, notes) is now a reference note instead of open work, so its wording can no longer score as severe and turn the project NO-GO.
+- Release Board: a `PLAN_` document is now blue (deferred on purpose), because a plan is future work and cannot stop a release. It stays amber (open work) inside the `bugs/` folder, and a Status line (`Status: WIP`, `Status: Done`) still moves it to purple or green. New rule-assign menu entries: `plan (Deferred on purpose)` and `plan note (Reference)`.
 - Release Board: danger words in file paths, links and code no longer raise a document's severity; only sentences count.
 - Release Board Gantt: open bars are queued in the order shown; a bar that waits on a row listed later pulls that row in just before it, and with no links the start order is the display order.
 - A Release Board project is amber only when the board could not read something. Missing lint or test results and unsorted documents no longer make it amber, and open work never does. The status bar button is red for a blocker, amber when something could not be read, and green otherwise. Only the projects of the folders open in this window count, never the extra projects you chose.

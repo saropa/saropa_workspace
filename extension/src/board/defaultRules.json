@@ -113,6 +113,9 @@
         ],
         "planPrefix": [
           "PLAN_"
+        ],
+        "planOpenFolders": [
+          "bugs"
         ]
       },
       "rules": [
@@ -127,12 +130,23 @@
           }
         },
         {
+          "id": "plan-open",
+          "when": {
+            "path": "{$planOpenFolders}/*.md",
+            "name": "{$planPrefix}*"
+          },
+          "set": {
+            "status": "amber",
+            "kind": "plan"
+          }
+        },
+        {
           "id": "plan",
           "when": {
             "name": "{$planPrefix}*"
           },
           "set": {
-            "status": "amber",
+            "status": "blue",
             "kind": "plan"
           }
         },
@@ -152,7 +166,8 @@
       "description": "Folders where the files themselves are the open work.",
       "params": {
         "liveBugFolder": "bugs",
-        "livePlanFolder": "plans"
+        "livePlanFolder": "plans",
+        "planWorkPrefix": ["PLAN_", "PROPOSAL_"]
       },
       "rules": [
         {
@@ -168,11 +183,22 @@
         {
           "id": "live-plans",
           "when": {
+            "path": "{$livePlanFolder}/*.md",
+            "name": "{$planWorkPrefix}*"
+          },
+          "set": {
+            "status": "blue",
+            "kind": "plan"
+          }
+        },
+        {
+          "id": "live-plans-other",
+          "when": {
             "path": "{$livePlanFolder}/*.md"
           },
           "set": {
-            "status": "amber",
-            "kind": "plan"
+            "status": "reference",
+            "kind": "plan note"
           }
         }
       ]
@@ -210,7 +236,8 @@
       "statusLine": {
         "appliesTo": [
           "red",
-          "amber"
+          "amber",
+          "blue"
         ],
         "words": {
           "wip": "purple",

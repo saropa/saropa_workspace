@@ -17,7 +17,7 @@ const bug = { status: "red" as const, kind: "bug", label: "bug (Address now)" };
 test("the shipped rules offer these categories, once each, red first", () => {
   assert.deepEqual(
     ruleCategories(shipped).map((c) => c.label),
-    ["bug (Address now)", "bug report (Address now)", "owner action (Address now)", "sql waiting to run (Address now)", "plan (Review next)", "research (Review next)", "Review next (blocked)", "Deferred on purpose", "Done", "index (Reference)", "Reference"]
+    ["bug (Address now)", "bug report (Address now)", "owner action (Address now)", "sql waiting to run (Address now)", "plan (Review next)", "research (Review next)", "Review next (blocked)", "Deferred on purpose", "plan (Deferred on purpose)", "Done", "index (Reference)", "plan note (Reference)", "Reference"]
   );
 });
 

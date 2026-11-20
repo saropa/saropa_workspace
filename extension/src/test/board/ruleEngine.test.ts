@@ -158,6 +158,7 @@ test("golden: TypeScript engine matches the prototype on the frozen Saropa repos
     Object.fromEntries(keys.map((k) => [k, c(id)[k]]));
   assert.deepEqual(pick("app", ["red", "amber", "grey"]), { red: 10, amber: 53, grey: 4 });
   assert.deepEqual(pick("supabase", ["red", "amber", "grey"]), { red: 6, amber: 3, grey: 8 });
-  assert.deepEqual(pick("web", ["red", "amber"]), { red: 2, amber: 26 });
+  // Web's 4 unprefixed plans/*.md files are reference notes, and its 22 PLAN_ files are blue: a plan is future work, amber only under bugs/.
+  assert.deepEqual(pick("web", ["red", "amber", "blue"]), { red: 2, amber: 0, blue: 43 });
   assert.notDeepEqual(c("app"), emptyCounts());
 });
