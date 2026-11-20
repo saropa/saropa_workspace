@@ -120,22 +120,7 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     } else if (act === "hide") {
       await this.hideItem(run, item, id);
     } else if (act === "assign") {
-      const busy = this.busyReason();
-      if (busy) {
-        void vscode.window.showInformationMessage(this.busyText(busy));
-        return;
-      }
-      this.assigning = true;
-      try {
-        if (await assignFolderRule(run, { project: item.project, folder, count: 1 }, true)) {
-          this.dirty = true;
-          await this.refresh();
-        }
-      } catch (e) {
-        void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-      } finally {
-        this.assigning = false;
-      }
+      await this.assignRule(run, item.project, folder);
     } else {
       // A row the page marked as pending is released at once when nothing is written.
       const change = this.docChange(act, item, run);
@@ -144,6 +129,27 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
       } else {
         this.post({ type: "clearPending", id });
       }
+    }
+  }
+
+  // A row's Assign rule: a winning rule for the row's folder, written after a confirmation. Refused
+  // while another write or a scan is under way; the flag keeps a second click out until this one ends.
+  private async assignRule(run: BoardRun, project: string, folder: string): Promise<void> {
+    const busy = this.busyReason();
+    if (busy) {
+      void vscode.window.showInformationMessage(this.busyText(busy));
+      return;
+    }
+    this.assigning = true;
+    try {
+      if (await assignFolderRule(run, { project, folder, count: 1 }, true)) {
+        this.dirty = true;
+        await this.refresh();
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      this.assigning = false;
     }
   }
 
@@ -492,7 +498,7 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
   // What the Tags and rules editor needs from this board. `onSaved` scans again and hands back the new documents,
   // so an editor that stays open after a save keeps previewing against what the board shows now.
   protected editorInput(run: BoardRun, model: BoardModel): TagsEditorInput {
-    const from = (r: BoardRun, m: BoardModel) => ({ cfg: r.cfg, items: m.items, projectNames: new Map(m.projects.map((p) => [p.id, p.name])), profile: m.profile });
+    const from = (r: BoardRun, m: BoardModel) => ({ cfg: r.cfg, items: m.items, projectNames: new Map(m.projects.map((p) => [p.id, p.name])), profile: m.profile, orgDocs: m.orgDocs, linkCtx: m.linkCtx });
     const onSaved = async (): Promise<ReturnType<typeof from> | undefined> => {
       this.dirty = true;
       await this.refresh();
