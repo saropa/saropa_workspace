@@ -6,13 +6,13 @@ The original draft specified a standalone web app: GitHub App webhooks into a
 Go/Rust edge service, a Redis stream, a Socket.io cluster, Next.js SSR, React +
 Zustand, and `@tanstack/react-virtual`. None of that fits this codebase — this
 is a VS Code extension, not a hosted web service, and it already has a working
-GitHub repo-watch feature (poll-based, `globalState`-backed) plus nine existing
+GitHub repo-watch feature (poll-based, `globalState`-backed) plus eleven existing
 webview panels built on a shared, dependency-free pattern (static HTML shell +
 inlined CSS/JS + `postMessage`). This plan reuses that pattern instead of
 introducing a server, a build step, or a UI framework.
 
 What survives from the original draft, adapted to a webview: the dense
-single-row-per-item layout (`SmartRow`), filtering by repo/status, keyboard
+single-row-per-item layout, filtering by repo/status, keyboard
 navigation, a rate-limit notice, and copy-link actions. Dropped entirely:
 webhooks/Redis/WebSockets (the extension polls REST on a timer already), the
 Next.js URL-routing/deep-link scheme (webview panels have no URL bar), and
@@ -63,7 +63,7 @@ extension/src/views/
 3. Host posts one `load` message: flattened item list (each item carries its
    owning repo slug), the unseen-key set, and per-repo rate-limit state if
    the engine recorded a 403 on last poll.
-4. Client renders one `SmartRow`-style table row per item — status icon
+4. Client renders one dense table row per item — status icon
    (issue vs. PR, draft), repo tag, `#number`, title (CSS `truncate`),
    labels, relative "updated" time — styled entirely with `--vscode-*`
    tokens, matching the editor theme automatically (no hardcoded palette).
@@ -72,6 +72,10 @@ extension/src/views/
 6. Keyboard: `j`/`k`/arrows move a focused-row index (a CSS `outline`, not a
    real DOM `tabindex` sweep — the item count here is realistically dozens,
    not thousands, so no virtualization is needed); `Enter` opens the row.
+   The table uses a semantic `<table>` with `role="grid"`, rows carry
+   `role="row"`, and the active row is marked with `aria-activedescendant`.
+   Filter buttons carry `aria-pressed`; filter changes announce the visible
+   count via an `aria-live="polite"` region.
 7. Row click or `Enter` -> `postMessage({ type: "open", htmlUrl, watchId,
    itemKey })` -> host calls `vscode.env.openExternal` and clears that item's
    unseen flag via `store.clearUnseen()` (mirrors `openRepoWatch()`'s
@@ -86,6 +90,10 @@ extension/src/views/
     shows a dismissible banner naming the affected repo and the reset time
     (the engine already computes this for its toast/warning path — reuse it,
     don't re-derive).
+11. Empty state: when no `kind: "repo"` watches exist, or all watch caches are
+    empty (first load before the first poll completes), the panel shows a
+    centered empty-state message with a link/button to add a watch — same
+    pattern as the board panel's empty state.
 
 ### Data model additions
 
@@ -117,20 +125,25 @@ localized `STRINGS` object into the client script).
 
 ## Work items
 
-1. `hubGridShell.ts` + `hubGridAssets.ts`: static shell, CSP+nonce, inlined
-   CSS (SmartRow layout, filter bar, banner) and client script (render,
-   filter, keyboard nav, message posting).
-2. `hubGridPanel.ts`: singleton panel class, gathers data from
-   `FolderWatchStore` + `FolderWatchEngine`, message handlers for
-   `open`/`copy`/`refresh`, repaints on `store.onDidChange` /
-   `onDidChangeCounts`.
-3. Command registration: `saropaWorkspace.showHubGrid` in
-   `folderWatchCommands.ts` (or a new `hubGridCommands.ts` if that file is
-   getting large), wired in `wiringWatchers.ts`.
-4. `package.json`: command entry + `view/title` menu contribution on
+1. `hubGridShell.ts` + `hubGridAssets.ts` + `hubGridPanel.ts`: static shell,
+   CSP+nonce, inlined CSS (dense single-row layout, filter bar, banner),
+   client script (render, filter, keyboard nav, message posting), and
+   singleton panel class. These three files share a message contract and
+   ship as one build step. The panel class gathers data from
+   `FolderWatchStore` + `FolderWatchEngine`, handles `open`/`copy`/`refresh`
+   messages, and repaints on `store.onDidChange` / `onDidChangeCounts`.
+   Repaint is debounced — multiple rapid `onDidChange` fires (e.g. the
+   engine reconciling several watches in one cycle) collapse into a single
+   `load` post, not one per watch.
+2. Command registration: `saropaWorkspace.showHubGrid` in
+   `folderWatchCommands.ts`, wired in `wiringWatchers.ts`.
+3. `package.json`: command entry + `view/title` menu contribution on
    `saropaWorkspace.watches`, `package.nls.json` title key.
-5. `src/i18n/locales/en.json`: new keys for panel title, filter labels,
+4. `src/i18n/locales/en.json`: new keys for panel title, filter labels,
    empty state, rate-limit banner text.
+5. Tests: unit tests for the host-side data-gathering logic — flattening
+   items across watches, merging unseen keys, debounce behavior. Pure
+   functions, no VS Code host dependency, run under `node --test`.
 6. Update root `CHANGELOG.md` `## [Unreleased]` once shipped.
 
 No changes needed to `folderWatch.ts`, `githubClient.ts`, `githubTypes.ts`,
