@@ -35,6 +35,17 @@ import { FUTURE_SORTS, FutureSort } from "../board/futureList";
 // item>", "path <project, step>", "tidy <index>", "liveBug <index>", "handoff <scope, indexes, task, format>", "linksOpen <low>", "linksNot <index>", "linksUnreject", "handoffAct <act, scope, indexes, task, format>", "scopeMenu <entry, scope>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "scope <all or openOnly>", "assign <index>", "preview <index>", "keywords", "keywordsRestore" and "chatPoll", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
+// True for a scopeMenu message whose act is one the host knows and whose id is a string: anything
+// else is dropped before it reaches a handler.
+function isScopeMenu(m: object): m is { act: unknown; id: string } {
+  const { act, id } = m as { act?: unknown; id?: unknown };
+  const known = ["hand", "tags", "ask", "order"].includes(act as string) || isGroupLookAct(act) || isGroupOpAct(act);
+  return known && typeof id === "string";
+}
+
+// The message types patchMessage handles; onActionMessage routes them there.
+const PATCH_TYPES: readonly string[] = ["patchRead", "patchOpen", "patchApply", "linksOpen", "linksNot", "linksUnreject", "linksClearShared", "patchReject"];
+
 let current: BoardPanel | undefined;
 class BoardPanel extends BoardPanelFuture {
   // Run buttons in flight (project:kind) and a review dialog that is open: a second click is ignored.
@@ -83,27 +94,33 @@ class BoardPanel extends BoardPanelFuture {
       } else if (req) {
         await handoffAct(this.post, this.model, this.run, req, (message as { act?: unknown }).act);
       }
-    } else if (msg.type === "scopeMenu" && (["hand", "tags", "ask", "order"].includes((message as { act?: unknown }).act as string) || isGroupLookAct((message as { act?: unknown }).act) || isGroupOpAct((message as { act?: unknown }).act)) && typeof (message as { id?: unknown }).id === "string") {
-      const at = scopeOfMenu((message as { id: string }).id);
-      const lookAct = (message as { act?: unknown }).act;
-      if (at && isGroupLookAct(lookAct)) {
-        // Only a group heading edits a group's look; the group is the one the host painted for that heading.
-        await this.groupLook(at, lookAct);
-      } else if (at && isGroupOpAct(lookAct)) {
-        // Merge and new-tag act on the documents of a group, so they too run only from a group heading.
-        await this.groupOp(at, lookAct);
-      } else if (at && ((message as { act?: unknown }).act === "ask" || (message as { act?: unknown }).act === "order")) {
-        // Only a project menu asks; a group heading has no such entry.
-        if (at.scope === "project") {
-          await ((message as { act?: unknown }).act === "ask" ? this.askBlockers(at.i, true) : this.askOrder(at.i, "again"));
-        }
-      } else if (at && (message as { act?: unknown }).act === "tags") {
-        await this.tagsRules(this.scopeItems(at.scope, at.i));
-      } else if (at) {
-        this.post(openMessage(at.scope, at.i));
-      }
+    } else if (msg.type === "scopeMenu" && isScopeMenu(message)) {
+      await this.scopeMenu(message);
     } else {
       await this.onActionMessage(message as Record<string, unknown>);
+    }
+  }
+
+  // An entry of a scope menu (a project menu or a group heading menu). The id is resolved against the
+  // model this panel rendered, so the page can never name a scope the host did not paint.
+  private async scopeMenu(m: { act: unknown; id: string }): Promise<void> {
+    const at = scopeOfMenu(m.id);
+    const act = m.act;
+    if (at && isGroupLookAct(act)) {
+      // Only a group heading edits a group's look; the group is the one the host painted for that heading.
+      await this.groupLook(at, act);
+    } else if (at && isGroupOpAct(act)) {
+      // Merge and new-tag act on the documents of a group, so they too run only from a group heading.
+      await this.groupOp(at, act);
+    } else if (at && (act === "ask" || act === "order")) {
+      // Only a project menu asks; a group heading has no such entry.
+      if (at.scope === "project") {
+        await (act === "ask" ? this.askBlockers(at.i, true) : this.askOrder(at.i, "again"));
+      }
+    } else if (at && act === "tags") {
+      await this.tagsRules(this.scopeItems(at.scope, at.i));
+    } else if (at) {
+      this.post(openMessage(at.scope, at.i));
     }
   }
 
@@ -124,7 +141,73 @@ class BoardPanel extends BoardPanelFuture {
       await this.tidyReport(message.i);
     } else if (message.type === "liveBug" && typeof message.i === "number") {
       await this.liveBug(message.i);
-    } else if (message.type === "futureSet" || message.type === "futureBlocker" || message.type === "futureQuestion" || message.type === "futureReviewed") {
+    } else if (typeof message.type === "string" && message.type.startsWith("future")) {
+      await this.futureMessage(message);
+    } else if ((message.type === "assign" || message.type === "preview") && typeof message.i === "number") {
+      await this.noRule(message.type, message.i);
+    } else if (message.type === "projects" || message.type === "boardSettings" || message.type === "hintDismiss") {
+      await this.projectsMessage(message.type);
+    } else if (message.type === "groupBy" || message.type === "ganttLayout" || message.type === "scope") {
+      await this.viewSetting(message);
+    } else if (message.type === "rows" && typeof message.id === "string" && message.id.length <= 1000 && typeof message.from === "number") {
+      this.sendRows(message.id, message.by, message.from);
+    } else if (message.type === "chatPoll") {
+      this.chats.toggle();
+    } else if (message.type === "drop") {
+      await this.drop(message);
+    } else if ((message.type === "blockersAsk" || message.type === "orderAsk") && Number.isInteger(message.p)) {
+      // The batch asks of a project card; the index is resolved against the model this panel rendered.
+      await (message.type === "blockersAsk" ? this.askBlockers(message.p as number, false) : this.askOrder(message.p as number, "batch"));
+    } else if (message.type === "rowMenu" && typeof message.id === "number" && typeof message.act === "string") {
+      await this.rowMenu(message.act, message.id);
+    } else if (message.type === "optsMenu" && typeof message.act === "string") {
+      await this.optsMenu(message.act);
+    } else if (message.type === "keywords" || message.type === "keywordsRestore") {
+      await this.keywords(message.type === "keywordsRestore");
+    } else if (PATCH_TYPES.includes(message.type as string)) {
+      await this.patchMessage(message);
+    } else if (message.type === "undoDismiss") {
+      this.dismissUndo();
+    } else if (message.type === "undo") {
+      await this.undoChange();
+    } else if (message.type === "startup") {
+      await this.startup(message.value);
+    } else if (message.type === "rules") {
+      await openRulesFile(undefined, documentColumn());
+    } else if (message.type === "accept") {
+      await this.accept();
+    } else if (message.type === "sinceDismiss") {
+      markSeenNow(this.model);
+    } else if (message.type === "open" && typeof message.id === "number") {
+      await this.openItem(message.id);
+    } else if (message.type === "path" && typeof message.p === "number" && typeof message.s === "number") {
+      await this.pathAction(message.p, message.s);
+    }
+  }
+
+  // The Undo toast was closed without using it: stop its timer and tell the page to hide it.
+  private dismissUndo(): void {
+    clearTimeout(this.undo?.timer);
+    this.undo = undefined;
+    this.post({ type: "undoOff" });
+  }
+
+  // The grouping, Gantt layout and project scope choices of the top bar. Each value is checked against
+  // the known list; the setting change draws the board again through the configuration listener.
+  private async viewSetting(message: Record<string, unknown>): Promise<void> {
+    if (message.type === "groupBy" && GROUP_BYS.some((g) => g === message.value)) {
+      await writeGroupBy(GROUP_BYS.find((g) => g === message.value)!);
+    } else if (message.type === "ganttLayout" && asGanttLayout(message.value) !== undefined) {
+      await writeGanttLayout(asGanttLayout(message.value)!);
+    } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
+      await writeProjectScope(message.value);
+    }
+  }
+
+  // The messages of the future list ("future*" types): an edit of one item, the hand-off, opening an item
+  // and the sort order. An unknown "future*" type or a bad sort value does nothing.
+  private async futureMessage(message: Record<string, unknown>): Promise<void> {
+    if (message.type === "futureSet" || message.type === "futureBlocker" || message.type === "futureQuestion" || message.type === "futureReviewed") {
       await this.futureEdit(message);
     } else if (message.type === "futureHand") {
       await this.futureHand();
@@ -134,34 +217,13 @@ class BoardPanel extends BoardPanelFuture {
       this.futureSort = message.value as FutureSort;
       this.lastKey = "";
       this.render(this.cached ? { stale: true } : {});
-    } else if ((message.type === "assign" || message.type === "preview") && typeof message.i === "number") {
-      await this.noRule(message.type, message.i);
-    } else if (message.type === "projects" || message.type === "boardSettings" || message.type === "hintDismiss") {
-      await this.projectsMessage(message.type);
-    } else if (message.type === "groupBy" && GROUP_BYS.some((g) => g === message.value)) {
-      // The setting change draws the board again through the configuration listener.
-      await writeGroupBy(GROUP_BYS.find((g) => g === message.value)!);
-    } else if (message.type === "ganttLayout" && asGanttLayout(message.value) !== undefined) {
-      await writeGanttLayout(asGanttLayout(message.value)!);
-    } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
-      await writeProjectScope(message.value);
-    } else if (message.type === "rows" && typeof message.id === "string" && message.id.length <= 1000 && typeof message.from === "number") {
-      this.sendRows(message.id, message.by, message.from);
-    } else if (message.type === "chatPoll") {
-      this.chats.toggle();
-    } else if (message.type === "drop") {
-      await this.drop(message);
-    } else if (message.type === "blockersAsk" && Number.isInteger(message.p)) {
-      await this.askBlockers(message.p as number, false);
-    } else if (message.type === "orderAsk" && Number.isInteger(message.p)) {
-      await this.askOrder(message.p as number, "batch");
-    } else if (message.type === "rowMenu" && typeof message.id === "number" && typeof message.act === "string") {
-      await this.rowMenu(message.act, message.id);
-    } else if (message.type === "optsMenu" && typeof message.act === "string") {
-      await this.optsMenu(message.act);
-    } else if (message.type === "keywords" || message.type === "keywordsRestore") {
-      await this.keywords(message.type === "keywordsRestore");
-    } else if (message.type === "patchRead" && typeof message.text === "string") {
+    }
+  }
+
+  // The patch and proposed-links messages of the page: reading a pasted patch, applying or rejecting
+  // proposals, and the rejected-links list. Each branch checks its own fields, so a malformed message does nothing.
+  private async patchMessage(message: Record<string, unknown>): Promise<void> {
+    if (message.type === "patchRead" && typeof message.text === "string") {
       this.patches.read(message.text, "paste");
     } else if (message.type === "patchOpen") {
       this.patches.open();
@@ -196,24 +258,6 @@ class BoardPanel extends BoardPanelFuture {
         this.dirty = true;
         await this.refresh();
       }
-    } else if (message.type === "undoDismiss") {
-      clearTimeout(this.undo?.timer);
-      this.undo = undefined;
-      this.post({ type: "undoOff" });
-    } else if (message.type === "undo") {
-      await this.undoChange();
-    } else if (message.type === "startup") {
-      await this.startup(message.value);
-    } else if (message.type === "rules") {
-      await openRulesFile(undefined, documentColumn());
-    } else if (message.type === "accept") {
-      await this.accept();
-    } else if (message.type === "sinceDismiss") {
-      markSeenNow(this.model);
-    } else if (message.type === "open" && typeof message.id === "number") {
-      await this.openItem(message.id);
-    } else if (message.type === "path" && typeof message.p === "number" && typeof message.s === "number") {
-      await this.pathAction(message.p, message.s);
     }
   }
 

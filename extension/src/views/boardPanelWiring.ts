@@ -30,45 +30,11 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
         }
       }, null, this.disposables);
       onDidAskRefresh(() => this.poke(0), null, this.disposables);
-      // The change was taken as seen (or marked seen): draw the board again without the strip.
-      onDidChangeSinceLast(
-        () => {
-          if (this.run) {
-            this.lastKey = "";
-            this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
-          }
-        },
-        null,
-        this.disposables
-      );
-      onDidRecordHealth(() => this.poke(300), null, this.disposables);
-      // A mark changes only what is drawn, so the stored scan is shown again, not redone.
-      onDidChangeMarks(
-        () =>
-          void readMarks(this.context).then((m) => {
-            if (this.run) {
-              this.run.marks = m;
-              this.render();
-              // A repaint wipes the open list of proposed links; it is drawn again from the new board.
-              this.patches.reshowLinks();
-            }
-          }),
-        null,
-        this.disposables
-      );
+      this.listenForSeen();
       this.listenForChanges();
       this.watchDocuments();
       this.disposables.push(this.patches.watch());
-      panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
-      // Problems changed while the tab was hidden: look again when it is shown.
-      panel.onDidChangeViewState(() => this.panel.visible && !this.scanning && void this.refreshLive(), null, this.disposables);
-      // Documents were edited while the tab was hidden: look again when it is shown.
-      panel.onDidChangeViewState(() => {
-        if (this.panel.visible && this.editedStale) {
-          this.editedStale = false;
-          void this.refreshEdited();
-        }
-      }, null, this.disposables);
+      this.listenForReshow(panel);
       panel.webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m), null, this.disposables);
       // Something is on screen at once: placeholders, then the last result, then the scan.
       panel.webview.html = renderSkeleton(strings(), crypto.randomBytes(16).toString("base64"));
@@ -78,6 +44,52 @@ export abstract class BoardPanelWiring extends BoardPanelCore {
       }
       throw e;
     }
+  }
+
+  // Something was marked seen, a health result arrived or a mark changed: draw again without the strip,
+  // look again soon, or show the stored scan with the new marks.
+  private listenForSeen(): void {
+    // The change was taken as seen (or marked seen): draw the board again without the strip.
+    onDidChangeSinceLast(
+      () => {
+        if (this.run) {
+          this.lastKey = "";
+          this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
+        }
+      },
+      null,
+      this.disposables
+    );
+    onDidRecordHealth(() => this.poke(300), null, this.disposables);
+    // A mark changes only what is drawn, so the stored scan is shown again, not redone.
+    onDidChangeMarks(
+      () =>
+        void readMarks(this.context).then((m) => {
+          if (this.run) {
+            this.run.marks = m;
+            this.render();
+            // A repaint wipes the open list of proposed links; it is drawn again from the new board.
+            this.patches.reshowLinks();
+          }
+        }),
+      null,
+      this.disposables
+    );
+  }
+
+  // Each time the tab is shown again: scan if a change was held back, look at Problems again, and look
+  // at edited documents again. Registered in this order, after the first view-state listener.
+  private listenForReshow(panel: vscode.WebviewPanel): void {
+    panel.onDidChangeViewState(() => this.panel.visible && this.dirty && this.schedule(0), null, this.disposables);
+    // Problems changed while the tab was hidden: look again when it is shown.
+    panel.onDidChangeViewState(() => this.panel.visible && !this.scanning && void this.refreshLive(), null, this.disposables);
+    // Documents were edited while the tab was hidden: look again when it is shown.
+    panel.onDidChangeViewState(() => {
+      if (this.panel.visible && this.editedStale) {
+        this.editedStale = false;
+        void this.refreshEdited();
+      }
+    }, null, this.disposables);
   }
 
   // Marks, providers, Problems, trains, folders and settings: each draws again or asks for a scan.
