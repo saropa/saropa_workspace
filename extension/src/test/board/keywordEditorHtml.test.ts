@@ -6,6 +6,9 @@ import assert from "node:assert/strict";
 import { NUMBER_RANGES, renderSeverityBody, severityData } from "../../board/keywordEditorHtml";
 import { EDIT_LEVELS, LIMITS, SeverityDraft, defaultDraft } from "../../board/severityEdit";
 import { keywordLabels } from "../../views/keywordStrings";
+import { defaultState } from "../../board/org/organizeEdit";
+import { renderTagsEditor } from "../../board/tagsEditorHtml";
+import { tagsLabels } from "../../views/tagsStrings";
 
 const t = keywordLabels();
 
@@ -16,12 +19,12 @@ const withDraft = (change: (d: SeverityDraft) => void): SeverityDraft => {
   return d;
 };
 
-// The opening <details> tag of one list section, so an assertion reads only that section's marker.
+// One list section's markup, from its data-sec marker to the next section's (or the end), so an assertion reads only that section.
 const sectionOf = (html: string, kind: string): string => {
   const start = html.indexOf(`data-sec="${kind}"`);
   assert.ok(start >= 0, `section ${kind} is missing`);
-  const next = html.indexOf("</details>", start);
-  return html.slice(start, next);
+  const next = html.indexOf('data-sec="', start + 1);
+  return next < 0 ? html.slice(start) : html.slice(start, next);
 };
 
 test("each number field is held to the range the host also uses", () => {
@@ -139,4 +142,59 @@ test("the audience and density labels all resolve to text, and the script data n
   const data = severityData(t, defaultDraft()) as { extras: Record<string, { prefix: string; chars: number }> };
   assert.deepEqual(Object.keys(data.extras).sort(), ["audience", "negation"]);
   assert.equal(data.extras.audience.chars, LIMITS.audienceChars);
+});
+
+test("every level is a collapsed accordion card: a header button wired to a hidden region, with nothing inside the button but text", () => {
+  const html = renderSeverityBody(t, defaultDraft());
+  for (const level of EDIT_LEVELS) {
+    const card = sectionOf(html, level);
+    assert.ok(card.includes(`id="acc-${level}"`) && card.includes('aria-expanded="false"') && card.includes(`aria-controls="body-${level}"`), level);
+    assert.ok(card.includes(`id="body-${level}" role="region" aria-labelledby="acc-${level}" hidden`), `${level} region is not hidden and labelled`);
+    const header = card.slice(card.indexOf("<button"), card.indexOf("</button>"));
+    assert.equal(header.split("<button").length - 1, 1, `${level} header holds another control`);
+    assert.ok(!card.includes('aria-expanded="true"'), `${level} starts open`);
+  }
+});
+
+test("a collapsed card previews 5 phrases with no remove button and says how many more are inside", () => {
+  const d = defaultDraft();
+  const card = sectionOf(renderSeverityBody(t, d), "critical");
+  const peek = card.slice(card.indexOf('data-peek="critical"'), card.indexOf('id="body-critical"'));
+  assert.equal(peek.split('class="chip"').length - 1, 5);
+  assert.ok(!peek.includes("data-rm"), "the peek has a remove button");
+  assert.ok(peek.includes(t.moreChips.replace("{count}", String(d.phrases.critical.length - 5))));
+});
+
+test("the tab has one Save and one Restore all, and the page bar Save is hidden on the Severity tab only", () => {
+  const body = renderSeverityBody(t, defaultDraft());
+  assert.equal(body.split('id="sev-save"').length - 1, 1);
+  assert.equal(body.split('id="sev-restoreAll"').length - 1, 1);
+  const input = { labels: t, draft: defaultDraft() };
+  const onSeverity = renderTagsEditor(tagsLabels(), "n", defaultState(), input, "severity");
+  const onTags = renderTagsEditor(tagsLabels(), "n", defaultState(), input, "tags");
+  assert.ok(/id="save" class="primary" disabled hidden/.test(onSeverity));
+  assert.ok(/id="save" class="primary" disabled title=/.test(onTags));
+});
+
+test("each number has an info icon that carries its explanation, and the scoring numbers share one grid", () => {
+  const html = renderSeverityBody(t, defaultDraft());
+  assert.ok(html.includes(`aria-label="${t.infoTip.replace("{label}", t.densityLabel).replace("{help}", t.densityHelp)}"`));
+  assert.equal(html.split('class="info"').length - 1, 6);
+  assert.ok(sectionOf(html, "scoring").includes('class="grid"'));
+});
+
+test("the negation and audience words sit in one Phrase rules card with a restore link each, outside any accordion button", () => {
+  const html = renderSeverityBody(t, defaultDraft());
+  const rules = sectionOf(html, "rules");
+  assert.ok(rules.includes(t.phraseRulesTitle));
+  const all = html.slice(html.indexOf('data-sec="rules"'));
+  assert.ok(all.includes('data-restore="negation"') && all.includes('data-restore="audience"'));
+  assert.ok(!all.includes("data-acc"), "a rule list is always open");
+});
+
+test("the new accordion labels resolve to text and keep their placeholders", () => {
+  for (const k of ["moreChips", "expandTip", "collapseTip", "phraseRulesTitle", "phraseRulesTip", "infoTip"] as const) {
+    assert.ok(t[k].length > 0 && !t[k].startsWith("releaseBoard."), k);
+  }
+  assert.ok(t.moreChips.includes("{count}") && t.expandTip.includes("{level}") && t.infoTip.includes("{help}"));
 });

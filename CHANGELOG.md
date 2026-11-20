@@ -46,11 +46,12 @@ cspell:disable
 
 ---
 
-## [Unreleased]
+## [2.9.0]
 
-Folder-watch alerts can now be dismissed without muting or disabling the watch. [log](https://github.com/saropa/saropa_workspace/blob/vX.Y.Z/CHANGELOG.md)
+A simpler Severity tab in the keyword editor, editable keyword settings, and folder-watch alerts you can dismiss or mute for an hour. [log](https://github.com/saropa/saropa_workspace/blob/v2.9.0/CHANGELOG.md)
 
 ### Added
+- Release Board: the Severity tab of the keyword editor has a simpler layout. A sticky strip at the top keeps **What would change** and the one **Save** in view (the page bar's own Save is hidden on this tab), the four levels are collapsed cards that show a one-line meaning, the count and the first five phrases (open one to edit it; opening one closes the others), the six numbers sit in one compact grid with their explanations behind an info icon, the negation and audience words share one **Phrase rules** card, and **Restore defaults** is a small link in each list header. What is saved is unchanged.
 - Release Board: the keyword editor can now be opened from the Command Palette (**Release Board: Edit Keywords**, shown when the board and the keyword editor are on), and its Severity tab now edits the two parts that were kept but not editable: the body density (a whole number from 1 to 50) and the audience words (up to 30 words of up to 40 letters). Both are saved under the `severity` key of the rules file only when they differ from the shipped values, and Restore defaults brings them back.
 - Release Board: the Tags editor now exposes five engine constants — sequence tokens, document kinds, kind dependency order, status-folder words and container-folder words — as editable word lists on the Link words and Naming tabs, so the grouping and link engines can be tuned without editing JSON.
 - Folder watches: the new/changed-files alert now has a Dismiss button next to Open. Dismiss clears those files from the unseen count and the activity-bar badge and leaves the watch running, so the next new file still alerts.

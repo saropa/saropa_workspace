@@ -252,6 +252,8 @@ function duplicate(i){
 function select(name){
   document.querySelectorAll('[role=tab]').forEach(t=>{const on=t.getAttribute('data-tab')===name;t.setAttribute('aria-selected',String(on));t.tabIndex=on?0:-1;});
   document.querySelectorAll('[role=tabpanel]').forEach(p=>{p.hidden=p.getAttribute('data-panel')!==name;});
+  // The Severity tab has its own Save in the sticky strip; the page bar's Save would be a second, confusing one there.
+  $('#save').hidden=name==='severity';
 }
 function showImport(m){
   IMP=m.state;const d=m.diff;

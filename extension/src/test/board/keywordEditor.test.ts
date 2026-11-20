@@ -329,3 +329,60 @@ test("the body density is flagged outside its range and sent when valid; Restore
   assert.equal(page.byId("n-density").value, String(DEFAULT_SEVERITY.minBodyDensity));
   assert.equal(page.all('[data-list="audience"] .chip').length, DEFAULT_SEVERITY.audience.pro.length);
 });
+
+test("opening a level card shows its list and hides its peek, and opening another closes the first", () => {
+  const page = open();
+  const acc = (k: string) => page.byId(`acc-${k}`);
+  for (const k of ["extreme", "critical", "high", "low"]) {
+    assert.equal(acc(k).getAttribute("aria-expanded"), "false", `${k} starts open`);
+    assert.equal(hidden(page.byId(`body-${k}`)), true);
+  }
+  page.click(acc("high"));
+  assert.equal(acc("high").getAttribute("aria-expanded"), "true");
+  assert.equal(hidden(page.byId("body-high")), false);
+  assert.equal(hidden(page.one('[data-peek="high"]')), true);
+  page.click(acc("low"));
+  assert.equal(acc("high").getAttribute("aria-expanded"), "false", "the first card closed");
+  assert.equal(hidden(page.byId("body-high")), true);
+  assert.equal(acc("low").getAttribute("aria-expanded"), "true");
+  page.click(acc("low"));
+  assert.equal(acc("low").getAttribute("aria-expanded"), "false", "a second click closes the card");
+});
+
+test("Escape closes the open card and puts focus on its header", () => {
+  const page = open();
+  page.click(page.byId("acc-critical"));
+  page.key(page.one('[data-add="critical"]'), "Escape");
+  assert.equal(page.byId("acc-critical").getAttribute("aria-expanded"), "false");
+  assert.equal(page.document.activeElement, page.byId("acc-critical"));
+});
+
+test("the collapsed peek follows the list: the first 5 chips without remove buttons and a +N more note, redrawn after an edit", () => {
+  const page = open();
+  assert.equal(page.all('[data-peek="critical"] .chip').length, 5);
+  assert.equal(page.all('[data-peek="critical"] button').length, 0);
+  const total = DEFAULT_SEVERITY.phrases.critical!.length;
+  assert.equal(page.one('[data-peek="critical"] .more').textContent, `+${total - 5} more`);
+  page.click(page.one('[data-list="critical"] .chip button'));
+  assert.equal(page.one('[data-peek="critical"] .more').textContent, `+${total - 6} more`);
+});
+
+test("a restore link is off while its list matches the shipped words, and restoring returns focus to the card header", () => {
+  const page = open();
+  assert.equal(page.one('[data-restore="high"]').disabled, true);
+  page.click(page.one('[data-list="high"] .chip button'));
+  assert.equal(page.one('[data-restore="high"]').disabled, false);
+  page.click(page.one('[data-restore="high"]'));
+  assert.equal(page.one('[data-restore="high"]').disabled, true);
+  assert.equal(page.document.activeElement, page.byId("acc-high"));
+});
+
+test("the page bar Save is hidden while the Severity tab is shown and back on the other tabs", () => {
+  const page = open();
+  page.click(page.byId("tab-tags"));
+  assert.equal(hidden(page.byId("save")), false);
+  page.click(page.byId("tab-severity"));
+  assert.equal(hidden(page.byId("save")), true);
+  page.click(page.byId("tab-naming"));
+  assert.equal(hidden(page.byId("save")), false);
+});
