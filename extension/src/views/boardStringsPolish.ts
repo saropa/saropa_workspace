@@ -2,11 +2,14 @@ import { l10n } from "../i18n/l10n";
 
 // Every key of the tooltip and control table, in en.json as "releaseBoard.polish.<key>".
 export const POLISH_KEYS = [
+  // Keys are listed explicitly (not discovered from the catalog) so a key missing from en.json is a visible gap, not a silently absent string.
+  // Dotted keys group a family (profile, status, severity); the rest are grouped loosely by the surface that shows them.
   "refresh",
   "accept",
   "profile.rush",
   "profile.deliberate",
   "profile.zero",
+  // Tabs and the Gantt view.
   "tabs",
   "tabBoard",
   "tabFuture",
@@ -52,6 +55,7 @@ export const POLISH_KEYS = [
   "ganttChanged",
   "ganttBar",
   "ganttBarNone",
+  // Drag-and-drop targets and keyboard moves.
   "dropBand",
   "dropGroup",
   "dropUngroup",
@@ -66,6 +70,7 @@ export const POLISH_KEYS = [
   "light.go",
   "light.noGo",
   "light.unverified",
+  // Project rows, status words and the explanations of why a row is red, amber or purple.
   "projectRow",
   "projectRowPlain",
   "projectName",
@@ -95,6 +100,7 @@ export const POLISH_KEYS = [
   "orderTip",
   "orderChoose",
   "orderChooseTip",
+  // Row menu entries, each paired with a Tip key for its hover text.
   "menuOrder",
   "menuOrderTip",
   "menuOrderRow",
@@ -196,6 +202,7 @@ export const POLISH_KEYS = [
   "moreStrip",
   "moreStripTip",
   "moreItem",
+  // The Group by menu and the headings that lack a group or severity.
   "groupBy",
   "groupByTip",
   "groupProject",
@@ -257,6 +264,7 @@ export const POLISH_KEYS = [
   "futureMenuList",
   "futureGroupTip",
   "futureSortTip",
+  // Names of the marker shapes, used as their accessible labels so meaning never rests on color or shape alone.
   "g.redDot",
   "g.greenDot",
   "g.greyDot",
@@ -282,6 +290,7 @@ export const POLISH_KEYS = [
   "menuRaiseTip",
   "menuLower",
   "menuLowerTip",
+  // The preview of what a status or severity change would do, shown before it is applied.
   "effLabel",
   "effStops",
   "effClears",
@@ -348,6 +357,7 @@ export const POLISH_KEYS = [
 
 // Why: the board string table merges this group with the others; it lives in its own module to keep the strings file short.
 // Tooltips and the labels of the controls added with them.
+// Typed as a plain string map because the keys are data-driven; callers look them up by the names in the list above.
 export function polishStrings() {
   return { polish: Object.fromEntries(POLISH_KEYS.map((k) => [k, l10n(`releaseBoard.polish.${k}`)])) as Record<string, string> };
 }

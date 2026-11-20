@@ -120,6 +120,7 @@ export interface ScanResult {
   failed?: FailedProject[];
 }
 
+// A chosen project the scan could not finish, and why, so the board draws a grey row naming it instead of silently omitting it.
 export interface FailedProject {
   id: string;
   name: string;

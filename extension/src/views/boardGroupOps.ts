@@ -10,8 +10,10 @@ import { l10n } from "../i18n/l10n";
 // The group-heading entries that act on the documents of a group (decision 45). Like the look entries, the page sends
 // only the entry name and a heading's item index; the group, its documents and every value come from the host.
 export const GROUP_OP_ACTS = ["gMerge", "gTag"] as const;
+// One of the group-heading entries; the page sends only this name, never a value.
 export type GroupOpAct = (typeof GROUP_OP_ACTS)[number];
 
+// Narrows a message field from the page to a known group action; unknown names are dropped.
 export const isGroupOpAct = (act: unknown): act is GroupOpAct => (GROUP_OP_ACTS as readonly unknown[]).includes(act);
 
 // What a successful change reports back to the panel: the undo snapshot and the text for the Undo bar.

@@ -193,11 +193,13 @@ export function emptyCounts(): StatusCounts {
 
 // The layouts of the Release Board's Group by menu: one card per project, group, status or severity, or one merged list.
 export const GROUP_BYS = ["project", "group", "status", "severity", "none"] as const;
+// One of the Group by layouts; anything else a message or setting names is rejected.
 export type GroupBy = (typeof GROUP_BYS)[number];
 
 // How the Gantt lays out several projects: only the open workspace's projects, one section
 // each (local, the default), every project one section each, or all rows in one section.
 export const GANTT_LAYOUTS = ["local", "split", "unified"] as const;
+// One of the Gantt layouts; derived from the list so the setting enum and the check cannot drift.
 export type GanttLayout = (typeof GANTT_LAYOUTS)[number];
 
 // The layout a message or setting names, or undefined for anything outside the fixed list.

@@ -21,6 +21,7 @@ export function kebab(t: BoardStrings, menu: "row" | "fut" | "opts" | "scope", i
   return `<button type="button" class="kb sec" data-menu="${menu}"${at} aria-haspopup="menu" aria-expanded="false" aria-controls="menu-${menu}" title="${escapeHtml(text)}" aria-label="${escapeHtml(text)}">\u22EE</button>`;
 }
 
+// One menu button. Every interpolated value is escaped here, so a caller passes raw text; `extra` is trusted markup built by the caller (never page input).
 export const item = (act: string, text: string, tipText: string, extra = "", role = "menuitem", shape = ""): string => `<button type="button" class="mi" role="${role}" data-act="${escapeHtml(act)}"${extra} title="${escapeHtml(tipText)}">${shape === "" ? "" : `<span class="sg ${escapeHtml(shape)}" aria-hidden="true">${SHAPES[shape] ?? "○"}</span> `}${escapeHtml(text)}</button>`;
 
 // A status the row menu offers: the words of a category of the existing rules and its color.
@@ -94,6 +95,7 @@ export function pillMenuLabel(t: BoardStrings, withScope: boolean): string {
   return withScope ? `${pl(t, "scopeGroup")} / ${t.profileLabel}` : t.profileLabel;
 }
 
+// The menus the header pills open (scope and mode, Group by, time box, documents on hand). Built together so each pill's menu id matches the id the pill names.
 export function pillMenus(t: BoardStrings, model: BoardModel, scope?: "all" | "openOnly", groupBy?: GroupBy): string {
   const { profile, sittings } = model;
   const menu = (id: string, aria: string, body: string): string => `<div class="menu" id="menu-${id}" role="menu" hidden aria-label="${escapeHtml(aria)}" title="${escapeHtml(aria)}">${body}</div>`;
