@@ -57,7 +57,9 @@ const asChild = (c: FakeChild): ChildProcess => c as unknown as ChildProcess;
 // for the test and the request is reported in one platform-neutral form: the signal name, or the
 // taskkill arguments.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const cpBag = require("node:child_process") as Record<string, unknown>;
+// Typed with a concrete `spawn` key: over Record<string, unknown> the method-name parameter of
+// mock.method resolves to `never`, which made the mock `never` and broke every use of it under strict.
+const cpBag = require("node:child_process") as { spawn: (...args: unknown[]) => unknown };
 async function killRequest(child: FakeChild, act: () => Promise<unknown>): Promise<string[]> {
   const spawnMock = mock.method(cpBag, "spawn", () => ({}));
   try {
