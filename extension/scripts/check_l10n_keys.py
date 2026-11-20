@@ -1,0 +1,585 @@
+"""Cross-reference every l10n() call in extension/src/ against en.json.
+
+Exits 0 when every key resolves, 1 when orphans exist (missing from en.json
+or defined but never referenced). Designed to run in CI alongside the
+translation coverage gate.
+
+Usage:
+    python extension/scripts/check_l10n_keys.py
+    python extension/scripts/check_l10n_keys.py --check-params
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import re
+import sys
+from pathlib import Path
+
+# Force UTF-8 output on Windows where the console defaults to cp1252.
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
+# Repo-relative paths.
+_REPO = Path(__file__).resolve().parents[2]
+_SRC = _REPO / "extension" / "src"
+_EN_JSON = _SRC / "i18n" / "locales" / "en.json"
+
+# Matches l10n('dotted.key') with single or double quotes only.
+# Template-literal keys like l10n(`prefix.${var}`) are dynamic and
+# cannot be validated statically — they are intentionally excluded.
+_L10N_RE = re.compile(r"""l10n\(\s*['"]([a-zA-Z0-9_.]+)['"]""")
+
+# Extracts {placeholder} tokens from en.json values.
+_PLACEHOLDER_RE = re.compile(r"\{([a-zA-Z0-9_]+)\}")
+
+# Extracts JS object keys from the second l10n() argument.
+# Handles both `{ count: value }` and shorthand `{ message }`.
+# Looks for identifiers preceded by `{` or `,` (start of a member).
+# Excludes spread (`...obj`) and computed keys (`[expr]`) by requiring
+# the captured group to be a plain identifier, not preceded by `...`.
+# Uses lookahead for the trailing delimiter so consecutive shorthand
+# properties (e.g. `{ a, b, c }`) all match — consuming the trailing
+# `,` would swallow the next property's start delimiter.
+_OBJ_KEY_RE = re.compile(r"(?:^|[{,])\s*(?!\.\.\.)(\w+)\s*(?=:|[,}])")
+
+# Matches a l10n:passthrough marker comment on a source line.
+# When present, the checker skips param validation for any l10n()
+# call on that line — the placeholders are substituted downstream
+# (e.g. by client-side JS in a webview script-strings builder).
+_PASSTHROUGH_MARKER = 'l10n:passthrough'
+
+
+# Files whose l10n('...') calls are parser test fixtures, not real usages.
+# Their placeholder keys (e.g. 'key') must not be reported as missing.
+_FIXTURE_FILES = frozenset({"extension/src/test/l10nParsers.test.ts"})
+
+# Dynamic references: keys passed to l10n() through a variable typed as a
+# string-literal union (e.g. `summaryKey: BlastSummaryKey` in
+# upgrade-blast-radius.ts). A type alias whose name ends in `Key` and whose
+# members are all dotted string literals is treated as a declaration of
+# dynamically-referenced keys; each member counts as used (so the dead-key
+# warning skips it) and is also validated against en.json.
+# Built from one literal pattern so members are separated only by an explicit
+# `|` (unambiguous: no optional-pipe + `\s*` overlap, so no ReDoS backtracking).
+_KEY_LITERAL = r"""['"][a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+['"]"""
+_KEY_UNION_RE = re.compile(
+    r"type\s+\w*Key\s*=\s*((?:\|\s*)?" + _KEY_LITERAL
+    + r"(?:\s*\|\s*" + _KEY_LITERAL + r")*)\s*;"
+)
+_UNION_MEMBER_RE = re.compile(r"""['"]([a-zA-Z0-9_.]+)['"]""")
+
+
+def _collect_union_keys() -> dict[str, str]:
+    """Return {key: file} for members of `...Key` string-literal unions."""
+    found: dict[str, str] = {}
+    for ts_file in sorted(_SRC.rglob("*.ts")):
+        rel = str(ts_file.relative_to(_REPO)).replace("\\", "/")
+        if rel in _FIXTURE_FILES:
+            continue
+        text = _strip_comments(ts_file.read_text(encoding="utf-8"))
+        for m in _KEY_UNION_RE.finditer(text):
+            for k in _UNION_MEMBER_RE.findall(m.group(1)):
+                found[k] = rel
+    return found
+
+
+# ---------------------------------------------------------------------------
+# Additional "reference" detectors used ONLY for the dead-key warning. They
+# never add keys to the "missing from en.json" check (a dotted string that is
+# not an en.json key is usually not an l10n key at all).
+# ---------------------------------------------------------------------------
+
+# Any quoted / backtick string (no interpolation) shaped like a dotted key.
+# Catches keys held as plain data (`titleKey: 'x.y'`, `const K = 'x.y'`,
+# tables serialized into webview scripts) that never sit inside l10n('...').
+_DOTTED_STRING_RE = re.compile(r"""['"`]([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)+)['"`]""")
+
+# `const s = 'commandCatalog.script';` — a file-local key-prefix constant.
+_PREFIX_CONST_RE = re.compile(
+    r"""(?:const|let)\s+(\w+)\s*(?::\s*string\s*)?=\s*['"]([a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)['"]"""
+)
+
+
+def _prefix_const_refs(text: str) -> set[str]:
+    """Resolve `${NAME}.rest` / `NAME + '.rest'` against file-local prefix consts."""
+    # A name may be reused for different prefixes in different functions
+    # (e.g. `const s` twice); try every pair. Wrong pairings yield keys that
+    # are not in en.json and are discarded by the caller.
+    consts = _PREFIX_CONST_RE.findall(text)
+    out: set[str] = set()
+    for name, prefix in consts:
+        for m in re.finditer(r"\$\{" + re.escape(name) + r"\}\.([a-zA-Z0-9_.]+)", text):
+            out.add(f"{prefix}.{m.group(1)}")
+        for m in re.finditer(r"\b" + re.escape(name) + r"\s*\+\s*['\"]\.([a-zA-Z0-9_.]+)['\"]", text):
+            out.add(f"{prefix}.{m.group(1)}")
+    return out
+
+
+# Dynamic key families: keys assembled at runtime from an id (enum value,
+# table row id, pack id, ...), invisible to any static literal scan. Each
+# entry is (key prefix, suffix regex, mechanism file, regex that must still
+# appear in that file). The checker re-verifies the mechanism regex on every
+# run, so an entry goes stale (and its keys go back to being reported) if the
+# code that builds the keys is removed. Add a family ONLY after confirming the
+# runtime id set really covers the keys.
+_DYNAMIC_FAMILIES: list[tuple[str, str, str, str]] = [
+    ("packageDashboard.columns.", r".+\.(?:label|tooltip)", "extension/src/vibrancy/views/report-html-table.ts",
+     r"packageDashboard\.columns\.\$\{cid\}\.\$\{part\}"),
+    ("codeHealth.flag.", r".+\.(?:label|evidence|rule)", "extension/src/views/projectVibrancyClientScript.ts",
+     r"codeHealth\.flag\.'\s*\+\s*k"),
+    ("stylistic.desc.", r"[^.]+", "extension/src/rulePacks/rulePacksWebviewProvider.ts",
+     r"stylistic\.desc\.'\s*\+\s*pack\.id"),
+    ("packs.domainDesc.", r"[^.]+", "extension/src/rulePacks/rulePacksWebviewProvider.ts",
+     r"packs\.domainDesc\.'\s*\+\s*slug"),
+    ("debug.engine.statusValue.", r"[^.]+", "extension/src/systemHealth/engineCardsHtml.ts",
+     r"debug\.engine\.statusValue\.\$\{engine\.status\}"),
+    ("debug.engine.description.", r"[^.]+", "extension/src/systemHealth/engineCardsHtml.ts",
+     r"debug\.engine\.description\.\$\{descriptionKey\}"),
+    ("debug.engine.", r"(?:analyzerPlugin|scanDaemon|lspServer|ci)", "extension/src/views/sectionedSidebar.ts",
+     r"debug\.engine\.\$\{ENGINE_NAME_KEY\["),
+    ("packageDashboard.summary.", r"[a-z]+Title", "extension/src/vibrancy/views/report-html-top.ts",
+     r"packageDashboard\.summary\.\$\{key\}Title"),
+    ("featureInventory.category.", r"[^.]+", "extension/src/vibrancy/views/feature-inventory-utils.ts",
+     r"featureInventory\.category\.\$\{category\}"),
+    ("featureInventory.chip.", r"[^.]+", "extension/src/vibrancy/views/feature-inventory-utils.ts",
+     r"featureInventory\.chip\.\$\{state\}"),
+    ("analysisOptimizer.priority.", r"(?:high|medium|low)", "extension/src/analysisOptimizer/analysisOptimizerWebviewProvider.ts",
+     r"analysisOptimizer\.priority\.\$\{row\.priority\}"),
+]
+
+
+def _collect_extra_refs(catalog_keys: set[str]) -> tuple[dict[str, str], dict[str, str]]:
+    """Return (literal_refs, family_refs), each {key: mechanism note}.
+
+    literal_refs: dotted-shaped string literal (or file-local prefix const +
+    suffix) that exactly equals an en.json key in non-test, non-catalog TS.
+    family_refs: keys covered by a still-verified _DYNAMIC_FAMILIES entry.
+    """
+    literal: dict[str, str] = {}
+    for ts_file in sorted(_SRC.rglob("*.ts")):
+        rel = str(ts_file.relative_to(_REPO)).replace("\\", "/")
+        if rel in _FIXTURE_FILES or "/test/" in rel or "/i18n/locales/" in rel:
+            continue
+        text = _strip_comments(ts_file.read_text(encoding="utf-8"))
+        for k in _DOTTED_STRING_RE.findall(text):
+            if k in catalog_keys:
+                literal.setdefault(k, f"literal string in {rel}")
+        for k in _prefix_const_refs(text):
+            if k in catalog_keys:
+                literal.setdefault(k, f"prefix-const template in {rel}")
+
+    family: dict[str, str] = {}
+    for prefix, suffix_re, rel, needle in _DYNAMIC_FAMILIES:
+        path = _REPO / rel
+        if not path.exists() or not re.search(needle, path.read_text(encoding="utf-8")):
+            continue  # mechanism vanished: stop trusting this family
+        for k in catalog_keys:
+            if k.startswith(prefix) and re.fullmatch(suffix_re, k[len(prefix):]):
+                family.setdefault(k, f"dynamic family {prefix}* built in {rel}")
+    return literal, family
+
+
+def _flatten(obj: dict, prefix: str = "") -> dict[str, str]:
+    """Flatten a nested dict into {dotted.key: value} for leaves."""
+    result: dict[str, str] = {}
+    for k, v in obj.items():
+        full = f"{prefix}.{k}" if prefix else k
+        if isinstance(v, dict):
+            result.update(_flatten(v, full))
+        else:
+            result[full] = str(v)
+    return result
+
+
+def _strip_comments(source: str) -> str:
+    """Remove block and line comments from TypeScript source.
+
+    Handles single-quoted, double-quoted, and template-literal strings
+    (including nested ${...} interpolations that may contain // or /*).
+    Preserves newlines so line counts stay accurate.
+    """
+    result: list[str] = []
+    i = 0
+    n = len(source)
+    while i < n:
+        c = source[i]
+        # Single- or double-quoted string — consume until closing quote.
+        if c in ("'", '"'):
+            quote = c
+            result.append(c)
+            i += 1
+            while i < n:
+                ch = source[i]
+                result.append(ch)
+                if ch == '\\':
+                    i += 1
+                    if i < n:
+                        result.append(source[i])
+                elif ch == quote:
+                    break
+                i += 1
+            i += 1
+        # Template literal — recurse through ${...} interpolations so
+        # that `//` or `/*` inside them are not treated as comments.
+        elif c == '`':
+            i = _consume_template_literal(source, i, result)
+        # Block comment — replace with a space per line to preserve
+        # token boundaries and line counts.
+        elif c == '/' and i + 1 < n and source[i + 1] == '*':
+            result.append(' ')
+            i += 2
+            while i < n:
+                if source[i] == '\n':
+                    # Preserve the newline so line numbers stay accurate.
+                    result.append('\n')
+                elif source[i] == '*' and i + 1 < n and source[i + 1] == '/':
+                    i += 2
+                    break
+                i += 1
+        # Line comment — discard to end of line, keep the newline.
+        elif c == '/' and i + 1 < n and source[i + 1] == '/':
+            i += 2
+            while i < n and source[i] != '\n':
+                i += 1
+        else:
+            result.append(c)
+            i += 1
+    return ''.join(result)
+
+
+def _consume_template_literal(source: str, start: int, result: list[str]) -> int:
+    """Consume a template literal starting at the backtick at `start`.
+
+    Appends characters to `result` and returns the index after the
+    closing backtick. Handles nested ${...} with balanced-brace
+    tracking, including nested template literals inside interpolations.
+    """
+    n = len(source)
+    result.append(source[start])  # opening backtick
+    i = start + 1
+    while i < n:
+        ch = source[i]
+        if ch == '\\':
+            # Escaped char — consume unconditionally.
+            result.append(ch)
+            i += 1
+            if i < n:
+                result.append(source[i])
+            i += 1
+        elif ch == '`':
+            # Closing backtick.
+            result.append(ch)
+            i += 1
+            return i
+        elif ch == '$' and i + 1 < n and source[i + 1] == '{':
+            # Template interpolation — consume with balanced braces.
+            result.append(ch)
+            result.append('{')
+            i += 2
+            depth = 1
+            while i < n and depth > 0:
+                ic = source[i]
+                if ic == '`':
+                    # Nested template literal inside the interpolation.
+                    i = _consume_template_literal(source, i, result)
+                    continue
+                result.append(ic)
+                if ic == '{':
+                    depth += 1
+                elif ic == '}':
+                    depth -= 1
+                elif ic in ("'", '"'):
+                    # String inside interpolation — skip contents.
+                    q = ic
+                    i += 1
+                    while i < n:
+                        sc = source[i]
+                        result.append(sc)
+                        if sc == '\\':
+                            i += 1
+                            if i < n:
+                                result.append(source[i])
+                        elif sc == q:
+                            break
+                        i += 1
+                i += 1
+        else:
+            result.append(ch)
+            i += 1
+    return i
+
+
+def _extract_params_after(source: str, start: int) -> str | None:
+    """Extract the second argument object from an l10n() call.
+
+    Starting after the closing quote of the key, scans for a comma
+    followed by a { ... } object literal, handling nested braces,
+    parens, brackets, and string literals. Returns the raw object
+    text or None if no second argument exists.
+    """
+    i = start
+    n = len(source)
+    # Skip whitespace after the key string.
+    while i < n and source[i] in ' \t\n\r':
+        i += 1
+    # Next char should be ',' (second arg) or ')' (no second arg).
+    if i >= n or source[i] != ',':
+        return None
+    i += 1
+    # Skip whitespace before the object.
+    while i < n and source[i] in ' \t\n\r':
+        i += 1
+    if i >= n or source[i] != '{':
+        return None
+    # Balanced-brace scan with string-literal awareness.
+    depth = 0
+    obj_start = i
+    while i < n:
+        c = source[i]
+        if c in ("'", '"', '`'):
+            # Skip string contents.
+            quote = c
+            i += 1
+            while i < n:
+                if source[i] == '\\':
+                    i += 2
+                    continue
+                if source[i] == quote:
+                    break
+                i += 1
+        elif c == '{':
+            depth += 1
+        elif c == '}':
+            depth -= 1
+            if depth == 0:
+                return source[obj_start:i + 1]
+        i += 1
+    return None
+
+
+def _collect_used_keys() -> dict[str, list[tuple[str, str | None, bool]]]:
+    """Scan TypeScript sources for l10n() calls.
+
+    Returns {key: [(file:line, raw_params_or_None, is_passthrough), ...]}.
+    The is_passthrough flag is True when the source line contains a
+    `l10n:passthrough` marker comment, indicating that placeholders are
+    substituted downstream (not by l10n()).
+    """
+    used: dict[str, list[tuple[str, str | None, bool]]] = {}
+    for ts_file in sorted(_SRC.rglob("*.ts")):
+        rel = str(ts_file.relative_to(_REPO))
+        if rel.replace("\\", "/") in _FIXTURE_FILES:
+            continue
+        source = ts_file.read_text(encoding="utf-8")
+        # Build a set of 1-based line numbers that have the passthrough
+        # marker — checked BEFORE comment stripping so the marker (which
+        # lives in a comment) is still visible.
+        passthrough_lines: set[int] = set()
+        for i, line in enumerate(source.splitlines(), 1):
+            if _PASSTHROUGH_MARKER in line:
+                passthrough_lines.add(i)
+        # Strip comments so doc examples don't register as real calls.
+        stripped = _strip_comments(source)
+        # Build a line-offset index for the stripped source.
+        line_offsets: list[int] = [0]
+        for ci, ch in enumerate(stripped):
+            if ch == '\n':
+                line_offsets.append(ci + 1)
+
+        for m in _L10N_RE.finditer(stripped):
+            key = m.group(1)
+            # Extract the second argument (params object) if present.
+            after_quote = m.end()
+            raw_params = _extract_params_after(stripped, after_quote)
+            # Find line number from character offset.
+            offset = m.start()
+            lo, hi = 0, len(line_offsets) - 1
+            while lo < hi:
+                mid = (lo + hi + 1) // 2
+                if line_offsets[mid] <= offset:
+                    lo = mid
+                else:
+                    hi = mid - 1
+            lineno = lo + 1
+            # Skip dynamic key prefixes (e.g. 'codeHealth.flag.' + var).
+            if key.endswith('.'):
+                continue
+            is_passthrough = lineno in passthrough_lines
+            used.setdefault(key, []).append((f"{rel}:{lineno}", raw_params, is_passthrough))
+    return used
+
+
+def _sanitize_param_values(raw: str) -> str:
+    """Replace string and template-literal contents with spaces.
+
+    This prevents the key-extraction regex from picking up identifiers
+    inside param VALUES (e.g. `${suffix}` in a template literal, or
+    `'{n}'` as a string value). Only the top-level object keys should
+    be extracted, not variable names embedded in values.
+    """
+    result: list[str] = []
+    i = 0
+    n = len(raw)
+    while i < n:
+        c = raw[i]
+        if c in ("'", '"', '`'):
+            # Keep the quotes but blank out everything between them.
+            quote = c
+            result.append(c)
+            i += 1
+            while i < n:
+                ch = raw[i]
+                if ch == '\\':
+                    # Escaped char — blank both.
+                    result.append(' ')
+                    i += 1
+                    if i < n:
+                        result.append(' ')
+                    i += 1
+                    continue
+                if ch == quote:
+                    break
+                if quote == '`' and ch == '$' and i + 1 < n and raw[i + 1] == '{':
+                    # Template interpolation — blank with balanced braces.
+                    result.append(' ')
+                    result.append(' ')
+                    i += 2
+                    depth = 1
+                    while i < n and depth > 0:
+                        if raw[i] == '{':
+                            depth += 1
+                        elif raw[i] == '}':
+                            depth -= 1
+                        result.append(' ')
+                        i += 1
+                    continue
+                # Regular char inside string — blank it.
+                result.append(' ')
+                i += 1
+            if i < n:
+                result.append(c)  # closing quote
+            i += 1
+        else:
+            result.append(c)
+            i += 1
+    return ''.join(result)
+
+
+def _check_params(
+    catalog: dict[str, str],
+    used: dict[str, list[tuple[str, str | None, bool]]],
+) -> list[str]:
+    """Validate that l10n() call-site params match en.json placeholders."""
+    issues: list[str] = []
+    for key, sites in sorted(used.items()):
+        if key not in catalog:
+            # Missing key — already reported by the main check.
+            continue
+        # Plural keys (ending in CLDR plural categories) are consumed by
+        # pluralize(), which handles {count} substitution. l10n() is
+        # deliberately called without params — {count} passes through
+        # as a literal placeholder for pluralize() to replace. Covers
+        # all CLDR categories: Zero, One, Two, Few, Many, Other.
+        if re.search(r'(?:Zero|One|Two|Few|Many|Other)$', key):
+            continue
+        value = catalog[key]
+        expected = set(_PLACEHOLDER_RE.findall(value))
+        if not expected:
+            # No placeholders in the catalog value — skip param checks.
+            continue
+        for location, raw_params, is_passthrough in sites:
+            # l10n:passthrough marker — placeholders are substituted
+            # downstream (client-side JS, script-strings builder, etc.).
+            if is_passthrough:
+                continue
+            if raw_params is None:
+                # Call site passes no params but the catalog expects them.
+                issues.append(
+                    f"  {key}  expects {sorted(expected)}  but call at {location} passes no params"
+                )
+                continue
+            # Sanitize string/template-literal contents so the regex
+            # only extracts top-level object keys, not identifiers
+            # embedded in param values.
+            sanitized = _sanitize_param_values(raw_params)
+            # Extract keys from the JS object literal { foo: ..., bar: ... }.
+            # Spread properties (...obj) are excluded by the negative
+            # lookahead; computed keys ([expr]) don't match \w+ after {/,.
+            supplied = set(_OBJ_KEY_RE.findall(sanitized))
+            missing_params = expected - supplied
+            extra_params = supplied - expected
+            if missing_params:
+                issues.append(
+                    f"  {key}  missing {sorted(missing_params)}  at {location}"
+                )
+            if extra_params:
+                issues.append(
+                    f"  {key}  extra {sorted(extra_params)}  at {location}"
+                )
+    return issues
+
+
+def main() -> int:
+    check_params = "--check-params" in sys.argv
+
+    # Load the canonical English catalog.
+    catalog_raw = json.loads(_EN_JSON.read_text(encoding="utf-8"))
+    catalog = _flatten(catalog_raw)
+    defined = set(catalog)
+    used = _collect_used_keys()
+    used_keys = set(used)
+    union_keys = _collect_union_keys()
+
+    ok = True
+
+    # Union-declared dynamic keys must exist in en.json too.
+    bad_union = sorted(set(union_keys) - defined)
+    if bad_union:
+        ok = False
+        print(f"\n✗ {len(bad_union)} dynamic (type-union) key(s) MISSING from en.json:\n")
+        for key in bad_union:
+            print(f"  {key}  ← {union_keys[key]}")
+
+    # Keys referenced in code but missing from en.json.
+    missing = sorted(used_keys - defined)
+    if missing:
+        ok = False
+        print(f"\n✗ {len(missing)} key(s) used in code but MISSING from en.json:\n")
+        for key in missing:
+            sites = used[key]
+            print(f"  {key}")
+            for loc, *_ in sites[:3]:
+                print(f"    ← {loc}")
+            if len(sites) > 3:
+                print(f"    … and {len(sites) - 3} more")
+
+    # Interpolation parameter validation (opt-in via --check-params).
+    if check_params:
+        param_issues = _check_params(catalog, used)
+        if param_issues:
+            ok = False
+            print(f"\n✗ {len(param_issues)} interpolation mismatch(es):\n")
+            for issue in param_issues:
+                print(issue)
+
+    # Keys defined in en.json but never referenced in code.
+    literal_refs, family_refs = _collect_extra_refs(defined)
+    unused = sorted(defined - used_keys - set(union_keys) - set(literal_refs) - set(family_refs))
+    if unused:
+        # Warning only — translations cost money, but don't block the build.
+        print(f"\n⚠ {len(unused)} key(s) defined in en.json but never referenced in code:\n")
+        for key in unused:
+            print(f"  {key}")
+
+    if ok:
+        total = len(used_keys)
+        suffix = " (params validated)" if check_params else ""
+        print(f"\n✓ All {total} l10n keys resolve against en.json.{suffix}")
+
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
