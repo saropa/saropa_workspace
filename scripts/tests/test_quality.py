@@ -14,6 +14,7 @@ Run:  python scripts/tests/test_quality.py
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -27,7 +28,10 @@ from modules._quality import (  # noqa: E402
     _ANY_RE,
     FileQuality,
     _find_long_functions,
+    _is_test_support,
+    _is_type_only,
     _tokenize_ts,
+    SRC_DIR,
 )
 
 
@@ -165,6 +169,39 @@ class TemplateDominatedTest(unittest.TestCase):
     def test_empty_file_is_not_dominated(self) -> None:
         # Guard the divide-by-zero edge: a zero-line file is never dominated.
         self.assertFalse(self._fq(0, 0).template_dominated)
+
+
+class MetricExclusionTest(unittest.TestCase):
+    """D4 and D5: test helpers and type-only modules are excluded from two metrics."""
+
+    def _type_only(self, text: str) -> bool:
+        # A temp file keeps the helper's real read path under test.
+        with tempfile.TemporaryDirectory() as d:
+            f = Path(d) / "m.ts"
+            f.write_text(text, encoding="utf-8")
+            return _is_type_only(f)
+
+    def test_helper_under_src_test_is_test_support(self) -> None:
+        self.assertTrue(_is_test_support(SRC_DIR / "test" / "_stub" / "vscode.ts"))
+
+    def test_product_module_is_not_test_support(self) -> None:
+        self.assertFalse(_is_test_support(SRC_DIR / "board" / "types.ts"))
+
+    def test_types_and_interfaces_only_is_type_only(self) -> None:
+        self.assertTrue(self._type_only("import type { A } from './a';\nexport type B = A;\nexport interface C { x: B }\n"))
+
+    def test_exported_const_is_not_type_only(self) -> None:
+        self.assertFalse(self._type_only("export type B = 1;\nexport const K = 2;\n"))
+
+    def test_function_or_enum_is_not_type_only(self) -> None:
+        self.assertFalse(self._type_only("function f() {}\n"))
+        self.assertFalse(self._type_only("export enum E { A }\n"))
+
+    def test_reexport_is_not_type_only(self) -> None:
+        self.assertFalse(self._type_only("export { a } from './a';\n"))
+
+    def test_const_inside_a_comment_is_ignored(self) -> None:
+        self.assertTrue(self._type_only("// const x = 1;\nexport type T = string;\n"))
 
 
 if __name__ == "__main__":

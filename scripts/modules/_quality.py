@@ -83,6 +83,33 @@ def _rel(path: Path) -> str:
     return path.relative_to(SRC_DIR.parent).as_posix()
 
 
+def _is_test_support(path: Path) -> bool:
+    """True for non-test helpers under src/test (fixtures, stubs, fake DOM).
+
+    These exist only to serve tests, so counting their exports as an undocumented
+    public surface or their comment density as sparse measures nothing a reader
+    of the product code cares about (decision D4). File-length and function-length
+    gates still cover them.
+    """
+    return (SRC_DIR / "test") in path.parents
+
+
+# A top-level runtime declaration. A module with none of these (only types,
+# interfaces and type-only imports) emits no JavaScript, so a unit test has
+# nothing to execute (decision D5).
+_RUNTIME_DECL_RE = re.compile(
+    r"^(?:export\s+)?(?:default\s+)?(?:abstract\s+)?(?:async\s+)?"
+    r"(?:function|class|const|let|var|enum)\b|^export\s+default\b|^export\s+\{|^export\s+\*",
+    re.MULTILINE,
+)
+
+
+def _is_type_only(path: Path) -> bool:
+    """True when the module declares no runtime values, only types."""
+    _, code = _tokenize_ts(path.read_text(encoding="utf-8", errors="replace"))
+    return not _RUNTIME_DECL_RE.search(code)
+
+
 # --------------------------------------------------------------------------- #
 # String/comment-aware tokenizer. Returns the set of comment line numbers and a
 # "code-only" view of the same length, with comment and string interiors blanked
@@ -453,6 +480,8 @@ def _exported_symbol_doc_coverage() -> tuple[int, int, list[str]]:
     total = 0
     undocumented: list[str] = []
     for path in _source_files():
+        if _is_test_support(path):
+            continue
         src_lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         for idx, raw in enumerate(src_lines):
             m = _EXPORT_DECL_RE.match(raw)
@@ -483,7 +512,9 @@ def _exported_symbol_doc_coverage() -> tuple[int, int, list[str]]:
 
 def _test_coverage() -> tuple[int, int, list[str]]:
     """Return (covered, total, untested_rel_paths)."""
-    sources = _source_files()
+    # Type-only modules are dropped from both the covered and total counts: an
+    # empty test would only satisfy the filename match without testing anything.
+    sources = [p for p in _source_files() if not _is_type_only(p)]
     test_stems = {p.name[: -len(".test.ts")] for p in _test_files()}
     covered = 0
     untested: list[str] = []
@@ -597,6 +628,7 @@ def _print_documentation(report: QualityReport) -> None:
             f
             for f in report.files
             if f.lines >= 30
+            and not (SRC_DIR.parent / f.rel_path).is_relative_to(SRC_DIR / "test")
             and f.comment_ratio < SPARSE_COMMENT_RATIO
             and not f.template_dominated
         ),
