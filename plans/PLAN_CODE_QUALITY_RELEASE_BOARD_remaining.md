@@ -12,7 +12,7 @@ Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 |---|---|---|---|
 | commands/boardRuleAssign.ts | 369 | under 330 | trim by moving the remaining helpers next to `boardRuleText.ts` / `boardRuleUndo.ts`; split `applyTextChangeNow` into check-unsaved and write-and-verify |
 | views/boardPanelCore.ts | 432 | under 390 | move `refreshEdited` / `scheduleEdited` / `refreshOutside` to a helper class, or leave (decision D3) |
-| board/boardModel.ts | 431 | under 390 | create `boardModelLinks.ts` for the `attach*` / `build*` helpers and split `buildBoard` into `makeContext` and the assembly; widest fan-in (35 importers), do last |
+| board/boardModel.ts | 301 | under 390 | create `boardModelLinks.ts` for the `attach*` / `build*` helpers and split `buildBoard` into `makeContext` and the assembly; widest fan-in (35 importers), do last |
 <!-- quality-table:end -->
 
 - Refresh the Now column with `python3 scripts/plan_quality_table.py --write`, then re-run `python3 scripts/audit.py --quality --strict`; line ranges and function lengths in the archived plan are pre-extraction and no longer match.
@@ -29,7 +29,7 @@ Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 
 ## 2. Phase 2: documentation
 
-Metric today: exports documented 2158 of 2439 (88.5%); 281 undocumented; comments 19.5%.
+Metric today: exports documented 2527 of 2603 (97.1%); 76 undocumented (about 60 are test fixtures, see D4).
 
 ### What a good doc comment looks like here (house style)
 
@@ -133,12 +133,12 @@ Checklist (per step):
 
 ## 6. Owner decisions needed
 
-D1 and D2 are closed (Phase 0 only before release, extractions A and B as two commits; both landed). The rest are open.
+D1 and D2 are closed (Phase 0 only before release, extractions A and B as two commits; both landed). D3 and D6-D9 are closed too. D4 and D5 are open: both change the quality gate and need the owner's yes.
 
-- D3. Soft threshold: keep 400 and 50, or raise any. Recommended: keep both. Never raise to pass. `boardPanelCore.ts` (408) and `boardModel.ts` (402), `scanner.ts` (424) are marginal: recommended to leave `boardPanelCore.ts` and `boardModel.ts` alone unless touched for another reason.
+- D3. Closed: keep thresholds 400 and 50; leave `views/boardPanelCore.ts` unless touched for another reason; the `boardModel.ts` residual is closed (301 lines).
 - D4. Exclude test fixtures (`src/test/**/*Fixture.ts`, `src/test/_stub`, `orgFixtures.ts`) from the doc-comment and sparse-comment metrics, or document them. Recommended: exclude them in `_source_files()`/the metric (they are 60 of 281 undocumented exports and 3 of 5 low-comment files); this changes what the gate counts, so it needs your yes and goes in its own commit with the numbers before and after.
 - D5. Exclude type-only modules from the "untested" metric, or give them a test. Recommended: exclude; an empty test only satisfies the name match.
-- D6. Panel tests (Group C): do them after Phase 0 in this plan, or defer. Recommended: after Phase 0, before Phase 1 touches the board model, since they protect the next steps.
-- D7. Confirm the "four checks": this plan assumes `check-types`, `lint`, `build`, `test` from `extension/package.json`. `lint` and `check-types` run the same command today.
-- D8. Order after Phase 0: by risk as written (strings, handoff, docFacts, org, model, commands, scheduler), or by user-visible area. Recommended: by risk, lowest first.
-- D9. Doc comments (Phase 2): in the same commit as each move (recommended), or one sweep at the end.
+- D6. Closed: panel tests after Phase 0, before Phase 1 touches the board model.
+- D7. Closed: the four checks are `check-types`, `lint`, `build`, `test`; the owner runs `test`.
+- D8. Closed: order by risk, lowest first.
+- D9. Closed: doc comments in the same commit as each move.
