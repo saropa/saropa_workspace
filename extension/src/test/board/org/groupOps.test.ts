@@ -51,6 +51,34 @@ test("addTagText adds a tag of your own after the shipped ones and keeps the fil
   assert.equal(added?.label, "Billing");
 });
 
+// The tag row the file holds after an add, by id (the color key is read as the file spells it).
+const addedRow = (text: string, id: string): Record<string, unknown> | undefined =>
+  (JSON.parse(text) as { organize: { tags: { add: Array<Record<string, unknown>> } } }).organize.tags.add.find((t) => t.id === id);
+
+test("addTagText gives the tag the group's own color when the row check accepts it", () => {
+  const plain = addTagText(undefined, { label: "Billing", patterns: ["billing"] });
+  const tinted = addTagText(undefined, { label: "Billing", patterns: ["billing"], look: { colour: "teal" } });
+  assert.ok(plain.ok && tinted.ok);
+  assert.equal(addedRow(tinted.text, "billing")?.colour, "teal");
+});
+
+test("addTagText falls back to the template row's color when the group's color is refused", () => {
+  const plain = addTagText(undefined, { label: "Billing", patterns: ["billing"] });
+  const odd = addTagText(undefined, { label: "Billing", patterns: ["billing"], look: { colour: "zzzzzzz" } });
+  assert.ok(plain.ok && odd.ok, "a refused color must not fail the save");
+  assert.equal(addedRow(odd.text, "billing")?.colour, addedRow(plain.text, "billing")?.colour);
+});
+
+test("addTagText copies nothing but the shared look from a group view", () => {
+  const view = { id: "app:folder:a", name: "A", parent: "app:folder:b", why: "because", colour: "teal" };
+  const out = addTagText(undefined, { label: "Billing", patterns: ["billing"], look: view });
+  assert.ok(out.ok);
+  const row = addedRow(out.text, "billing");
+  assert.equal(row?.id, "billing", "the group's id never replaces the tag id");
+  assert.equal(row?.parent, undefined);
+  assert.equal(row?.why, undefined);
+});
+
 test("addTagText refuses a pattern that is not a single word", () => {
   assert.equal(addTagText(undefined, { label: "Bad", patterns: ["two words"] }).ok, false);
 });

@@ -2,6 +2,7 @@
 // group into another, and turning a group's shared words into a new tag. The dialogs live in views/boardGroupOps.ts.
 
 import type { AssignRefusal } from "../ruleAssign";
+import type { GroupView } from "../boardModelParts";
 import { EFFECTS, EditOutcome, LIMITS, TagRow, rowProblem } from "./organizeEditCore";
 import { applyState, loadText } from "./organizeEdit";
 import { setAssign, setGroupOverride } from "./organizeOverrides";
@@ -75,10 +76,21 @@ export function newTagId(label: string, taken: ReadonlySet<string>): string {
   return id;
 }
 
+// The look a group and a tag row both carry (their shared field names, minus the id). Derived from the two types
+// so the list cannot drift from either; the rules file's own spelling of the color key is never retyped here.
+export type GroupLook = Partial<Omit<Pick<TagRow, Extract<keyof TagRow, keyof GroupView>>, "id">>;
+
+// The fields of `look` that the row also has, minus the id, with unset values dropped. Filtered by the row's own keys
+// so nothing else a group view carries (its parent, its why text) can leak into a tag row.
+function sharedLook(row: TagRow, look: GroupLook | undefined): Partial<TagRow> {
+  const entries = Object.entries(look ?? {}).filter(([k, v]) => k !== "id" && k in row && v !== undefined);
+  return Object.fromEntries(entries) as Partial<TagRow>;
+}
+
 // Adds one tag of your own to the file. Refused (with the reason the editor would give) when the file cannot be
 // edited or the row would not pass the same check a save from the editor goes through. The row starts from a copy
 // of the first tag in the file so it carries a palette value the contrast rules already accept; the editor changes it.
-export function addTagText(text: string | undefined, input: { label: string; patterns: string[]; emoji?: string }): EditOutcome {
+export function addTagText(text: string | undefined, input: { label: string; patterns: string[]; emoji?: string; look?: GroupLook }): EditOutcome {
   const loaded = loadText(text);
   if (!loaded.ok) {
     return { ok: false, reason: loaded.reason };
@@ -88,7 +100,7 @@ export function addTagText(text: string | undefined, input: { label: string; pat
   if (template === undefined || state.tags.length >= LIMITS.tags) {
     return { ok: false, reason: "shape" satisfies AssignRefusal };
   }
-  const row: TagRow = {
+  const base: TagRow = {
     ...template,
     id: newTagId(input.label, new Set(state.tags.map((t) => t.id))),
     label: input.label.trim(),
@@ -98,7 +110,10 @@ export function addTagText(text: string | undefined, input: { label: string; pat
     where: undefined,
     off: false,
   };
-  if (rowProblem(row) !== undefined) {
+  // The group's own color first, so the tag looks like the group it came from; a value the row check refuses (for
+  // example a shade outside the contrast-checked palette) falls back to the template row's color, never a failed save.
+  const row = [{ ...base, ...sharedLook(base, input.look) }, base].find((r) => rowProblem(r) === undefined);
+  if (row === undefined) {
     return { ok: false, reason: "shape" satisfies AssignRefusal };
   }
   return applyState(text, { ...state, tags: [...state.tags, row] });

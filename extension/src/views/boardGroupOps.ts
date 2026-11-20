@@ -76,7 +76,8 @@ async function tagFromGroup(items: readonly BoardItem[], at: BoardItem, source: 
     return undefined;
   }
   const emoji = source.emoji ?? "";
-  const snapshot = await writeOrganize((text) => addTagText(text, { label, patterns, emoji }));
+  // The group itself is the look: the tag takes its emoji and color so it matches the group it came from.
+  const snapshot = await writeOrganize((text) => addTagText(text, { label, patterns, emoji, look: source }));
   return snapshot === undefined ? undefined : { snapshot, label: l10n("releaseBoard.groupOps.tagUndo", { label: label.trim(), words: patterns.join(", "), file: RULES_FILE }) };
 }
 
