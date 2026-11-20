@@ -6,6 +6,7 @@ import {
   findStatusWord,
   needsStatusWord,
 } from "./ruleEngine";
+import { isHidden } from "./ruleHide";
 import { mapLimit } from "./pool";
 import { EXTRA_SCAN_MS, READ_PARALLEL, completeFacts, factsKeyOf, factsOptions, readPending } from "./scanFacts";
 import { withTimeout } from "./timeout";
@@ -303,7 +304,8 @@ export async function scanProject(
   snap.factsKey = factsKeyOf(factsOpt);
   const prevFacts = previous?.factsKey === snap.factsKey ? previous.facts : undefined;
 
-  const wanted = (p: string): boolean => !p.endsWith(".tmp") && exts.some((e) => p.toLowerCase().endsWith(e)) && !ignore.some((g) => g.test(p));
+  // A document hidden from the row menu is dropped here, before classifying, so it counts nowhere.
+  const wanted = (p: string): boolean => !p.endsWith(".tmp") && exts.some((e) => p.toLowerCase().endsWith(e)) && !ignore.some((g) => g.test(p)) && !isHidden(cfg.hiddenDocs, project.id, p);
   // 1. List every root at once.
   const files = await listFiles(project, source, wanted, cfg.includeGitIgnored === true);
   // 2. Status words.

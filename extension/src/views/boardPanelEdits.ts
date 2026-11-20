@@ -4,7 +4,8 @@ import { l10n } from "../i18n/l10n";
 import { openDocument, documentColumn } from "./boardPanelActions";
 import { targetsOf } from "../board/patch";
 import { applyRows, changedOnDisk, remainingFiles, savePastedPatch, undoBatch } from "../commands/boardPatch";
-import { DocChange, assignFolderRule, changeDoc, previewFolder, readGroupNames, undoRulesWrite } from "../commands/boardRuleAssign";
+import { RULES_FILE } from "../commands/boardConfigLoad";
+import { DocChange, assignFolderRule, changeDoc, hideDocument, previewFolder, readGroupNames, undoRulesWrite } from "../commands/boardRuleAssign";
 import { SEVERITY_LEVELS, ruleCategories } from "../board/ruleAssign";
 import { pickGroup } from "../commands/boardGroupPick";
 import { changeNeeds, undoDocWrite } from "../commands/boardNeeds";
@@ -116,6 +117,8 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
       await this.needsChange("answer", item, run);
     } else if (act === "waits" || act === "blocks") {
       await this.needsChange(act, item, run);
+    } else if (act === "hide") {
+      await this.hideItem(run, item, id);
     } else if (act === "assign") {
       const busy = this.busyReason();
       if (busy) {
@@ -141,6 +144,34 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
       } else {
         this.post({ type: "clearPending", id });
       }
+    }
+  }
+
+  // Hide: the document's path goes into the project's rules file and the next scan drops it. Saved at
+  // once with Undo, the same guards as every other row write.
+  private async hideItem(run: BoardRun, item: BoardItem, id: number): Promise<void> {
+    const busy = this.busyReason();
+    if (busy) {
+      void vscode.window.showInformationMessage(this.busyText(busy));
+      this.post({ type: "clearPending", id });
+      return;
+    }
+    this.assigning = true;
+    try {
+      const snapshot = await hideDocument(run, item);
+      if (snapshot) {
+        this.offerUndo(l10n("releaseBoard.undo.hide", { title: item.title, file: RULES_FILE }), () => undoRulesWrite(snapshot));
+        this.dirty = true;
+        await this.refresh();
+      } else {
+        // Refused or not written: changeRules already said why.
+        this.post({ type: "clearPending", id });
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+      this.post({ type: "clearPending", id });
+    } finally {
+      this.assigning = false;
     }
   }
 

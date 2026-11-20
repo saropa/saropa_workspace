@@ -101,6 +101,8 @@ export const POLISH_KEYS = [
   "menuOrderRowTip",
   "menuForget",
   "menuForgetTip",
+  "menuHide",
+  "menuHideTip",
   "menuMakeDep",
   "menuMakeDepTip",
   "menuAsk",

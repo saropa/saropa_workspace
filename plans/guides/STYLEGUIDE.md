@@ -1121,6 +1121,10 @@ When a surface's empty state names something the user can do to leave it ("No fo
 
 When an action can reopen a previously selected resource (a config file, a workspace, a report), offer a QuickPick of the N most-recent entries (most recent first), with a terminal "Browse…" row that falls through to the native file/folder picker. If no recent history exists, skip the QuickPick and go straight to the picker. Each recent row's label is the project/folder name; its description is the full path. The recent list is stored in `globalState` and capped (currently 5). The "No folder open" link's recent-workspace picker is the model.
 
+### 4.16 A webview row with a kebab menu opens the same menu on right-click
+
+A row in a webview that carries a kebab (⋮) menu (a Release Board document row, in the Gantt or the Board tab) opens that same menu at the pointer on `contextmenu`, and suppresses the browser's own menu there. The listener is one delegated `document` listener, so rows drawn later (a Gantt section's "Show more") need no re-wiring, and it reuses the kebab's menu rather than building a second one. A row with no kebab (a finished document) keeps the default menu. A destructive-looking entry such as Hide writes to a config file only with Undo offered and the item named in the confirmation.
+
 ---
 
 ## Maintaining this guide

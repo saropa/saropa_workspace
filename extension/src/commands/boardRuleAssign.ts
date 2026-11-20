@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { AssignRefusal, AssignResult, RuleCategory, SeverityResult, addDocRule, addFolderRule, clearDocStatus, docGlob, folderGlob, ruleCategories, setDocSeverity } from "../board/ruleAssign";
+import { hideDoc } from "../board/ruleHide";
 import { Severity } from "../board/severity";
 import { orderLists } from "../board/boardOrder";
 import { manualGroupNames, setDocGroup, setProjectOrder } from "../board/groupEdit";
@@ -227,6 +228,13 @@ export async function changeRules(run: BoardRun, projects: string[], make: (befo
     refusal: refuse,
   });
   return snapshot;
+}
+
+// Takes one document off the board by listing its path in the rules file's `hidden` table. Goes
+// through changeRules so it has every write check (unsaved copy, symlink, re-read before write) and
+// returns the snapshot Undo restores, or undefined when nothing was written.
+export function hideDocument(run: BoardRun, doc: { project: string; path: string }): Promise<RulesSnapshot | undefined> {
+  return changeRules(run, [doc.project], (before) => hideDoc(before, doc));
 }
 
 // Gives every document of a folder a category by adding a rule for the folder.

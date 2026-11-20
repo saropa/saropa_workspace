@@ -123,6 +123,8 @@ export interface BoardConfig {
   groups?: Array<{ name: string; match: string[] }>;
   // Globs of "project/path" that are never grouped.
   ungrouped?: string[];
+  // Documents taken off the board from the row menu, by project id: exact project-relative paths.
+  hiddenDocs?: Record<string, string[]>;
   // Rows put in a set order inside their group, by project: the paths, first to last.
   order?: Record<string, string[]>;
   // Tags, link words and naming a team changes (the Tags and rules editor writes it; see org/settings.ts).
