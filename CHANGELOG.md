@@ -51,6 +51,7 @@ cspell:disable
 Folder-watch alerts can now be dismissed without muting or disabling the watch. [log](https://github.com/saropa/saropa_workspace/blob/vX.Y.Z/CHANGELOG.md)
 
 ### Added
+- Release Board: the keyword editor can now be opened from the Command Palette (**Release Board: Edit Keywords**, shown when the board and the keyword editor are on), and its Severity tab now edits the two parts that were kept but not editable: the body density (a whole number from 1 to 50) and the audience words (up to 30 words of up to 40 letters). Both are saved under the `severity` key of the rules file only when they differ from the shipped values, and Restore defaults brings them back.
 - Release Board: the Tags editor now exposes five engine constants — sequence tokens, document kinds, kind dependency order, status-folder words and container-folder words — as editable word lists on the Link words and Naming tabs, so the grouping and link engines can be tuned without editing JSON.
 - Folder watches: the new/changed-files alert now has a Dismiss button next to Open. Dismiss clears those files from the unseen count and the activity-bar badge and leaves the watch running, so the next new file still alerts.
 - Folder watches: the alert also has a Mute 1 hour button. The watch keeps detecting files and counting them on the badge, but shows no alerts for an hour, and a message names the watch and the time the mute ends.

@@ -157,11 +157,10 @@ Code, actionable:
 - [ ] L2. Flaky dashboard test: "activating the processes tab samples and then sends the data" fails intermittently on main. Fix per the timing-test rules (wait on the result, best-of-3, generous budget).
 - [ ] L3. Type tightening: `BoardConfig.severity` still requires all four weight keys although partial weights work. Make the weights optional or partial.
 - [ ] L4. Keyword editor tests: no test drives `BoardPanel`'s `keywords` and `keywordsRestore` messages. Add them.
-- [ ] L5. Keyword editor gaps: no Command Palette command (opens from the board only); `minBodyDensity` and the audience words are kept but not editable. Feature work: frozen, see below.
+- [x] L5. Keyword editor gaps: the Command Palette command **Release Board: Edit Keywords** and the editable body density (1 to 50) and audience words (30 words, 40 letters each) are built, on the owner's go-ahead; conventions recorded in STYLEGUIDE.md 4.17.
 
 Frozen, needs the owner's go-ahead before any work:
 
-- L5 above (new command, new editable fields).
 - Open beside: the board's group is taken from the panel's own column, which may not match if the board is dragged into a floating window (not verified). Locating it through the board's tab would be sturdier.
 
 Needs a person (not code):

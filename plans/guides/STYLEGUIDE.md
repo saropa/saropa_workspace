@@ -1125,6 +1125,10 @@ When an action can reopen a previously selected resource (a config file, a works
 
 A row in a webview that carries a kebab (⋮) menu (a Release Board document row, in the Gantt or the Board tab) opens that same menu at the pointer on `contextmenu`, and suppresses the browser's own menu there. The listener is one delegated `document` listener, so rows drawn later (a Gantt section's "Show more") need no re-wiring, and it reuses the kebab's menu rather than building a second one. A row with no kebab (a finished document) keeps the default menu. A destructive-looking entry such as Hide writes to a config file only with Undo offered and the item named in the confirmation.
 
+### 4.17 An editor that owns a draft: every value is bounded, and the Command Palette can open it
+
+A webview editor that holds a draft (the Release Board keyword editor on the Severity tab is the model) follows four rules. **One limits table** (`LIMITS` in `severityDraft.ts`) holds every bound; the page, the host check and the reader of the saved file all read it, so a value is refused by the same number on the way in and the way out. **A number is a whole-number input** with `min`, `max` and a tooltip that names the range; an out-of-range value turns the field `aria-invalid`, turns Save off and says which field is wrong, and the host re-checks the draft before writing. **A list of words is a chip list** (add by Enter or the Add button, a Remove button per chip, a per-list Restore) with its own length and count caps, normalized to lower case with white space folded and duplicates dropped. **An editor opened from a page button also has a Command Palette entry** titled `Release Board: <verb> <noun>` (not branding-prefixed, per 1.2), gated in `commandPalette` by the same settings that gate the button; the command goes through the same host path as the button, so the disabled, no-board and busy messages stay one set of words and the command never ends silently.
+
 ---
 
 ## Maintaining this guide
