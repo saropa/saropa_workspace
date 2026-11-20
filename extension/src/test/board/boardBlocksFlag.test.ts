@@ -148,3 +148,18 @@ test("answering re-baselines the project, so since-you-left shows no cleared blo
   assert.equal(viewFor(after), undefined);
   ctx.subscriptions.forEach((d) => d.dispose());
 });
+
+// A deferred (blue) plan the owner pinned as blocking must stop the release; unpinned, the same plan stays out.
+test("a pinned blue plan blocks the release and is listed as open; an unpinned blue plan does not", () => {
+  const withPlan = [...rows.filter((r) => r.status !== "red"), row("plans/PLAN_x.md", "blue")];
+  const run = (pins: string[]) => buildBoard(cfg, withPlan, undefined, true, snapshot, undefined, healthy, { pins });
+  const plain = run([]);
+  assert.equal(plain.items.some((i) => i.path === "plans/PLAN_x.md"), false);
+  const pinned = run(["app/plans/PLAN_x.md"]);
+  const item = pinned.items.find((i) => i.path === "plans/PLAN_x.md");
+  assert.equal(item?.blocks, true);
+  assert.equal(item?.pinned, true);
+  assert.equal(pinned.projects[0].light, "no-go");
+  // The count of blue documents is unchanged by the pin.
+  assert.equal(pinned.projects[0].counts.blue, 1);
+});

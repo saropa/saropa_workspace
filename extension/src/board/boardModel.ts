@@ -79,12 +79,17 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       continue;
     }
     counts[r.status] += 1;
-    if (!OPEN.has(r.status)) {
+    const pinned = ctx.exactPins.has(def.id + "/" + r.path) || ctx.pinGlobs.some((re) => re.test(def.id + "/" + r.path));
+    // A deferred (blue) document the owner pinned as blocking the next release is
+    // work that must land first, so it is collected as open (amber). Without this a
+    // pinned PLAN_ document was skipped here and could never block. Counts above
+    // still record it as blue.
+    const status = pinned && r.status === "blue" ? "amber" : r.status;
+    if (!OPEN.has(status)) {
       continue;
     }
     const facts = factsFor(ctx.snapshot, def.id, r.path);
     const rev = revFor(ctx.snapshot, def.id, r.path);
-    const pinned = ctx.exactPins.has(def.id + "/" + r.path) || ctx.pinGlobs.some((re) => re.test(def.id + "/" + r.path));
     const sev = effectiveSeverity(ctx.overrides, def.id, r.path, facts);
     if (sev.byUser) {
       ctx.byUser.count += 1;
@@ -93,7 +98,7 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
         ctx.byUser.lowered += 1;
       }
     }
-    if (r.status === "amber" && r.note === "blocked" && !pinned) {
+    if (status === "amber" && r.note === "blocked" && !pinned) {
       // A waiting document is collapsed into one mark, but one that would stop a
       // release under the profile still counts toward NO-GO (in an answered project only pinned ones block, and they are listed).
       blocked += 1;
@@ -108,7 +113,7 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       project: def.id,
       path: r.path,
       title: facts?.title || titleFromPath(r.path),
-      status: r.status as "red" | "amber" | "purple",
+      status: status as "red" | "amber" | "purple",
       kind: r.kind,
       ...(rev ? { rev } : {}),
       marks: facts ? marksOf(facts, ctx.names) : undefined,
@@ -123,7 +128,7 @@ function collectItems(def: ProjectDef, ctx: BuildContext): { items: BoardItem[];
       audience: facts?.audience,
       pinned,
       stopping,
-      blocks: answered ? pinned : r.status === "red" || stopping,
+      blocks: answered ? pinned : status === "red" || stopping,
       ...(answered ? { answered: true as const } : {}),
     });
   }

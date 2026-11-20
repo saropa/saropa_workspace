@@ -29,7 +29,15 @@ export class Uri {
 
   // The path part of a "scheme://authority/path" string, as vscode.Uri.path.
   get path(): string {
-    return this.fsPath.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]*/, "");
+    const p = this.fsPath.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^/]*/, "");
+    // A Windows file path (a drive letter, backslashes) reads as the real URI path does:
+    // forward slashes and a leading slash before the drive ("D:\a\b" -> "/D:/a/b").
+    // Without this a Windows temp folder never matched a "<root>/<folder>/<name>" path
+    // comparison in production code, so those tests failed only on Windows.
+    if (this.scheme === "file" && /^[a-zA-Z]:[\\/]/.test(p)) {
+      return "/" + p.replace(/\\/g, "/");
+    }
+    return p;
   }
 
   // The authority part of a "scheme://authority/path" string; empty when there is none.

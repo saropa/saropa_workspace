@@ -9,6 +9,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { RULES_FILE, boardReady, loadConfig } from "../../commands/boardConfigLoad";
+import { folderKey } from "../../board/extraProjects";
 import { chosenFolders, hasChosenFolders } from "../../commands/boardExtraProjects";
 import { chooseProjects, menuItems, openBoardSettings } from "../../views/boardProjectsFlow";
 import { HINT_DISMISSED_KEY, dismissHint, hintVisible } from "../../views/boardProjectsHint";
@@ -31,7 +32,10 @@ const SECTION = "saropaWorkspace.releaseBoard";
 
 const made: string[] = [];
 function tmp(): string {
-  const d = fs.mkdtempSync(path.join(os.tmpdir(), "board-extra-"));
+  // The board stores a folder in its canonical text (drive letter lower-cased on Windows),
+  // so the test folder is spelled that way too; otherwise every path assertion differs by
+  // the drive letter's case alone on Windows.
+  const d = folderKey(fs.mkdtempSync(path.join(os.tmpdir(), "board-extra-")));
   made.push(d);
   return d;
 }
@@ -166,7 +170,8 @@ test("a chosen folder uses its own rules file and keeps its rule sets to itself"
   choose(other);
   const cfg: BoardConfig = await loadConfig();
   const sub = cfg.projects.find((p) => p.id === "sub")!;
-  assert.equal(sub.path, path.join(other, "notes"));
+  // The stub's joinPath joins with "/" on every OS, so compare the separators as one.
+  assert.equal(sub.path.replace(/\\/g, "/"), path.join(other, "notes").replace(/\\/g, "/"));
   assert.deepEqual(sub.ruleSets, [`${path.basename(other)}:mine`]);
   assert.deepEqual(cfg.projects.map((p) => p.id), ["app", "sub"]);
   assert.ok(cfg.ruleSets[`${path.basename(other)}:mine`]);
@@ -216,7 +221,7 @@ test("Add a folder writes the picked folders to the user setting", async () => {
   assert.ok(stub.__infoMessages().includes("Added 2 project(s) to the Release Board."));
 });
 
-test("cancelling the menu or the folder picker writes nothing", async () => {
+test("canceling the menu or the folder picker writes nothing", async () => {
   await chooseProjects();
   assert.equal(stub.__getConfig(SECTION, "projects"), undefined);
   stub.__setPickHandler(async (items) => (items as Array<{ action: string }>).find((i) => i.action === "add"));
