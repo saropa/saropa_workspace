@@ -312,6 +312,12 @@
         "icon": "$(list-unordered)"
       },
       {
+        "command": "saropaWorkspace.showHubGrid",
+        "title": "%command.showHubGrid.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(table)"
+      },
+      {
         "command": "saropaWorkspace.openWatch",
         "title": "%command.openWatch.title%",
         "category": "%extension.displayName%"
@@ -1770,6 +1776,11 @@
           "command": "saropaWorkspace.manageWatches",
           "when": "view == saropaWorkspace.watches",
           "group": "navigation@3"
+        },
+        {
+          "command": "saropaWorkspace.showHubGrid",
+          "when": "view == saropaWorkspace.watches",
+          "group": "navigation@4"
         },
         {
           "command": "saropaWorkspace.refreshScripts",

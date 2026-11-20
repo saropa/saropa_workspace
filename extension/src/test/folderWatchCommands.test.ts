@@ -1,5 +1,5 @@
 // Tests for the shared folder-watch command helpers (ids, project scope, the timed notice) and the
-// registrar: the seven declared commands, and that each one reaches the right flow.
+// registrar: the eight declared commands, and that each one reaches the right flow.
 
 import { test, beforeEach, afterEach, mock } from "node:test";
 import assert from "node:assert/strict";
@@ -84,13 +84,14 @@ test("the notice is a notification that stays for four seconds and then settles"
   assert.equal(settled, true);
 });
 
-test("it registers exactly the seven declared watch commands, once each", () => {
+test("it registers exactly the eight declared watch commands, once each", () => {
   const ids = captureRegistrations(() => registerFolderWatchCommands(registrarContext(), store, engine));
   assert.deepEqual(ids, [
     "saropaWorkspace.watchFolder",
     "saropaWorkspace.watchFile",
     "saropaWorkspace.watchGitHubRepo",
     "saropaWorkspace.manageWatches",
+    "saropaWorkspace.showHubGrid",
     "saropaWorkspace.openWatch",
     "saropaWorkspace.toggleWatch",
     "saropaWorkspace.removeWatch",

@@ -241,6 +241,31 @@ test("a repo watch with an invalid slug logs a scan error and has no cached item
   assert.equal(__fileWatchers().length, 0);
 });
 
+test("a failed repo scan records its error and signals listeners, a refresh rescans, and removing the watch clears it", async () => {
+  const running = start();
+  let signals = 0;
+  running.onDidScanRepo(() => void signals++);
+  const watch = await store.add({ id: "repo3", target: "not-a-slug", kind: "repo", isFile: false, mode: "new", enabled: true, global: true });
+  await settle(() => log.length === 1);
+  assert.match(running.getRepoScanError(watch.id) ?? "", /invalid repo slug: not-a-slug/);
+  assert.equal(signals, 1);
+  await running.refreshRepoWatches();
+  assert.equal(log.length, 2);
+  assert.equal(signals, 2);
+  await store.remove(watch.id);
+  assert.equal(running.getRepoScanError(watch.id), undefined);
+});
+
+test("a folder watch scan neither records a repo error nor signals the repo listeners", async () => {
+  const running = start();
+  let signals = 0;
+  running.onDidScanRepo(() => void signals++);
+  const watch = await store.add(folderWatch());
+  await settle(() => store.getBaseline(watch.id) !== undefined);
+  assert.equal(signals, 0);
+  assert.equal(running.getRepoScanError(watch.id), undefined);
+});
+
 test("the repo poll runs every five minutes and keeps re-arming itself", async () => {
   start();
   await store.add({ id: "repo2", target: "bad", kind: "repo", isFile: false, mode: "new", enabled: true, global: true });

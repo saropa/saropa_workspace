@@ -67,6 +67,17 @@ export class FolderWatchEngine implements vscode.Disposable {
   // Repo watch ids with a seed fetch currently in flight — see seedRepoWatchIfNew.
   private readonly seedingRepoIds = new Set<string>();
 
+  // Last scan failure message per repo watch (e.g. "403 Forbidden" when GitHub
+  // rate-limits the poll). The output channel keeps the full log, but the HubGrid
+  // panel needs the failure as data so it can show a banner naming the repo. Cleared
+  // on the next successful scan so a recovered repo stops showing the banner.
+  private readonly repoScanErrors = new Map<string, string>();
+
+  // Fires after every repo-watch scan settles (success or failure), so the HubGrid
+  // panel repaints from the fresh cache without polling on its own timer.
+  private readonly _onDidScanRepo = new vscode.EventEmitter<void>();
+  readonly onDidScanRepo = this._onDidScanRepo.event;
+
   constructor(
     private readonly store: FolderWatchStore,
     private readonly output: vscode.OutputChannel
@@ -89,6 +100,19 @@ export class FolderWatchEngine implements vscode.Disposable {
   // used by the row-click open action to deep-link to the newest unseen item.
   getCachedRepoItems(watchId: string): GitHubWatchItem[] {
     return this.repoItemsCache.get(watchId) ?? [];
+  }
+
+  // The failure message from a repo watch's most recent scan, or undefined when the
+  // last scan succeeded (or none has run yet).
+  getRepoScanError(watchId: string): string | undefined {
+    return this.repoScanErrors.get(watchId);
+  }
+
+  // Poll every in-scope repo watch now rather than waiting for the timer — the
+  // HubGrid Refresh button. Resolves once all scans settle; never rejects, because
+  // scanAndReport logs its own failures per watch.
+  async refreshRepoWatches(): Promise<void> {
+    await this.pollAllRepoWatches();
   }
 
   // Re-arms itself after every tick (rather than setInterval) so a config edit
@@ -204,6 +228,8 @@ export class FolderWatchEngine implements vscode.Disposable {
       const watch = enabled.get(id);
       if (!watch || watchKind(watch) !== "repo") {
         this.repoItemsCache.delete(id);
+        // Same lifetime as the cache: a removed watch must not leave a stale banner.
+        this.repoScanErrors.delete(id);
       }
     }
     // Arm watchers (or seed baselines) newly wanted.
@@ -308,13 +334,18 @@ export class FolderWatchEngine implements vscode.Disposable {
       // An unreadable/removed target is logged, not toasted: a watch whose folder
       // was deleted must not nag on every event. The baseline is left intact so the
       // folder reappearing diffs against what was last seen.
+      const error = err instanceof Error ? err.message : String(err);
       this.output.appendLine(
-        l10n("folderWatch.scanError", {
-          label: this.nameOf(watch),
-          error: err instanceof Error ? err.message : String(err),
-        })
+        l10n("folderWatch.scanError", { label: this.nameOf(watch), error })
       );
+      if (watchKind(watch) === "repo") {
+        this.repoScanErrors.set(watch.id, error);
+        this._onDidScanRepo.fire();
+      }
       return;
+    }
+    if (watchKind(watch) === "repo") {
+      this.repoScanErrors.delete(watch.id);
     }
 
     const baseline = this.store.getBaseline(watch.id);
@@ -323,11 +354,13 @@ export class FolderWatchEngine implements vscode.Disposable {
       // without announcing them. Diffing against an empty baseline would report
       // every existing file as "new".
       await this.store.setBaseline(watch.id, current);
+      this.announceRepoScan(watch);
       return;
     }
 
     const delta = diffSnapshots(baseline, current, watch.mode);
     await this.store.setBaseline(watch.id, current);
+    this.announceRepoScan(watch);
     if (!isEmptyDelta(delta)) {
       // Record the detected files as unseen — this drives the per-row counter and
       // the activity-bar total until the user opens the watch — then toast the live
@@ -335,6 +368,14 @@ export class FolderWatchEngine implements vscode.Disposable {
       // momentary nudge, the counter is the standing "you have N new files" cue.
       await this.store.addUnseen(watch.id, [...delta.added, ...delta.changed]);
       void this.toast(watch, delta, isStartup);
+    }
+  }
+
+  // Tell the HubGrid panel a repo watch's cache is fresh. Folder watches have no
+  // cache the panel reads, so they stay silent.
+  private announceRepoScan(watch: FolderWatch): void {
+    if (watchKind(watch) === "repo") {
+      this._onDidScanRepo.fire();
     }
   }
 
@@ -385,6 +426,7 @@ export class FolderWatchEngine implements vscode.Disposable {
     }
     this.storeSub.dispose();
     this.folderSub.dispose();
+    this._onDidScanRepo.dispose();
     for (const [id, armed] of [...this.armed]) {
       this.disarm(id, armed);
     }

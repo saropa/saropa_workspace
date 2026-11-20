@@ -270,8 +270,21 @@ const activeEditorEmitter = new EventEmitter<unknown>();
 // vscode.window stand-in: the settable input/pick dialogs, inert message toasts,
 // the no-op output channel, the activity-event emitters the idle monitor
 // subscribes to, and webview panel creation.
+// Status-bar messages the code under test showed, so a test can assert the visible feedback.
+const statusMessages: string[] = [];
+export function __statusMessages(): readonly string[] {
+  return statusMessages;
+}
+export function __resetStatusMessages(): void {
+  statusMessages.length = 0;
+}
+
 export const window = {
   activeTextEditor: undefined as { viewColumn?: number } | undefined,
+  setStatusBarMessage(text: string, _hideAfterMs?: number): { dispose(): void } {
+    statusMessages.push(text);
+    return { dispose: () => undefined };
+  },
   createWebviewPanel(
     viewType: string,
     title: string,

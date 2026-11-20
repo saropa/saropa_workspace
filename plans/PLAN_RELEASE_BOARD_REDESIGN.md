@@ -1,6 +1,6 @@
 # Plan: Release Board redesign (calm, editable, visual)
 
-Status: design only. Nothing here is decided until the owner answers the "Owner decisions needed" list.
+Status: partly delivered. Delivered notes exist for phases 1, 5 and 7, Org 1 and 2, the Tags editor, Cleanup and the Write audit (section 13 and the "delivered notes" headings below). A static code check (2026-11-20) found phases 2, 3, 4 and 6 delivered. Open gaps: phase 8 (no Gantt reorder drop zone; reorder drop exists only on the Board tab), phase 9 (section 19 items 6 and 7 deferred by the owner, item 8 not built, items 9 and 10 not evidenced), Org 3 (no test-match box, no in-place tag menus), Org 4 (no title-signal input; hand-off phase 3 reuse of the review list unchecked).
 Mockup: [PLAN_RELEASE_BOARD_REDESIGN_mockup.html](PLAN_RELEASE_BOARD_REDESIGN_mockup.html) (open it in a browser; tabs Gantt, the default (decisions 18 and 21), Board and Future; menus open on click, two are shown open; "Hand off…" in any row menu or the Project actions menu opens the hand-off drawer of section 16).
 Base plan: [PLAN_RELEASE_BOARD_v2.md](PLAN_RELEASE_BOARD_v2.md). Leftovers: [deferred/20261027_release_board_leftovers.md](deferred/20261027_release_board_leftovers.md).
 
@@ -20,7 +20,7 @@ Base plan: [PLAN_RELEASE_BOARD_v2.md](PLAN_RELEASE_BOARD_v2.md). Leftovers: [def
 From `PLAN_RELEASE_BOARD_v2.md`, the style guide and shipped code. The redesign changes how they look, not what they mean.
 
 - One light per project: GO, NO-GO, UNVERIFIED. GO needs evidence. Words unchanged.
-- The folder is the status. Color meanings: red address now, amber next, purple in progress, blue deferred (Future tab), green done, grey no rule.
+- The folder is the status. Color meanings: red address now, amber next, purple in progress, blue deferred (Future tab), green done, gray no rule.
 - Profiles Rush, Deliberate, Zero defects, with the same stop sets. A red folder, a failing lint, test or build blocks in every profile.
 - A severity lowered by hand is never hidden (the "set by you" note stays).
 - `Needs:` lines are the first source of links; links are always shown; a blocked item sorts under its blocker.
@@ -95,7 +95,7 @@ Accept banner and safety hold stay at the top; they need action.
 | Purple | In progress | |
 | Blue | Deferred (Future tab only); focus and links (theme) | |
 | Green | GO, done, passing | |
-| Grey / neutral badge | Counts, size, progress, project tags, no rule, unknown | |
+| Gray / neutral badge | Counts, size, progress, project tags, no rule, unknown | |
 
 Rules:
 
@@ -280,8 +280,8 @@ Each is decided with the recommended option, marked DECIDED below.
 41. **DECIDED (2026-10-30, owner), CHANGED from the recommendation: an optional call plus an off setting.** A new setting turns the integration off. No `extensionDependencies`. (17.4 item 5.)
 42. **DECIDED (2026-10-30, owner): handoff status line not now.** Revisit after handoff phase 3. (17.4 item 6, option a.)
 43. **DECIDED (2026-10-30, owner): "since you left" marks.** Items changed since the last visit get a dotted blue border in the Gantt and board rows (decision 16's scope). Static: never flashing, no animation; it stays until dismissed. The mockup shows no such row markers, so it is unchanged.
-44. **DECIDED (2026-10-30, owner), requirement: scale and auto-organization.** The board must work from a few documents to hundreds, with many levels of folders feeding it; showing everything overwhelms and gets ignored, hiding everything is useless. Requirements: (1) auto-grouping by folder, filename and keyword heuristics; (2) groups auto-collapse, with row limits that adapt to document count; (3) auto-naming of groups (readable names from folder or keywords); (4) auto-assigned emoji per group or item from keywords; (5) auto-assigned colour per group; (6) auto-assigned dependencies and links from keywords and filenames (for example phase 2 waits on phase 1), shown as proposals the user accepts or rejects, never applied silently; (7) every automatic result can be overridden by hand and the override persists; (8) the heuristics must be deterministic, explainable (tooltip says why), and configurable by keyword dictionary. Status: requirement recorded; design pending (needs an Opus design pass: heuristics, keyword dictionaries, thresholds, overrides storage, how it relates to phase 6 grouping and the AI Organize pass).
-45. **DECIDED (2026-10-30, owner), requirement: everything automatic is configurable through the UI.** The tags and keywords that drive grouping, naming, emoji, colour and link inference are visible in row and group hover cards and detail panels (which tags matched and why). The user can add, edit, rename, remove and re-order their own tags and dictionary entries from those panels and from one "Tags and rules" editor view: a list of tags with keyword patterns, emoji, colour and effect, a test-match preview against the current documents, import and export, and reset to default. Per-item and per-group overrides (rename, emoji, colour, group, link) are edited in place and persist. JSON and settings files stay as the storage and an advanced path, but no feature may require hand-editing them. Minimal chrome: a kebab entry and `?` tooltips (decisions 20 and 22). Design: section 18.
+44. **DECIDED (2026-10-30, owner), requirement: scale and auto-organization.** The board must work from a few documents to hundreds, with many levels of folders feeding it; showing everything overwhelms and gets ignored, hiding everything is useless. Requirements: (1) auto-grouping by folder, filename and keyword heuristics; (2) groups auto-collapse, with row limits that adapt to document count; (3) auto-naming of groups (readable names from folder or keywords); (4) auto-assigned emoji per group or item from keywords; (5) auto-assigned color per group; (6) auto-assigned dependencies and links from keywords and filenames (for example phase 2 waits on phase 1), shown as proposals the user accepts or rejects, never applied silently; (7) every automatic result can be overridden by hand and the override persists; (8) the heuristics must be deterministic, explainable (tooltip says why), and configurable by keyword dictionary. Status: requirement recorded; design pending (needs an Opus design pass: heuristics, keyword dictionaries, thresholds, overrides storage, how it relates to phase 6 grouping and the AI Organize pass).
+45. **DECIDED (2026-10-30, owner), requirement: everything automatic is configurable through the UI.** The tags and keywords that drive grouping, naming, emoji, color and link inference are visible in row and group hover cards and detail panels (which tags matched and why). The user can add, edit, rename, remove and re-order their own tags and dictionary entries from those panels and from one "Tags and rules" editor view: a list of tags with keyword patterns, emoji, color and effect, a test-match preview against the current documents, import and export, and reset to default. Per-item and per-group overrides (rename, emoji, color, group, link) are edited in place and persist. JSON and settings files stay as the storage and an advanced path, but no feature may require hand-editing them. Minimal chrome: a kebab entry and `?` tooltips (decisions 20 and 22). Design: section 18.
 46. **DECIDED (2026-10-30, owner): tags, dictionary and overrides live in the rules file under one new key.** (18.10 question 1, option a.) The `organize` key in `.saropa/release-board.json`, shared through git.
 47. **DECIDED (2026-10-30, owner): open groups at scale.** (18.10 question 2, option a.) From 50 documents, at most the 3 groups with the most blockers are open; every other group stays closed with its red count pill. This bends section 12 rule 6 (every group holding a blocker opens), and 18.3.2 applies it.
 48. **DECIDED (2026-10-30, owner): where emoji show.** (18.10 question 3, option a.) Group headers and hover cards only, never on rows. Rows keep the two-pill limit (section 6).
@@ -409,7 +409,7 @@ Each operation maps to a write path the redesign already plans: status and sever
 
 **How a reply gets in**: (1) paste: the drawer's "Bring back" tab takes pasted text, finds the `saropa-patch` block (or bare JSON) and parses it; (2) file: an agent writes `.saropa/handoff/<id>.result.json`; the board watches that folder and shows a pill "AI result ready, 7 changes" in the filter pills line. Option (2) is owner decision 7.
 
-**Review before anything changes**: a list of proposed changes, one row each: checkbox (on by default), item, from → to; the AI's reason is the row tooltip (decision 22). A change whose item changed since the hand-off (`rev` differs) is unchecked and marked "changed since". An effect pill, `Blocks 2 → 1`, whose tooltip carries the sentence ("Applying 7 changes: items that block in Saropa Contacts go from 2 to 1 under Deliberate"). Refused lines show as a grey `refused` pill with the reason in the tooltip. Buttons: Apply chosen, Reject all. Apply saves at once with one Undo for the whole batch (decision 6); the applied patch stays in `.saropa/handoff/` so it can be reverted later from the change log (decision 16).
+**Review before anything changes**: a list of proposed changes, one row each: checkbox (on by default), item, from → to; the AI's reason is the row tooltip (decision 22). A change whose item changed since the hand-off (`rev` differs) is unchecked and marked "changed since". An effect pill, `Blocks 2 → 1`, whose tooltip carries the sentence ("Applying 7 changes: items that block in Saropa Contacts go from 2 to 1 under Deliberate"). Refused lines show as a gray `refused` pill with the reason in the tooltip. Buttons: Apply chosen, Reject all. Apply saves at once with one Undo for the whole batch (decision 6); the applied patch stays in `.saropa/handoff/` so it can be reverted later from the change log (decision 16).
 
 **Provenance**: an accepted change is by hand (✎, set-by-you note) because the owner accepted it; the history line adds "from AI proposal `<id>`" (decision 8).
 
@@ -561,7 +561,7 @@ Note on "The board does not start anything": calling Chat Explorer's `activate()
 
 Status: decided 2026-10-30 (decisions 46 to 52, recorded in 18.10). Not built yet; build order in section 13.
 
-Goal: the board is useful from 5 documents to 2,000 across deep folder trees. Everything automatic is deterministic (same files, same result, whatever the scan order), explained by a tooltip, configurable from the UI (decision 45) and overridable by hand. Settled rules kept: no AI in the board (section 2), red only for blockers (decision 2), one colour signal per card, two pills per row, links are proposals until accepted (decision 44.6), new links are `Needs:` lines (decision 7), saves apply at once with Undo (decision 6), minimal chrome (decisions 20 and 22).
+Goal: the board is useful from 5 documents to 2,000 across deep folder trees. Everything automatic is deterministic (same files, same result, whatever the scan order), explained by a tooltip, configurable from the UI (decision 45) and overridable by hand. Settled rules kept: no AI in the board (section 2), red only for blockers (decision 2), one color signal per card, two pills per row, links are proposals until accepted (decision 44.6), new links are `Needs:` lines (decision 7), saves apply at once with Undo (decision 6), minimal chrome (decisions 20 and 22).
 
 ### 18.1 What exists today, and the gaps
 
@@ -569,7 +569,7 @@ Goal: the board is useful from 5 documents to 2,000 across deep folder trees. Ev
 |---|---|---|---|
 | Grouping | `board/groups.ts:169-186` (`buildGroups`) | Three passes: by-hand groups from the rules file (`:75-83`, globs in `types.ts:121`), same project and same first file-name word once a date is removed (`:50-53`, `:86-100`), two or more shared source files, at most 12 per group (`:105-140`). Hubs (20,000 words or 30 document names, `:176`) never merge by files. Exclusions: `ungrouped` (`types.ts:123`). | No folder signal at all. Common first words (PLAN, BUG, SPEC: list at `:41`) are dropped, not skipped to the next word, so most documents stay ungrouped. No minimum or maximum size apart from 2 and 12, no nesting. One flat level. |
 | Group names | `groups.ts:55`, `:162` | Manual name, "`Prefix` documents" or "Related documents". `titleCase` capitalises only the first letter. | Generic names; no folder names; no dedup. |
-| Group identity | `groups.ts:146-163` | The id is the union-find root key, i.e. one member's path. | Changes when membership changes, so fold memory, overrides and colours cannot attach to it. |
+| Group identity | `groups.ts:146-163` | The id is the union-find root key, i.e. one member's path. | Changes when membership changes, so fold memory, overrides and colors cannot attach to it. |
 | Pool | `boardModel.ts:347-353` | Groups are built over open items only. | Groups dissolve as items finish (a group of 2 loses one member and vanishes), so the layout jumps. |
 | Group display | `boardHtmlRows.ts:250-279`; Gantt `ganttModel.ts:110-148` | A sub-heading inside a list, only when two members share the list. The Gantt groups by project only (Gantt phase 7 notes). Group by setting: `project` or `none` (`package.json:2521`, `views/boardPanel.ts:120`). | No group level on the Gantt; phase 6 has not been built. |
 | Row limits | `boardHtmlRows.ts:14-16`, `:275-279` | Fixed: 5 rows shown, list folded over 25. Hidden rows are still emitted in the HTML. | Not adaptive; at 2,000 documents the page carries every hidden row. |
@@ -577,7 +577,7 @@ Goal: the board is useful from 5 documents to 2,000 across deep folder trees. Ev
 | Suggested links | `board/inferred.ts:30-56`; wired at `boardModel.ts:215-226` | A document naming exactly one other open document of its project by file name (from `docRefNames`, first 60, `docFacts.ts:257-258`). At most 50 (`inferred.ts:21`). Shown dashed. | One signal only. No order (phase 1 then 2), no phrases ("blocked by"), no confidence, no "why". |
 | Title | `docFacts.ts:239`, `boardModelParts.ts:257` | First heading, 80 characters at most, or the file name. | Fine as a signal. |
 | Front matter | none | Not read. | |
-| Keyword dictionaries | `board/severity.json` (severity phrases), `board/needs-dictionary.json` (Sittings contexts); rules file `severity` and `needs` partial replacements (`types.ts:125`, `:130`; merge pattern `needs.ts:30`); severity keyword editor (`keywordEditorHtml.ts:62`, preview `commands/boardKeywordPreview.ts`, settings `package.json:2609-2621`) | A UI editor exists for severity phrases only, with preview and Restore defaults. | No dictionary for themes, emoji, colours, link words or naming. |
+| Keyword dictionaries | `board/severity.json` (severity phrases), `board/needs-dictionary.json` (Sittings contexts); rules file `severity` and `needs` partial replacements (`types.ts:125`, `:130`; merge pattern `needs.ts:30`); severity keyword editor (`keywordEditorHtml.ts:62`, preview `commands/boardKeywordPreview.ts`, settings `package.json:2609-2621`) | A UI editor exists for severity phrases only, with preview and Restore defaults. | No dictionary for themes, emoji, colors, link words or naming. |
 | Writes | `commands/boardRuleAssign.ts:89` (`writeRule`), `:154` (`applyTextChange`), `:210` (`undoRulesWrite`) | Safe rules-file writes (unsaved copy, symbolic link, UTF-8, re-read) with an undo snapshot. | Reused as is. |
 | Scan cache | `board/scanner.ts:41-69`, `docFacts.ts:7` (`FACTS_VERSION`), `scanner.ts:115` (2 MB cap) | Facts cached per file by size and modified time. | New signals ride in the same cache; bump `FACTS_VERSION`. |
 
@@ -620,7 +620,7 @@ Pool: open and finished (green) documents of the project, not reference, not Fut
 7. **Hubs** (unchanged thresholds) join their folder's group but are excluded from steps 3.2 to 3.5, so a hub never pulls documents together.
 8. **No cross-project groups** except rules-file globs that name several projects, as today.
 
-**Stable id**: `project:source:key`, for example `contacts:folder:docs/plans/payments`, `contacts:seq:docs/plans/share_keys`, `contacts:tag:payments`, `contacts:manual:Store launch`. Fold state, overrides and colours attach to this id.
+**Stable id**: `project:source:key`, for example `contacts:folder:docs/plans/payments`, `contacts:seq:docs/plans/share_keys`, `contacts:tag:payments`, `contacts:manual:Store launch`. Fold state, overrides and colors attach to this id.
 
 **MIN** = 2 below 50 documents, 3 below 200, 4 below 1,000, 5 from 1,000. **MAX** = 2 × √N, rounded, kept between 8 and 40.
 
@@ -648,15 +648,15 @@ A closed group header always shows its emoji, name, worst status shape and pill 
 6. Dedup inside a project: add the nearest differing parent folder after a middle dot ("Payments · Bugs"), never brackets (decision 15); if still equal, add a number ("Payments 2").
 7. 32 characters at most on screen; the full name and its source in the tooltip.
 
-#### 18.3.4 Tags: emoji and colour from a dictionary
+#### 18.3.4 Tags: emoji and color from a dictionary
 
-A **tag** is one dictionary entry: id, label, emoji, colour, patterns, where to match (folder, file name, title), and its effects (forms groups, names, emoji, colour; on by default). Shipped as `extension/src/board/organize-dictionary.json`, next to `severity.json`; a project's rules file can add, replace or disable entries under an `organize` key, using the existing partial-merge pattern (`needs.ts:30`). Users edit it from the UI (18.5); hand-editing is the advanced path only.
+A **tag** is one dictionary entry: id, label, emoji, color, patterns, where to match (folder, file name, title), and its effects (forms groups, names, emoji, color; on by default). Shipped as `extension/src/board/organize-dictionary.json`, next to `severity.json`; a project's rules file can add, replace or disable entries under an `organize` key, using the existing partial-merge pattern (`needs.ts:30`). Users edit it from the UI (18.5); hand-editing is the advanced path only.
 
 Matching: whole word after the suffix strip. Score per tag: folder or file-name hit 3, title hit 2; a tag applies at 3 or more; ties go to the tag listed first (the user's order in the editor). A group takes the tag that applies to at least half its members, else the tag of its name, else none.
 
 Default tags:
 
-| Tag | Emoji | Colour | Words |
+| Tag | Emoji | Color | Words |
 |---|---|---|---|
 | Payments | 💳 | ochre | payment, billing, purchase, subscription, refund, pricing, paywall, checkout, receipt, revenue, iap |
 | Security and privacy | 🔒 | slate | security, auth, login, password, passcode, encryption, credential, privacy, gdpr, permission, token |
@@ -675,9 +675,9 @@ Default tags:
 | Plans and research | 🧭 | orchid | plan, roadmap, research, spike, proposal, rfc, adr |
 | Owner tasks | 👤 | olive | owner, handover, manual |
 
-No tag: 📁 for a folder group, 🔗 for a sequence family, no colour stripe.
+No tag: 📁 for a folder group, 🔗 for a sequence family, no color stripe.
 
-**Colours**: eight hues, none red; each has at least 3:1 contrast against both `#ffffff` and `#1e1e1e` (WCAG 1.4.11, checked 2026-10-30): teal `#138a7e`, sky `#1a7fb0`, indigo `#5a64c8`, orchid `#9b5bbf`, olive `#6f7d1c`, ochre `#9a6a12`, slate `#5f7184`, pine `#3d8a4a`. Red is reserved for blockers (decision 2): the picker offers only these eight, and the dictionary loader refuses a hex with a hue between 330° and 20° and refuses red emoji (🔴 ❗ 🚨 ⛔ 🛑 🔥 🐞). A group with no tag colour gets one by a stable hash of its id, moved to the next free hue among its siblings. Where colour shows: a 3 px stripe on the group header and the Gantt group band only; never on rows or pills, so the status colour stays the one colour signal per row. In high-contrast themes the stripe becomes `--vscode-contrastBorder`; emoji and name carry the identity, never colour alone.
+**Colors**: eight hues, none red; each has at least 3:1 contrast against both `#ffffff` and `#1e1e1e` (WCAG 1.4.11, checked 2026-10-30): teal `#138a7e`, sky `#1a7fb0`, indigo `#5a64c8`, orchid `#9b5bbf`, olive `#6f7d1c`, ochre `#9a6a12`, slate `#5f7184`, pine `#3d8a4a`. Red is reserved for blockers (decision 2): the picker offers only these eight, and the dictionary loader refuses a hex with a hue between 330° and 20° and refuses red emoji (🔴 ❗ 🚨 ⛔ 🛑 🔥 🐞). A group with no tag color gets one by a stable hash of its id, moved to the next free hue among its siblings. Where color shows: a 3 px stripe on the group header and the Gantt group band only; never on rows or pills, so the status color stays the one color signal per row. In high-contrast themes the stripe becomes `--vscode-contrastBorder`; emoji and name carry the identity, never color alone.
 
 Emoji show on group headers and in hover cards, never on rows (decision 48).
 
@@ -701,7 +701,7 @@ Every automatic result has a "why" in its tooltip (decision 17), built from its 
 
 - Group: "Auto group: folder docs/plans/payments, 14 documents." "Auto group: 4 file names share_keys_phase1 to 4." "Auto group: tag Payments matched 6 documents (billing, refund)."
 - Name: "From folder 2026_payments_v2 (date and version removed)."
-- Emoji and colour: "💳 from tag Payments: 'billing' in 3 of 5 titles." "Colour picked for this group; change it in the group menu."
+- Emoji and color: "💳 from tag Payments: 'billing' in 3 of 5 titles." "Color picked for this group; change it in the group menu."
 - Link proposal: "Phase 2 waits on phase 1: same name, next number. High confidence."
 - Front matter: "Tag Payments from this document's front matter."
 - Folded: "Folded: 500 documents on the board; groups with blockers open first."
@@ -715,7 +715,7 @@ No hand-editing is ever required. JSON stays the storage and the advanced path (
 
 **In place**
 
-- **Group header kebab**: Rename…, Emoji…, Colour… (eight swatches), Move documents… (phase 6), Merge with…, New tag from this group (prefills patterns from the words the members share), Back to automatic. The header tooltip carries the why.
+- **Group header kebab**: Rename…, Emoji…, Color… (eight swatches), Move documents… (phase 6), Merge with…, New tag from this group (prefills patterns from the words the members share), Back to automatic. The header tooltip carries the why.
 - **Row kebab**: Move to group… (phase 6), Tags… (add or remove a tag on this document), Waits on… (phase 5), Back to automatic.
 - **Hover card tag pills**: clicking one opens a small menu: Edit tag…, Not this document (an exclusion override), Add a word…
 - **Suggested link**: Accept, Reject, Why (tooltip).
@@ -723,13 +723,13 @@ No hand-editing is ever required. JSON stays the storage and the advanced path (
 
 **Tags and rules editor**: one view opened from Project actions ⋮ → "Tags and rules…", and from "Edit tag…" anywhere. It absorbs today's severity keyword editor as one tab (decision 51). Tabs: Tags, Link words, Naming, Severity. Each tab has one `?` pill; no help text on screen (decision 22).
 
-- **Tags tab**: a list, one row per tag: drag handle (order is priority on ties), emoji, label, colour swatch, pattern pills, effect pills (Group, Name, Emoji, Colour), a "matches N" count pill, ⋮ (Edit, Rename, Duplicate, Move up, Move down, Turn off, Delete, Reset to default for a shipped tag). Built-in tags carry a "default" pill; editing one stores only the difference. Above the list: a search box and a kebab with New tag, Import…, Export…, Reset all to default, Open JSON.
-- **Edit panel** (opens beside the list): label, emoji field, eight colour swatches, patterns as pills (whole word by default; "starts with" and pattern match under an Advanced toggle), where to match (folder, file name, title), effect toggles. **Test match**: a live list of the current documents the tag would match, the matched word highlighted, and where each would land ("→ Payments"), plus an effect pill ("Saving moves 12 documents into Payments"), updated 200 ms after typing stops. Save applies with Undo.
+- **Tags tab**: a list, one row per tag: drag handle (order is priority on ties), emoji, label, color swatch, pattern pills, effect pills (Group, Name, Emoji, Color), a "matches N" count pill, ⋮ (Edit, Rename, Duplicate, Move up, Move down, Turn off, Delete, Reset to default for a shipped tag). Built-in tags carry a "default" pill; editing one stores only the difference. Above the list: a search box and a kebab with New tag, Import…, Export…, Reset all to default, Open JSON.
+- **Edit panel** (opens beside the list): label, emoji field, eight color swatches, patterns as pills (whole word by default; "starts with" and pattern match under an Advanced toggle), where to match (folder, file name, title), effect toggles. **Test match**: a live list of the current documents the tag would match, the matched word highlighted, and where each would land ("→ Payments"), plus an effect pill ("Saving moves 12 documents into Payments"), updated 200 ms after typing stops. Save applies with Undo.
 - **Link words tab**: the phrase list ("blocked by", "depends on", "after" ...), the sequence tokens (phase, part, v, step, stage) and the kind order, each editable as pills, with the same test-match preview listing the proposals they would make.
 - **Naming tab**: status folder words, container words, kind words stripped from names, acronyms. Same pill editing and preview of resulting names.
-- **Severity tab**: today's keyword editor, unchanged in behaviour.
+- **Severity tab**: today's keyword editor, unchanged in behavior.
 - **Import / Export**: a JSON file holding the `organize` part only. Import shows "adds 3, replaces 2" with a preview, then saves with Undo.
-- Keyboard and screen reader: list is `role="listbox"`, reorder with Alt+Up and Alt+Down, panel is labelled, Escape returns focus.
+- Keyboard and screen reader: list is `role="listbox"`, reorder with Alt+Up and Alt+Down, panel is labeled, Escape returns focus.
 
 ### 18.6 Overrides: storage, precedence, moves, undo
 
@@ -739,7 +739,7 @@ No hand-editing is ever required. JSON stays the storage and the advanced path (
 "organize": {
   "tags": { "add": [], "replace": {}, "off": [], "order": [] },
   "linkWords": {}, "naming": {},
-  "groups": { "contacts:folder:docs/plans/payments": { "name": "Store payments", "emoji": "💳", "colour": "ochre" } },
+  "groups": { "contacts:folder:docs/plans/payments": { "name": "Store payments", "emoji": "💳", "color": "ochre" } },
   "assign": [ { "project": "contacts", "path": "docs/plans/PLAN_x.md", "group": "contacts:folder:docs/plans/payments" } ],
   "untag": [ { "project": "contacts", "path": "docs/x.md", "tag": "payments" } ]
 }
@@ -758,7 +758,7 @@ Phase 6 "Move to group" and "New group" write `assign` and the existing `groups`
 | Where | Work | Budget |
 |---|---|---|
 | Scan, per changed file, cached | Path, file-name, title tokens; tag scores; phrase-link candidates (one combined regex over the already-read body) | Under 1 ms per document; nothing for unchanged files (cache by size and modified time; bump `FACTS_VERSION`) |
-| Model build, once per scan (host) | Folder tree, stems, sequence families, tags, naming, colours, proposals, one cycle check over the open graph | Under 150 ms for 2,000 documents on a laptop; a test asserts under 500 ms |
+| Model build, once per scan (host) | Folder tree, stems, sequence families, tags, naming, colors, proposals, one cycle check over the open graph | Under 150 ms for 2,000 documents on a laptop; a test asserts under 500 ms |
 | Editor test match | Re-match one tag over the cached signals | Under 50 ms per keystroke batch |
 | Page HTML | Headers of every group; rows only of open groups up to the row limit; the rest sent when opened (one message, about 20 ms) | Under 1.5 MB; first paint under 300 ms |
 | Render | Folding is CSS; Gantt arrows only for the hovered row (decision 18) | No layout work per hover beyond the arrows |
@@ -767,10 +767,10 @@ Today's "Show more" emits hidden rows (`boardHtmlRows.ts:275`); it changes to se
 
 ### 18.8 How it connects
 
-- **Phase 6 (Group by Group, Move to group, New group)**: merges before this engine (decision 52), on today's grouping. Org 1 then gives its group cards stable ids, readable names, emoji and colour. Move to group and New group are the override writers of 18.6. Phase 6 notes: the progress ring on group cards and a "Group: ..." filter pill are not built; group ids are unstable (union-find roots) until the auto-organization phase.
-- **Gantt (phase 7)**: groups become sub-headers under each project (one level; two from 200 documents, closed). The header carries emoji, colour stripe, worst status and count pills; each project still ends with its light. Inside a group the order is: accepted links (work order, as today), then sequence number, then title. Sequence order sorts rows only; it is not a link and changes no light (decision 52).
+- **Phase 6 (Group by Group, Move to group, New group)**: merges before this engine (decision 52), on today's grouping. Org 1 then gives its group cards stable ids, readable names, emoji and color. Move to group and New group are the override writers of 18.6. Phase 6 notes: the progress ring on group cards and a "Group: ..." filter pill are not built; group ids are unstable (union-find roots) until the auto-organization phase.
+- **Gantt (phase 7)**: groups become sub-headers under each project (one level; two from 200 documents, closed). The header carries emoji, color stripe, worst status and count pills; each project still ends with its light. Inside a group the order is: accepted links (work order, as today), then sequence number, then title. Sequence order sorts rows only; it is not a link and changes no light (decision 52).
 - **Phase 8 drag and drop**: dropping onto a group header writes the same `assign` override.
-- **AI Organize pass (section 16.4)**: one proposal record for both sources, `{ source: "auto" | "ai", op, item, to, confidence, why }`, and one review list (checkbox, item, from → to, a source pill "auto" or "AI", why as tooltip, effect pill, Apply chosen, Reject all, one Undo). Heuristic link proposals use it from Org phase 4; AI patches from Handoff phase 3. The Organize payload includes the automatic groups, tags and open proposals with their why, so the AI refines instead of starting over. The AI stays within decision 33 (status, severity, group, `Needs:`); naming, emoji, colour and tags stay human-only.
+- **AI Organize pass (section 16.4)**: one proposal record for both sources, `{ source: "auto" | "ai", op, item, to, confidence, why }`, and one review list (checkbox, item, from → to, a source pill "auto" or "AI", why as tooltip, effect pill, Apply chosen, Reject all, one Undo). Heuristic link proposals use it from Org phase 4; AI patches from Handoff phase 3. The Organize payload includes the automatic groups, tags and open proposals with their why, so the AI refines instead of starting over. The AI stays within decision 33 (status, severity, group, `Needs:`); naming, emoji, color and tags stay human-only.
 
 ### 18.9 Tests, phases, risks
 
@@ -800,7 +800,7 @@ Properties on every fixture: one group per document at most; no non-explicit gro
 |---|---|---|---|---|
 | Org 1 | Signals in the scan cache; folder-first grouping, stems, sequence families, tags (shipped dictionary only), names, stable ids, why tooltips and tag pills in hover cards; Gantt group sub-headers | L | Phase 4 (merged); phase 6 (merged first, decision 52) | No |
 | Org 2 | Adaptive thresholds and the 18.3.2 table, open-group cap, rows sent on demand, hysteresis | M | Org 1 | No |
-| Phase 6 (existing) | Group by Group / Status / Severity, Move to group, New group, plus group Rename, Emoji, Colour, Back to automatic, stale-override handling | M | Phase 4 (merged); merges before Org 1 (decision 52) | Rules file |
+| Phase 6 (existing) | Group by Group / Status / Severity, Move to group, New group, plus group Rename, Emoji, Color, Back to automatic, stale-override handling | M | Phase 4 (merged); merges before Org 1 (decision 52) | Rules file |
 | Org 3 | Tags and rules editor (Tags, Link words, Naming tabs; Severity tab moved in), test match, import and export, reset, in-place tag menus | L | Phase 6 | Rules file. Opus diff review |
 | Org 4 | Link proposals (sequence, phrase, title, mention, kind order), confidence, circle refusal, the shared review list | M | Phase 5 (Needs writer), Org 1 | `Needs:` lines (accept), marks (reject). Opus diff review |
 
@@ -810,7 +810,7 @@ Handoff phase 3 then reuses the Org 4 review list, so it follows Org 4 (decision
 
 - **Wrong groups feel worse than no groups.** Mitigation: folder first (the user's own structure), every group explained, Back to automatic, MIN guards.
 - **Layout jumps** as documents arrive. Stable ids, finished documents kept in the pool, hysteresis on bands, remembered folds.
-- **Colour confused with status.** Colour only on header stripes; status shape and colour stay the row signal; red refused.
+- **Color confused with status.** Color only on header stripes; status shape and color stay the row signal; red refused.
 - **Hiding a blocker** when groups fold. Closed headers always show the red count pill; the open cap affects rows only.
 - **Proposal noise** at 2,000 documents. Neighbour-only sequences, 3 per document, low hidden behind a pill, rejections remembered.
 - **Rules-file churn in git** from overrides. Only exceptions are stored; writes keep the existing safety checks.
@@ -828,7 +828,7 @@ Follow-ups, not built: Gantt group sub-headers; tag pills in the hover card; the
 
 ### Tags editor delivered notes
 
-Delivered (branch release-board-tags-editor, review fixes): a save of either tab keeps the editor open and re-baselines only that part; Close asks before dropping unsaved edits; a Tags save is refused when the rules file changed since the editor read it, and the editor watches the file and offers a Reload pill; values the loader drops (invalid tags, patches, lists) are named on the Tags tab and a save asks first; `where` is kept end to end; the header names the folder and the rules file, with a folder choice in a multi-folder workspace; Severity Save offers Undo; per-tag Duplicate, Rename, Reset to default, a "default" pill, search, patterns as pills (one word each), Open JSON, a matched-word highlight in the test-match preview, an import preview ("adds N, replaces N"), pill editing and a names preview on the Naming tab; group colour overrides accept the eight names only.
+Delivered (branch release-board-tags-editor, review fixes): a save of either tab keeps the editor open and re-baselines only that part; Close asks before dropping unsaved edits; a Tags save is refused when the rules file changed since the editor read it, and the editor watches the file and offers a Reload pill; values the loader drops (invalid tags, patches, lists) are named on the Tags tab and a save asks first; `where` is kept end to end; the header names the folder and the rules file, with a folder choice in a multi-folder workspace; Severity Save offers Undo; per-tag Duplicate, Rename, Reset to default, a "default" pill, search, patterns as pills (one word each), Open JSON, a matched-word highlight in the test-match preview, an import preview ("adds N, replaces N"), pill editing and a names preview on the Naming tab; group color overrides accept the eight names only.
 
 Not built, with reasons:
 - "-> Group" landing and "Saving moves N documents" in the test-match preview: the grouping engine (organize()) is not wired into the board on this branch, so there is no layout to compare; add it with the engine wiring.
@@ -860,13 +860,13 @@ Delivery row 9 (section 13). Runs after every current Release Board branch is me
 
 1. **Row menu at 420 px runs off the bottom and is clipped** (`b-*-420-4-rowmenu.png`). Fix: flip the menu above the row when there is no room below, and scroll inside the viewport when it is still too tall.
 2. **Status menu shows two checked entries, "Address now" and "Done".** May be a fixture artifact. Verify first; fix only if the menu really allows two checked states.
-3. **Narrow header is clumsy.** The scope switch is a full-width bar; "Changes" and two unlabeled kebabs are three grey blocks; "Add more projects" takes its own row; board content starts about 200 px down. Fix: scope as a compact control, label or merge the kebabs, move "Add more projects" into the Projects menu, and bring content up.
+3. **Narrow header is clumsy.** The scope switch is a full-width bar; "Changes" and two unlabeled kebabs are three gray blocks; "Add more projects" takes its own row; board content starts about 200 px down. Fix: scope as a compact control, label or merge the kebabs, move "Add more projects" into the Projects menu, and bring content up.
 4. **Too many pills and counts per project card.** The summary strip repeats the card header. Each card shows NO-GO plus "2 block", "3 review", "2 in progress", and section count badges. Zero pills ("UNVERIFIED 0", "GO 0") are shown. Fix: hide zero pills and drop duplicated counts.
 5. **Red is overused.** Each Resolve-now row has a red "Blocks" pill, a red NO-GO tag and a red count badge. Each Gantt project footer has a red NO-GO tag. Fix: one red mark per row or card (section 5 rule).
-6. **Future tab at 420 px is a wall.** Five full-width selects and a full-width "Proposed: Marketable" button per item, about 400 px per item. The light-coloured Score select clashes with the dark theme. Fix: a compact pill or kebab menu per item, themed controls in both modes.
+6. **Future tab at 420 px is a wall.** Five full-width selects and a full-width "Proposed: Marketable" button per item, about 400 px per item. The light-colored Score select clashes with the dark theme. Fix: a compact pill or kebab menu per item, themed controls in both modes.
 7. **Gantt bars without dates are full-width stripes, and file names are cut off at 420 px.** Fix: undated bars get a fixed short width with a "no dates" mark; names wrap or truncate with a tooltip.
 8. **"In progress" is both a section and a purple pill on every row.** A stray loading spinner sits under the last blocker row. Fix: keep the section, drop the per-row pill; hide the spinner unless a load is running.
-9. **Pale UNVERIFIED and GO pills with grey "0" badges have the weakest light-theme contrast.** Fix: raise contrast to the WCAG AA level for text on those pills in light theme.
+9. **Pale UNVERIFIED and GO pills with gray "0" badges have the weakest light-theme contrast.** Fix: raise contrast to the WCAG AA level for text on those pills in light theme.
 10. **Handoff drawer is reachable only after selection mode.** Verify that the single-item Hand off path opens the drawer directly. If it does not, fix it so it does.
 
 **Checks.** Re-render in all four combinations (dark and light, 1200 px and 420 px) and the same ten screens. Add or update board HTML tests in `extension/src/test/board/` for the menu placement, zero-pill rule and single red mark.

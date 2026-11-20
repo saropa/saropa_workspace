@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { FolderWatchStore } from "../model/folderWatch";
 import { FolderWatchEngine } from "../exec/folderWatchEngine";
 import { WatchTreeItem } from "../views/watchesTreeProvider";
+import { HubGridPanel } from "../views/hubGridPanel";
 import { addFolderWatch, addFileWatch } from "./folderWatchAddCommands";
 import { addGitHubRepoWatch } from "./githubWatchCommands";
 import { manageWatches } from "./folderWatchManageCommands";
@@ -88,6 +89,11 @@ export function registerFolderWatchCommands(
     ),
     vscode.commands.registerCommand("saropaWorkspace.manageWatches", () =>
       manageWatches(store)
+    ),
+    // The HubGrid table of open issues/PRs across the watched repos; it reads the
+    // engine's poll cache, so opening it costs no network call.
+    vscode.commands.registerCommand("saropaWorkspace.showHubGrid", () =>
+      HubGridPanel.show(store, engine)
     ),
     // Watches-view row commands: click a row to open what changed and clear its
     // counter; the inline menu toggles or removes the watch.

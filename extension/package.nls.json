@@ -116,6 +116,7 @@
   "command.watchFile.title": "Watch File for Changes...",
   "command.watchGitHubRepo.title": "Watch GitHub Repo for New Issues/PRs...",
   "command.manageWatches.title": "Manage Folder Watches...",
+  "command.showHubGrid.title": "Show HubGrid (Watched Repo Issues and PRs)",
   "command.openWatch.title": "Open Watch",
   "command.toggleWatch.title": "Enable / Disable Watch",
   "command.removeWatch.title": "Remove Watch",

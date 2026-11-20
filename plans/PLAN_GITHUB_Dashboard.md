@@ -1,5 +1,7 @@
 # Plan: HubGrid — a watched-repos dashboard panel
 
+Status: implemented (changelog entry under 2.8.0). Built differently from the first draft in four places, recorded under "Built differently" at the end.
+
 ## Why this replaces the original draft
 
 The original draft specified a standalone web app: GitHub App webhooks into a
@@ -149,3 +151,10 @@ localized `STRINGS` object into the client script).
 No changes needed to `folderWatch.ts`, `githubClient.ts`, `githubTypes.ts`,
 or the engine's polling/diff logic — this is a new read surface over data
 that already exists.
+
+## Built differently from the first draft
+
+- Messages carry ids only. `open` and `copy` send `{ watchId, itemKey }`; the host resolves the URL from the engine cache. The page never supplies a URL or clipboard text, so a tampered message cannot open an arbitrary address.
+- Opening one row marks only that item seen. `FolderWatchStore.markSeen(id, key)` was added because `clearUnseen(id)` clears the whole watch, which would mark siblings the user never looked at.
+- The engine did not record rate-limit state (only an output-channel line). It now records each repo watch's last scan error (`getRepoScanError`), fires `onDidScanRepo` after every repo scan, and exposes `refreshRepoWatches()` (the Refresh button). The banner reads the scan error; a leading 403 or 429 selects the rate-limit wording. `reconcileWatchers` stayed private.
+- Registration is in `folderWatchCommands.ts`, which `activation/wiringWatchers.ts` already calls, so no wiring file changed. Data shaping lives in `views/hubGridData.ts` (no vscode import, unit tested).

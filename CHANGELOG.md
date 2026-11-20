@@ -46,6 +46,14 @@ cspell:disable
 
 ---
 
+## [2.8.0]
+
+A new HubGrid table lists the open issues and pull requests from every watched GitHub repo. [log](https://github.com/saropa/saropa_workspace/blob/v2.8.0/CHANGELOG.md)
+
+### Added
+- Saropa HubGrid: a table of the open issues and pull requests from every watched GitHub repo, newest first, with a filter per repo, a Refresh button, and j/k or arrow-key navigation. Open it from the new table button on the Watches view title bar or the `Show HubGrid` command. It reads the data the repo watches already poll, so opening it makes no extra GitHub requests.
+- HubGrid rows: Enter or a click opens the item in your browser and marks only that item as seen; Copy link copies its URL. Items new since you last looked carry a dot. A banner names any repo that GitHub is rate limiting or that failed to poll, while the last good rows stay on screen.
+
 ## [2.7.2]
 
 ### Added

@@ -43,6 +43,7 @@ Current screens, for reference:
 | `views.launcher.container.title` / `launcher.title` | **Saropa Workspace** |
 | `settings.title` | **Saropa Settings** |
 | `brief.title` | **Saropa Morning Brief** |
+| `hubGrid.title` | **Saropa HubGrid** |
 
 The three schedule-related screens are deliberately distinct: the **Scheduler**
 (`scheduleEditor.title`) *sets* one shortcut's timing; **Scheduled Runs**

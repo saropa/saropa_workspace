@@ -195,6 +195,28 @@ export class FolderWatchStore {
     this._onDidChangeCounts.fire();
   }
 
+  // Mark ONE unseen path as seen, leaving the rest of the watch's tally intact. The
+  // HubGrid opens a single issue/PR per click, so clearing the whole watch (as
+  // clearUnseen does for the tree row) would silently mark siblings the user never
+  // looked at. Drops the watch's entry when it was the last one. A no-op when the
+  // path is not recorded.
+  async markSeen(id: string, path: string): Promise<void> {
+    const all = this.allUnseen();
+    const list = all[id];
+    if (!Array.isArray(list) || !list.includes(path)) {
+      return;
+    }
+    const remaining = list.filter((p) => p !== path);
+    const next = { ...all };
+    if (remaining.length === 0) {
+      delete next[id];
+    } else {
+      next[id] = remaining;
+    }
+    await this.context.globalState.update(UNSEEN_KEY, next);
+    this._onDidChangeCounts.fire();
+  }
+
   // Clear a watch's unseen tally (the user opened it). A no-op when already empty,
   // so clicking an already-clear watch does not churn the badge.
   async clearUnseen(id: string): Promise<void> {
