@@ -6,7 +6,7 @@ This archive is for older versions. For current changes see [CHANGELOG.md](./CHA
 
 ## [1.6.9]
 
-Fixes a bug where running a script "in an external window" would show the launched toast but never actually open a window. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.9/CHANGELOG.md)
+Fixes a bug where running a script "in an external window" would show the launched toast but never actually open a window. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.9/CHANGELOG.md)
 
 ### Fixed
 
@@ -16,7 +16,7 @@ Fixes a bug where running a script "in an external window" would show the launch
 
 ## [1.6.8]
 
-This release adds standard dialog keyboard shortcuts, auto-generated names, and content-based tag suggestions to the Customize panel. The Launcher now includes a recent-workspaces quick-pick when no folder is open. Bug fixes address webview disposable leaks, unclosed stderr streams during failed process spawns, and silently swallowed PowerShell errors. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.8/CHANGELOG.md)
+This release adds standard dialog keyboard shortcuts, auto-generated names, and content-based tag suggestions to the Customize panel. The Launcher now includes a recent-workspaces quick-pick when no folder is open. Bug fixes address webview disposable leaks, unclosed stderr streams during failed process spawns, and silently swallowed PowerShell errors. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.8/CHANGELOG.md)
 
 ### Improved
 
@@ -40,7 +40,7 @@ This release adds standard dialog keyboard shortcuts, auto-generated names, and 
 
 ## [1.6.7]
 
-Upgrades the daily routine experience with the visual Saropa Morning Brief and smarter standup digests that highlight actionable project growth over automated noise. Background runs are now quieter by default, and new settings allow power users to disable start-up notifications entirely. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.7/CHANGELOG.md)
+Upgrades the daily routine experience with the visual Saropa Morning Brief and smarter standup digests that highlight actionable project growth over automated noise. Background runs are now quieter by default, and new settings allow power users to disable start-up notifications entirely. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.7/CHANGELOG.md)
 
 ### Added
 
@@ -72,7 +72,7 @@ Upgrades the daily routine experience with the visual Saropa Morning Brief and s
 
 ## [1.6.6]
 
-Quickly share notes in plain text, Markdown links, or rich HTML, and enjoy a cleaner, keyboard-navigable Launcher context menu with organized submenus. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.6/CHANGELOG.md)
+Quickly share notes in plain text, Markdown links, or rich HTML, and enjoy a cleaner, keyboard-navigable Launcher context menu with organized submenus. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.6/CHANGELOG.md)
 
 ### Added
 
@@ -92,7 +92,7 @@ Quickly share notes in plain text, Markdown links, or rich HTML, and enjoy a cle
 
 ## [1.6.5]
 
-Manage all your extension preferences in one place with a dedicated Settings panel, and give your shortcut names a cleaner look with optional title-casing. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.5/CHANGELOG.md)
+Manage all your extension preferences in one place with a dedicated Settings panel, and give your shortcut names a cleaner look with optional title-casing. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.5/CHANGELOG.md)
 
 
 ### Added
@@ -105,7 +105,7 @@ Manage all your extension preferences in one place with a dedicated Settings pan
 
 ## [1.6.4]
 
-The Launcher panel now has a Notes pane, sortable pane headers, and a smarter schedule status-bar indicator with configurable lead time. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.4/CHANGELOG.md)
+The Launcher panel now has a Notes pane, sortable pane headers, and a smarter schedule status-bar indicator with configurable lead time. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.4/CHANGELOG.md)
 
 ### Added
 
@@ -129,7 +129,7 @@ The Launcher panel now has a Notes pane, sortable pane headers, and a smarter sc
 
 ## [1.6.3]
 
-The Launcher panel gets a usability overhaul with new section visibility toggle chips, a convenient one-click reset button to restore hidden panes, and a smoother startup experience with a new loading indicator. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.3/CHANGELOG.md)
+The Launcher panel gets a usability overhaul with new section visibility toggle chips, a convenient one-click reset button to restore hidden panes, and a smoother startup experience with a new loading indicator. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.3/CHANGELOG.md)
 
 ### Added
 
@@ -146,7 +146,7 @@ The Launcher panel gets a usability overhaul with new section visibility toggle 
 
 ## [1.6.2]
 
-A brand new Notes view in the sidebar lets you manage project-scoped and global markdown notes, and collapsed launcher sections have been streamlined into a cleaner segmented bar that peeks titles on hover. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.2/CHANGELOG.md)
+A brand new Notes view in the sidebar lets you manage project-scoped and global markdown notes, and collapsed launcher sections have been streamlined into a cleaner segmented bar that peeks titles on hover. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.2/CHANGELOG.md)
 
 ### Added
 
@@ -166,7 +166,7 @@ A brand new Notes view in the sidebar lets you manage project-scoped and global 
 
 ## [1.6.1]
 
-The bottom-panel tab is now called "Saropa Workspace" to match the extension, complete with a new subtitle and a command palette entry so you can still easily find it by searching for "launcher". [log](https://github.com/saropa/saropa-workspace/blob/v1.6.1/CHANGELOG.md)
+The bottom-panel tab is now called "Saropa Workspace" to match the extension, complete with a new subtitle and a command palette entry so you can still easily find it by searching for "launcher". [log](https://github.com/saropa/saropa_workspace/blob/v1.6.1/CHANGELOG.md)
 
 ### Changed
 
@@ -181,7 +181,7 @@ The bottom-panel tab is now called "Saropa Workspace" to match the extension, co
 
 ## [1.6.0]
 
-**Overview** — The project config moves from `.vscode` to `.saropa` (migrated automatically), collapsed launcher sections fold into a draggable pill strip, daily routines can be enabled in one batch from a new quick-setup wizard, and the right-click menu is reorganized into submenus so it fits on screen. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.0/CHANGELOG.md)
+**Overview** — The project config moves from `.vscode` to `.saropa` (migrated automatically), collapsed launcher sections fold into a draggable pill strip, daily routines can be enabled in one batch from a new quick-setup wizard, and the right-click menu is reorganized into submenus so it fits on screen. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.0/CHANGELOG.md)
 
 ### Added
 
@@ -210,7 +210,7 @@ The bottom-panel tab is now called "Saropa Workspace" to match the extension, co
 
 ## [1.5.27]
 
-**Overview** — Sweep runs now show green and red trend deltas so you can immediately see if your codebase is getting cleaner or messier, multi-root workspaces clearly label which folder owns each shortcut, and external terminals now default to modern PowerShell 7+. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.27/CHANGELOG.md)
+**Overview** — Sweep runs now show green and red trend deltas so you can immediately see if your codebase is getting cleaner or messier, multi-root workspaces clearly label which folder owns each shortcut, and external terminals now default to modern PowerShell 7+. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.27/CHANGELOG.md)
 
 ### Added
 
@@ -227,7 +227,7 @@ The bottom-panel tab is now called "Saropa Workspace" to match the extension, co
 
 ## [1.5.26]
 
-**Overview** — The number badge on the sidebar icon is gone for good. It could show a count of shortcuts you had not opened yet, or of new files across your watches, but on the icon it was just a bare number with nothing saying what it counted — and clicking the icon never cleared it, because opening the sidebar does not open a shortcut or read a changed file. Counts now live on the row that names them ("Deploy 1"), where they mean something, and a shortcut you have not used yet still carries a dot until you open or run it. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.26/CHANGELOG.md)
+**Overview** — The number badge on the sidebar icon is gone for good. It could show a count of shortcuts you had not opened yet, or of new files across your watches, but on the icon it was just a bare number with nothing saying what it counted — and clicking the icon never cleared it, because opening the sidebar does not open a shortcut or read a changed file. Counts now live on the row that names them ("Deploy 1"), where they mean something, and a shortcut you have not used yet still carries a dot until you open or run it. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.26/CHANGELOG.md)
 
 ### Removed
 
@@ -237,7 +237,7 @@ The bottom-panel tab is now called "Saropa Workspace" to match the extension, co
 
 ## [1.5.25]
 
-**Overview** — Your morning report now tells you whether it needs you. It opens with a verdict — all clear, or the things that need attention — followed by one line per check, and the raw output moves out of the way instead of filling the page. A new Build status check leads it off, so a build that broke overnight is the first thing you see. Each check states its finding in one line at the top — commits, changed files, uncommitted work — and the raw output moves out of the way instead of filling the page. And a routine that can no longer find one of its steps now says so, instead of quietly reporting a clean morning.  [log](https://github.com/saropa/saropa-workspace/blob/v1.5.25/CHANGELOG.md)
+**Overview** — Your morning report now tells you whether it needs you. It opens with a verdict — all clear, or the things that need attention — followed by one line per check, and the raw output moves out of the way instead of filling the page. A new Build status check leads it off, so a build that broke overnight is the first thing you see. Each check states its finding in one line at the top — commits, changed files, uncommitted work — and the raw output moves out of the way instead of filling the page. And a routine that can no longer find one of its steps now says so, instead of quietly reporting a clean morning.  [log](https://github.com/saropa/saropa_workspace/blob/v1.5.25/CHANGELOG.md)
 
 ### Added
 
@@ -289,7 +289,7 @@ The bottom-panel tab is now called "Saropa Workspace" to match the extension, co
 
 ## [1.5.24]
 
-Add folder safeguards to the organize script folder. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.24/CHANGELOG.md)
+Add folder safeguards to the organize script folder. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.24/CHANGELOG.md)
 
 ### Fixed
 
@@ -299,7 +299,7 @@ Add folder safeguards to the organize script folder. [log](https://github.com/sa
 
 ## [1.5.23]
 
-Browse and run your bundled scripts directly from the new sidebar or Launcher panel, complete with smart warnings if you're missing a required tool and polished button styles. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.23/CHANGELOG.md)
+Browse and run your bundled scripts directly from the new sidebar or Launcher panel, complete with smart warnings if you're missing a required tool and polished button styles. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.23/CHANGELOG.md)
 
 ### Added
 
@@ -315,7 +315,7 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ## [1.5.22]
 
-**Overview** — One report for your whole day across the Saropa tools. "View Suite Daily Report" shows what ran, what failed, and what the other installed Saropa extensions (Log Capture, Lints, Drift Advisor) saw today and yesterday — all read from your machine, nothing sent anywhere. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.22/CHANGELOG.md)
+**Overview** — One report for your whole day across the Saropa tools. "View Suite Daily Report" shows what ran, what failed, and what the other installed Saropa extensions (Log Capture, Lints, Drift Advisor) saw today and yesterday — all read from your machine, nothing sent anywhere. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.22/CHANGELOG.md)
 
 ### Added
 
@@ -338,7 +338,7 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ## [1.5.21]
 
-**Overview** — The "you've opened this file a lot, want a shortcut?" prompt used to fire while you were just flipping between files during normal work. Now it counts a file at most once every half hour, needs more opens before it asks, and lets you shut off a whole file type ("Ignore .dart") straight from the prompt. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.21/CHANGELOG.md)
+**Overview** — The "you've opened this file a lot, want a shortcut?" prompt used to fire while you were just flipping between files during normal work. Now it counts a file at most once every half hour, needs more opens before it asks, and lets you shut off a whole file type ("Ignore .dart") straight from the prompt. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.21/CHANGELOG.md)
 
 ### Added
 
@@ -354,7 +354,7 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ## [1.5.20]
 
-**Overview** — A morning routine used to fling open a tab for every check it ran and keep the one summary that ties them together closed. Now it opens exactly one document: the summary, with a link to each check's report. The "next scheduled run" item in the status bar also stops being a dead end — click it to open that report, change the time, run it now, turn the schedule off, or hide the item for good. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.20/CHANGELOG.md)
+**Overview** — A morning routine used to fling open a tab for every check it ran and keep the one summary that ties them together closed. Now it opens exactly one document: the summary, with a link to each check's report. The "next scheduled run" item in the status bar also stops being a dead end — click it to open that report, change the time, run it now, turn the schedule off, or hide the item for good. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.20/CHANGELOG.md)
 
 ### Added
 
@@ -372,7 +372,7 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ## [1.5.19]
 
-**Overview** — Running a second script while an earlier one was still busy used to type its command straight into that first script's terminal instead of opening its own. Every run now opens its own fresh terminal tab, so scripts running at the same time — or the same script run twice in a row — never collide. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.19/CHANGELOG.md)
+**Overview** — Running a second script while an earlier one was still busy used to type its command straight into that first script's terminal instead of opening its own. Every run now opens its own fresh terminal tab, so scripts running at the same time — or the same script run twice in a row — never collide. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.19/CHANGELOG.md)
 
 ### Fixed
 
@@ -382,7 +382,7 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ## [1.5.18]
 
-**Overview** — In the Saropa Launcher, a project file card now shows its Open icon even while the card is collapsed, so you can open the file in one click without expanding it first — the same one-click Open the files in My shortcuts already had. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.18/CHANGELOG.md)
+**Overview** — In the Saropa Launcher, a project file card now shows its Open icon even while the card is collapsed, so you can open the file in one click without expanding it first — the same one-click Open the files in My shortcuts already had. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.18/CHANGELOG.md)
 
 ### Changed
 
@@ -397,7 +397,7 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ## [1.5.18]
 
-**Overview** — The number badge on the sidebar icon (the count of shortcuts you had not opened yet) is gone. Opening the sidebar does not "use" a shortcut, so the number would not clear when you clicked the icon, and on its own it never said what it was counting. The small dot next to a shortcut you have not opened or run yet stays — it marks the exact rows without needing an aggregate number. Daily reports also read far better now: command output is shown in proper code blocks instead of running together, the morning routine's summary links straight to each report it ran, and a pubspec project gets a dependency-freshness report that lists only the packages that are actually out of date. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.17/CHANGELOG.md)
+**Overview** — The number badge on the sidebar icon (the count of shortcuts you had not opened yet) is gone. Opening the sidebar does not "use" a shortcut, so the number would not clear when you clicked the icon, and on its own it never said what it was counting. The small dot next to a shortcut you have not opened or run yet stays — it marks the exact rows without needing an aggregate number. Daily reports also read far better now: command output is shown in proper code blocks instead of running together, the morning routine's summary links straight to each report it ran, and a pubspec project gets a dependency-freshness report that lists only the packages that are actually out of date. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.17/CHANGELOG.md)
 
 ### Added
 
@@ -418,7 +418,7 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ## [1.5.16]
 
-**Overview** — Right-click a script shortcut and choose "Duplicate with Argument" to make a second copy that runs the same file with a different argument — the new item is named after the original with the argument added (for example "setup_arb_translate.py -o"), and you can rename it. The sidebar count badge for unused shortcuts now clears to zero once you have opened or run every shortcut. Comment and separator rows are no longer counted, so a divider in your list can no longer leave the badge stuck on a number you could never clear. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.16/CHANGELOG.md)
+**Overview** — Right-click a script shortcut and choose "Duplicate with Argument" to make a second copy that runs the same file with a different argument — the new item is named after the original with the argument added (for example "setup_arb_translate.py -o"), and you can rename it. The sidebar count badge for unused shortcuts now clears to zero once you have opened or run every shortcut. Comment and separator rows are no longer counted, so a divider in your list can no longer leave the badge stuck on a number you could never clear. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.16/CHANGELOG.md)
 
 ### Added
 
@@ -432,7 +432,7 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ## [1.5.15]
 
-**Overview** — Python shortcuts configured with the Unix `python3` name now run on Windows instead of failing with "Python was not found." [log](https://github.com/saropa/saropa-workspace/blob/main/CHANGELOG.md)
+**Overview** — Python shortcuts configured with the Unix `python3` name now run on Windows instead of failing with "Python was not found." [log](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md)
 
 ### Fixed
 
@@ -442,7 +442,7 @@ Browse and run your bundled scripts directly from the new sidebar or Launcher pa
 
 ## [1.5.14]
 
-**Overview** — A brand new Schedule dashboard keeps track of your automated runs (and catches up on missed ones), plus you can now pin one-click shortcuts to your essential project websites. [log](https://github.com/saropa/saropa-workspace/blob/v1.5.14/CHANGELOG.md)
+**Overview** — A brand new Schedule dashboard keeps track of your automated runs (and catches up on missed ones), plus you can now pin one-click shortcuts to your essential project websites. [log](https://github.com/saropa/saropa_workspace/blob/v1.5.14/CHANGELOG.md)
 
 ### Added
 
