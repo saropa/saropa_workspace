@@ -35,7 +35,9 @@ const ORIGINAL = '{\n    "version": 1\n}\n';
 function workspace(withRules: boolean): string {
   const dir = tmpDir();
   fs.mkdirSync(path.join(dir, "plans"));
-  fs.writeFileSync(path.join(dir, "plans", "PLAN_ONE.md"), "# Plan one\n\nStatus: in progress\n");
+  // "Status: wip" (not "in progress"): a PLAN_ document is blue (deferred, not drawn on the card) by the default rules, and
+  // only the status line "wip" turns it purple, the open state the board paints as a row.
+  fs.writeFileSync(path.join(dir, "plans", "PLAN_ONE.md"), "# Plan one\n\nStatus: wip\n");
   if (withRules) {
     fs.mkdirSync(path.join(dir, ".saropa"));
     fs.writeFileSync(rulesOf(dir), ORIGINAL);

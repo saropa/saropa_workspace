@@ -21,8 +21,10 @@ test("a chain to the right writes the Needs line and focuses the pressed control
   const dir = tmpDir();
   fs.mkdirSync(path.join(dir, "plans"));
   fs.mkdirSync(path.join(dir, ".saropa"));
-  fs.writeFileSync(path.join(dir, "plans", "PLAN_ONE.md"), "# Plan one\n\nStatus: in progress\n");
-  fs.writeFileSync(path.join(dir, "plans", "PLAN_TWO.md"), "# Plan two\n\nStatus: in progress\n");
+  // "Status: wip": a PLAN_ document is blue (deferred, not drawn) by the default rules; the status line "wip" makes it
+  // purple, an open row titled "In progress: <name>".
+  fs.writeFileSync(path.join(dir, "plans", "PLAN_ONE.md"), "# Plan one\n\nStatus: wip\n");
+  fs.writeFileSync(path.join(dir, "plans", "PLAN_TWO.md"), "# Plan two\n\nStatus: wip\n");
   fs.writeFileSync(path.join(dir, ".saropa", "release-board.json"), JSON.stringify({ version: 1, groups: [{ name: "Launch", match: ["**/PLAN_ONE.md", "**/PLAN_TWO.md"] }], order: {} }));
   stub.__setWorkspaceFolders([{ uri: vscode.Uri.file(dir), name: "app", index: 0 }]);
   await openBoard(contextIn(dir));
@@ -32,8 +34,8 @@ test("a chain to the right writes the Needs line and focuses the pressed control
   const html = panel.webview.html;
   const rev = Number(/const REV=(\d+)/.exec(html)?.[1]);
   // The later row of the group waits on the one above it.
-  const names = ["Plan one", "Plan two"].sort((x, y) => html.indexOf("Review next: " + x) - html.indexOf("Review next: " + y));
-  const second = { id: Number(new RegExp('data-drag="(\\d+)" title="Review next: ' + names[1]).exec(html)?.[1]) };
+  const names = ["Plan one", "Plan two"].sort((x, y) => html.indexOf("In progress: " + x) - html.indexOf("In progress: " + y));
+  const second = { id: Number(new RegExp('data-drag="(\\d+)" title="In progress: ' + names[1]).exec(html)?.[1]) };
   assert.ok(Number.isInteger(second.id), "Plan two row found");
   const painted: string[] = [];
   const view = panel.webview as { html: string };

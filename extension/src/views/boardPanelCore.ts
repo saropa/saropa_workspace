@@ -1,10 +1,9 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
-import { answeredExtra, applyMarks, pinnedKeys } from "../board/marks";
-import { BoardRun, canRunHealth, logBoardError, hasOutsideProject, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
-import { buildBoard, BoardModel } from "../board/boardModel";
+import { BoardRun, logBoardError, hasOutsideProject, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
+import { BoardModel } from "../board/boardModel";
 import { trainsFor } from "./boardTrain";
-import { PathToGo, pathToGo } from "../board/pathToGo";
+import { PathToGo } from "../board/pathToGo";
 import { RenderState, renderBoard } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
 import { Outside, emptyOutside } from "../board/outside";
@@ -12,16 +11,15 @@ import { loadOutside } from "../commands/boardOutside";
 import { publishBoard } from "./editorLinks";
 import { loadLiveSignals, readLiveSettings } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
-import { panelShowed, viewFor } from "./boardSinceLast";
+import { viewFor } from "./boardSinceLast";
 import { markScanDone, setFailed, setPanelVisible } from "./boardFeed";
 import { strings } from "./boardStrings";
 import { FutureData, emptyFuture, loadFuture, readFutureSettings } from "../commands/boardFuture";
-import { FutureView } from "../board/boardHtmlFuture";
 import { FutureItem, FutureOutside, FutureSort } from "../board/futureList";
 import { startupOn } from "./boardStartup";
 import { readGanttLayout, readGroupBy, readProjectScope } from "../commands/boardExtraProjects";
 import { hintVisible, dismissHint } from "./boardProjectsHint";
-import { emptyPage, inProgressInput, liveInput, orgPreviousInput, pathSettings, saveOrgLayouts, sittingsInput, tidyInput } from "./boardPanelActions";
+import { buildModel, emptyPage, futureViewFor, sinceFor, outsideFiles, pathsFor, saveOrgLayouts } from "./boardPanelActions";
 import { collectEdited, readInProgressSettings } from "../commands/boardInProgress";
 import { ruleCategories } from "../board/ruleAssign";
 import { ChatPoll } from "./boardChats";
@@ -101,14 +99,24 @@ export abstract class BoardPanelCore {
     this.chats = new ChatPoll(
       () => this.run?.cfg.projects.map((p) => ({ id: p.id, folder: vscode.Uri.parse(p.path).fsPath })) ?? [],
       () => this.panel.visible,
-      () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true))
+      () => this.paintOrDefer()
     );
     this.patches = new BoardPatches(
       () => (this.run && this.model ? { model: this.model, run: this.run } : undefined),
       (m) => void this.panel.webview.postMessage(m),
-      () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true)),
+      () => this.paintOrDefer(),
       () => this.context.workspaceState
     );
+  }
+
+  // Late data (outside, live, future, edited, chats, patches) paints at once on a settled board;
+  // during a scan or on the stored result it only flags the next paint, so a stale page is not redrawn mid-scan.
+  protected paintOrDefer(): void {
+    if (!this.scanning && !this.cached) {
+      this.render();
+    } else {
+      this.outsidePending = true;
+    }
   }
 
   protected abstract onMessage(message: unknown): Promise<void>;
@@ -256,11 +264,7 @@ export abstract class BoardPanelCore {
       return;
     }
     this.edited = next;
-    if (!this.scanning && !this.cached) {
-      this.render();
-    } else {
-      this.outsidePending = true;
-    }
+    this.paintOrDefer();
   }
 
   // A document was opened, edited, saved or closed: look again after a quiet moment. Typing
@@ -286,11 +290,7 @@ export abstract class BoardPanelCore {
     const next = readFutureSettings().enabled ? await loadFuture(run) : emptyFuture();
     if (token === this.futureToken && !this.disposed) {
       this.future = next;
-      if (!this.scanning && !this.cached) {
-        this.render();
-      } else {
-        this.outsidePending = true;
-      }
+      this.paintOrDefer();
     }
   }
 
@@ -309,11 +309,7 @@ export abstract class BoardPanelCore {
     const next = s.enabled ? await loadLiveSignals(run, model.items, s) : {};
     if (token === this.liveToken && !this.disposed) {
       this.live = next;
-      if (!this.scanning && !this.cached) {
-        this.render();
-      } else {
-        this.outsidePending = true;
-      }
+      this.paintOrDefer();
     }
   }
 
@@ -323,22 +319,12 @@ export abstract class BoardPanelCore {
       return;
     }
     const token = ++this.outsideToken;
-    const files: Array<[string, string]> = [];
-    for (const it of this.model.items) {
-      const project = this.run.cfg.projects.find((p) => p.id === it.project);
-      if (project) {
-        files.push([`${it.project}/${it.path}`, vscode.Uri.joinPath(vscode.Uri.parse(project.path), it.path).fsPath]);
-      }
-    }
+    const files = outsideFiles(this.run, this.model);
     const next = await loadOutside(files).catch(() => emptyOutside());
     if (token === this.outsideToken && !this.disposed) {
       this.outside = next;
       // While a scan runs or the stored result is on screen, the next paint carries it.
-      if (!this.scanning && !this.cached) {
-        this.render();
-      } else {
-        this.outsidePending = true;
-      }
+      this.paintOrDefer();
     }
   }
 
@@ -354,45 +340,17 @@ export abstract class BoardPanelCore {
       return;
     }
     const state: RenderState = { ...requested, startup: startupOn(this.context), scope: readProjectScope(), groupBy: readGroupBy(), ganttLayout: readGanttLayout(), statuses: ruleCategories(this.run.cfg).map((c) => ({ label: c.label, status: c.status, kind: c.kind })), ...(this.undo ? { undo: this.undo.label } : {}), ...(this.moved && !requested.loading && !requested.stale ? { moved: this.moved } : {}), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}), ...this.chats.view(), ...this.patches.view() };
-    const { cfg, marks } = this.run;
-    // Hand marks: in progress turns an open document purple, pins join the rules file's pins.
-    this.model = buildBoard(
-      cfg,
-      applyMarks(this.run.result.rows, marks),
-      this.run.safety,
-      this.run.accepted,
-      this.run.result.snapshot,
-      this.run.previous,
-      this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, sharedRejected: marks.sharedRejected, pins: pinnedKeys(marks), ...answeredExtra(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited), orgPrevious: orgPreviousInput(this.context) }
-    );
-    saveOrgLayouts(this.context, this.model);
-    const model = this.model;
+    const model = (this.model = buildModel(this.context, this.run, { outside: this.outside, live: this.live, edited: this.edited }));
+    saveOrgLayouts(this.context, model);
     this.patches.scan();
-    const settings = pathSettings();
-    this.paths = settings
-      ? model.projects.map((p) =>
-          pathToGo(model, p, {
-            maxSteps: settings.maxSteps,
-            canRun: (kind) => {
-              const def = cfg.projects.find((d) => d.id === p.id);
-              return settings.showRunButtons && def !== undefined && canRunHealth(def, kind);
-            },
-          })
-        )
-      : undefined;
+    this.paths = pathsFor(model, this.run.cfg);
     // The strip and the "seen" record only for a finished board: a loading or stored paint can
     // hold unread documents, which would read as blockers that cleared.
     const finished = !state.loading && !state.stale && !this.partial;
-    const since = finished ? viewFor(model) : undefined;
-    this.since = since;
-    if (finished && this.panel.visible) {
-      panelShowed(model);
-    }
+    const since = this.since = finished ? sinceFor(model, this.panel.visible) : undefined;
     // The same board in the same state is not painted again: no flicker, no lost scroll.
-    const trains = trainsFor(model, cfg);
-    const fset = readFutureSettings();
-    const future: FutureView | undefined = fset.enabled ? { items: this.future.items, outside: this.future.outside, cut: this.future.cut, sort: this.futureSort ?? fset.defaultSort, canEdit: !state.stale && !state.loading, researchParallel: fset.researchParallel } : undefined;
+    const trains = trainsFor(model, this.run.cfg);
+    const future = futureViewFor(this.future, this.futureSort, !state.stale && !state.loading);
     this.futureShown = future?.items ?? [];
     this.futureOutsideShown = future?.outside ?? [];
     const key = JSON.stringify([this.model, state, this.paths, since, trains, future]);

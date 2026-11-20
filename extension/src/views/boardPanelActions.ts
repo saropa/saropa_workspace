@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
-import { BoardRun, logBoardError } from "../commands/releaseBoardCommands";
+import { BoardRun, canRunHealth, logBoardError } from "../commands/releaseBoardCommands";
 import { BoardModel } from "../board/boardModel";
 import type { BoardExtra } from "../board/boardModelParts";
-import { PathToGo, clampMaxSteps } from "../board/pathToGo";
+import { PathToGo, clampMaxSteps, pathToGo } from "../board/pathToGo";
 import { escapeHtml } from "../board/boardHtml";
 import { l10n } from "../i18n/l10n";
 import { safeUrl } from "../board/outside";
@@ -12,7 +12,13 @@ import { readTidySettings } from "../commands/boardTidy";
 import { LiveSettings, liveFold, readLiveSettings } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
 import { updateLocalMarks } from "../commands/boardMarks";
-import { addRejected } from "../board/marks";
+import { panelShowed, viewFor } from "./boardSinceLast";
+import { FutureData, readFutureSettings } from "../commands/boardFuture";
+import { FutureView } from "../board/boardHtmlFuture";
+import type { FutureSort } from "../board/futureList";
+import { addRejected, answeredExtra, applyMarks, pinnedKeys } from "../board/marks";
+import { buildBoard } from "../board/boardModel";
+import type { Outside } from "../board/outside";
 import { readInProgressSettings } from "../commands/boardInProgress";
 import { chooseDocumentColumn, parseOpenBeside } from "../board/openBeside";
 import { parsePlacement } from "../board/placement";
@@ -28,6 +34,72 @@ export function pathSettings(): { maxSteps: number; showRunButtons: boolean } | 
     return undefined;
   }
   return { maxSteps: clampMaxSteps(c.get<number>("maxSteps", 8)), showRunButtons: c.get<boolean>("showRunButtons", true) };
+}
+
+/** One Path to GO per project, in model.projects order; undefined when the feature is off. Lives here so the panel's render stays short and the setting read stays beside pathSettings. */
+export function pathsFor(model: BoardModel, cfg: BoardRun["cfg"]): PathToGo[] | undefined {
+  const settings = pathSettings();
+  if (!settings) {
+    return undefined;
+  }
+  return model.projects.map((p) =>
+    pathToGo(model, p, {
+      maxSteps: settings.maxSteps,
+      // Run buttons only where the project's rules define a runnable health action.
+      canRun: (kind) => {
+        const def = cfg.projects.find((d) => d.id === p.id);
+        return settings.showRunButtons && def !== undefined && canRunHealth(def, kind);
+      },
+    })
+  );
+}
+
+/** The (key, absolute path) pair of every board document whose project is still configured, for the outside lookup; a document of a removed project is skipped. */
+export function outsideFiles(run: BoardRun, model: BoardModel): Array<[string, string]> {
+  const files: Array<[string, string]> = [];
+  for (const it of model.items) {
+    const project = run.cfg.projects.find((p) => p.id === it.project);
+    if (project) {
+      files.push([`${it.project}/${it.path}`, vscode.Uri.joinPath(vscode.Uri.parse(project.path), it.path).fsPath]);
+    }
+  }
+  return files;
+}
+
+/** Builds the board from a scan result plus the late-loaded data. Hand marks apply first: in progress turns an open document purple, pins join the rules file's pins. */
+export function buildModel(context: vscode.ExtensionContext, run: BoardRun, late: { outside: Outside; live: LiveSignals; edited: string[] }): BoardModel {
+  const { cfg, marks } = run;
+  return buildBoard(cfg, applyMarks(run.result.rows, marks), run.safety, run.accepted, run.result.snapshot, run.previous, run.health, {
+    needs: marks.needs,
+    rejected: marks.rejected,
+    sharedRejected: marks.sharedRejected,
+    pins: pinnedKeys(marks),
+    ...answeredExtra(marks),
+    outside: late.outside,
+    sittings: sittingsInput(context),
+    tidy: tidyInput(),
+    live: liveInput(late.live),
+    inProgress: inProgressInput(late.edited),
+    orgPrevious: orgPreviousInput(context),
+  });
+}
+
+/** The "since last look" strip for a finished board; the "seen" record is only written while the tab is showing, so a hidden refresh does not mark unread documents as read. */
+export function sinceFor(model: BoardModel, visible: boolean): ReturnType<typeof viewFor> {
+  const since = viewFor(model);
+  if (visible) {
+    panelShowed(model);
+  }
+  return since;
+}
+
+/** The Future tab's view, or undefined when the tab is off. Editing is allowed only on a finished board, so a loading or stored paint cannot change a file. */
+export function futureViewFor(data: FutureData, sort: FutureSort | undefined, canEdit: boolean): FutureView | undefined {
+  const fset = readFutureSettings();
+  if (!fset.enabled) {
+    return undefined;
+  }
+  return { items: data.items, outside: data.outside, cut: data.cut, sort: sort ?? fset.defaultSort, canEdit, researchParallel: fset.researchParallel };
 }
 
 /** A bare page with one escaped line of text, for a board that has nothing to show. */
