@@ -10,5 +10,6 @@
   // lines. Window-scoped settings, applied to this workspace.
   "workbench.tree.indent": 30,
   "workbench.tree.renderIndentGuides": "always",
-  "saropaLogCapture.integrations.screenshots.enabled": false
+  "saropaLogCapture.integrations.screenshots.enabled": false,
+  "saropaWorkspace.releaseBoard.profile": "rush"
 }

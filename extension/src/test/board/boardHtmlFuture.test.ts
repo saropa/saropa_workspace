@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BoardStrings, renderBoard } from "../../board/boardHtml";
-import { FutureView, futurePanel, futureTabs, hasFuture } from "../../board/boardHtmlFuture";
+import { FutureView, futureMenu, futurePanel, hasFuture, viewTabs } from "../../board/boardHtmlFuture";
 import { buildFuture } from "../../board/futureList";
 import { buildBoard } from "../../board/boardModel";
 import { BoardConfig } from "../../board/types";
@@ -27,22 +27,23 @@ const view = (over: Partial<FutureView> = {}): FutureView => ({
   sort: "score",
   canEdit: true,
   researchParallel: 3,
-  handEnabled: true,
   ...over,
 });
 
 test("no view, or a view with no items, draws nothing", () => {
-  assert.equal(futureTabs(undefined, t), "");
+  assert.ok(!viewTabs(undefined, t).includes('data-tab="future"'));
   assert.equal(futurePanel(undefined, t), "");
-  assert.equal(futureTabs(view({ items: [] }), t), "");
+  assert.ok(!viewTabs(view({ items: [] }), t).includes('data-tab="future"'));
   assert.equal(futurePanel(view({ items: [] }), t), "");
   assert.equal(hasFuture(view({ items: [], outside: [{ project: "app", projectName: "App", path: "ROADMAP.md", title: "x", line: 1, why: "later" }] })), false);
 });
 
-test("the tab bar names the count and starts on the board", () => {
-  const html = futureTabs(view(), t);
+test("the tab bar names the count and starts on the Gantt", () => {
+  const html = viewTabs(view(), t);
   assert.ok(html.includes('role="tablist"'));
-  assert.ok(html.includes('data-tab="board" aria-selected="true"'));
+  assert.ok(html.includes('data-tab="gantt" aria-selected="true"'));
+  assert.ok(html.includes('data-tab="board" aria-selected="false"'));
+  assert.ok(html.indexOf('data-tab="gantt"') < html.indexOf('data-tab="board"'));
   assert.ok(html.includes('data-tab="future" aria-selected="false"'));
   assert.ok(html.includes("~tab~"), "the label comes from the text table");
 });
@@ -53,8 +54,8 @@ test("rows carry the index into the list, in sorted order inside the flag", () =
   const first = html.indexOf('data-fut="1"');
   const second = html.indexOf('data-fut="0"');
   assert.ok(first > 0 && second > first);
-  assert.ok(html.includes('data-ff="importance" data-fi="1"'));
-  assert.ok(html.includes('data-ff="wow" data-fi="1"'));
+  assert.ok(html.includes('data-menu="fut" data-id="1"'), "one kebab per item, carrying the index");
+  assert.ok(!html.includes("<select data-ff"), "no row of selects");
 });
 
 test("the sort control lists every sort and marks the chosen one", () => {
@@ -66,22 +67,45 @@ test("the sort control lists every sort and marks the chosen one", () => {
   assert.ok(!html.includes('<option value="score" selected>'));
 });
 
-test("the controls show the document's values", () => {
+test("each item is one line: tag, title, score, one importance pill and one kebab, with its values on the kebab", () => {
   const html = futurePanel(view(), t);
   const top = html.slice(html.indexOf('data-fut="1"'), html.indexOf('data-fut="0"'));
-  assert.ok(top.includes('<option value="5" selected>'));
-  assert.ok(top.includes('<option value="daily" selected>'));
-  assert.ok(top.includes('<option value="S" selected>'));
-  assert.ok(top.includes('<option value="nice-to-have" selected>'));
-  assert.ok(!top.includes('class="guess"'), "nothing in this block is guessed");
+  assert.equal(top.match(/<select/g), null);
+  assert.equal(top.match(/class="imp"/g)?.length, 1);
+  assert.ok(top.includes("~flag.nice-to-have~"));
+  assert.equal(top.match(/data-menu="fut"/g)?.length, 1);
+  for (const a of ['data-importance="nice-to-have"', 'data-wow="5"', 'data-reach="daily"', 'data-effort="S"', 'data-risk="low"', 'data-research="none"']) {
+    assert.ok(top.includes(a), a);
+  }
+  assert.ok(!top.includes("data-pv"), "a written flag has no proposal");
+  assert.ok(!top.includes('class="imp guess"'), "nothing in this block is guessed");
+  assert.ok(top.includes('title="~importance~: ~flag.nice-to-have~"'), "the pill has a tooltip");
+  assert.ok(top.includes('aria-haspopup="menu"') && top.includes('aria-controls="menu-fut"'));
 });
 
-test("a document with no block shows guessed controls and an Unflagged group with a proposal button", () => {
+test("the menu lists every choice as a radio with a tooltip, and the proposal and empty flag as extras", () => {
+  const m = futureMenu(view(), t);
+  assert.ok(m.includes('id="menu-fut"') && m.includes('role="menu"'));
+  assert.equal(futureMenu(undefined, t), "");
+  for (const f of ["importance", "wow", "reach", "effort", "risk", "research"]) {
+    assert.ok(m.includes(`data-ffield="${f}"`), f);
+  }
+  assert.ok(m.includes('data-act="ff:wow:5"') && m.includes('data-act="ff:reach:daily"') && m.includes('data-act="ff:effort:XL"') && m.includes('data-act="ff:risk:high"'));
+  assert.ok(m.includes('data-act="ff:importance:not-feasible"') && m.includes('data-act="ff:research:ready"'));
+  assert.ok((m.match(/role="menuitemradio"/g) ?? []).length >= 20);
+  assert.ok(!m.replace(/role="menuitemradio"/g, "").includes("menuitemradio"));
+  assert.equal((m.match(/<button/g) ?? []).length, (m.match(/<button[^>]* title="/g) ?? []).length, "every entry has a tooltip");
+  assert.ok(m.includes('title="~wow~: 5"') && m.includes('title="~reach~: ~reach.daily~"'), "the tooltip names the characteristic and the value");
+  assert.ok(m.includes('data-act="fpropose"') && m.includes('data-act="ff:importance:" '), "extras exist, hidden until the script needs them");
+});
+
+test("a document with no block shows a guessed pill, an Unflagged label and the proposal on its kebab", () => {
   const html = futurePanel(view({ items: buildFuture([doc("plans/deferred/new.md", [], "New")]) }), t);
   assert.ok(html.includes("~flag.unflagged~"));
-  assert.equal(html.match(/class="guess"/g)?.length, 5);
-  assert.ok(html.includes('<option value="" selected>'));
-  assert.ok(html.includes('data-faccept="0" data-fv="nice-to-have"'));
+  assert.equal(html.match(/class="imp guess"/g)?.length, 1);
+  assert.ok(html.includes('data-importance=""'));
+  assert.ok(html.includes('data-pv="nice-to-have"'));
+  assert.ok(html.includes('data-gs="wow,reach,effort,risk,importance"'));
 });
 
 test("Not feasible shows the blocker with an edit button; text is escaped", () => {
@@ -103,11 +127,11 @@ test("a title with markup cannot add markup", () => {
 
 test("while a scan is running or a stored result is shown every control is off", () => {
   const html = futurePanel(view({ canEdit: false }), t);
-  const controls = (html.match(/<(select|button) data-f[a-z]+[^>]*>/g) ?? []).filter((c) => !c.includes("data-fsort"));
-  assert.ok(controls.length >= 10);
+  const controls = html.match(/<button[^>]*data-menu="fut"[^>]*>/g) ?? [];
+  assert.equal(controls.length, 2);
   assert.ok(controls.every((c) => c.includes(" disabled")), controls.join("\n"));
   const on = futurePanel(view(), t);
-  assert.ok(!(on.match(/<select data-ff[^>]*>/g) ?? []).some((c) => c.includes("disabled")));
+  assert.ok(!(on.match(/<button[^>]*data-menu="fut"[^>]*>/g) ?? []).some((c) => c.includes("disabled")));
 });
 
 test("items outside the deferred folders are listed read only, with their source", () => {
@@ -133,7 +157,7 @@ test("the board page wraps its content in the Board tab and adds the Future tab 
   assert.ok(html.indexOf('id="tab-future"') < html.indexOf("<script"));
   const plain = renderBoard(model, t, "n", 1, {}, undefined, undefined, undefined, undefined);
   assert.ok(!plain.includes('id="tab-future"'));
-  assert.ok(!plain.includes('role="tablist"'));
+  assert.ok(plain.includes('role="tablist"') && plain.includes('id="tab-gantt"'), "the Gantt and Board tabs are always there");
 });
 
 test("the page script sends only indexes and values, never a path", () => {
@@ -141,6 +165,7 @@ test("the page script sends only indexes and values, never a path", () => {
   const html = renderBoard(model, t, "n", 1, {}, undefined, undefined, undefined, view());
   const script = html.slice(html.indexOf("<script"));
   assert.ok(script.includes("type:'futureSet',i:Number("));
+  assert.ok(script.includes("fillFut"), "the script ticks the menu from the kebab");
   assert.ok(script.includes("type:'futureBlocker',i:Number("));
   assert.ok(script.includes("type:'futureOpen'"));
   assert.ok(script.includes("type:'futureSort',value:"));
@@ -150,14 +175,11 @@ test("the page script sends only indexes and values, never a path", () => {
 const withResearch = (states: Array<[string, string[]]>, over: Partial<FutureView> = {}): FutureView =>
   view({ items: buildFuture(states.map(([name, lines]) => doc(`plans/deferred/${name}.md`, ["Importance: nice-to-have", ...lines], name))), ...over });
 
-test("a document with no research state shows the state list and no question", () => {
+test("a document with no research state shows no research line and no question", () => {
   const html = futurePanel(withResearch([["A", []]]), t);
   assert.ok(!html.includes("data-frt"), "the research checkbox is gone");
-  assert.ok(html.includes('data-ff="research" data-fi="0"'));
-  assert.ok(html.includes('<option value="none" selected>~research.none~</option>'));
-  for (const v of ["needed", "in-progress", "ready", "reviewed"]) {
-    assert.ok(html.includes(`<option value="${v}">~research.${v}~</option>`), v);
-  }
+  assert.ok(html.includes('data-research="none"'), "the state is set from the item's menu");
+  assert.ok(!html.includes("~research.none~"), "no research line while the state is none");
   assert.ok(!html.includes("data-fq"), "no question while the state is none");
   assert.ok(!html.includes("data-fhand"), "no button without a flagged document");
   assert.ok(!html.includes('class="fresearch"'), "no summary without a research state");
@@ -167,7 +189,7 @@ test("a needed document shows its question in a textarea on its own row and the 
   const html = futurePanel(withResearch([["A", ["Research: needed", "Research question: Is it still possible?"]]]), t);
   assert.ok(/<div class="fc fqrow"><label[^>]*><span[^>]*>[^<]*<\/span><textarea class="fq" rows="2" data-fq="0" maxlength="300"/.test(html));
   assert.ok(html.includes('>Is it still possible?</textarea>'));
-  assert.ok(html.includes('<option value="needed" selected>'));
+  assert.ok(html.includes('data-research="needed"') && html.includes("~research.needed~"));
   assert.ok(html.includes('<span title="researchCounts">~waiting~</span>'));
   assert.ok(html.includes("~handAll~"));
   assert.ok(html.includes("<button data-fhand "));
@@ -195,14 +217,11 @@ test("when more are flagged than the limit the button names the batch and how ma
   assert.ok(futurePanel(withResearch(five, { researchParallel: 1 }), t2).includes('>Hand <span class="pill" title="pillTip">1</span> (<span class="pill" title="pillTip">4</span> queued)</button>'));
 });
 
-test("the hand-off button is disabled when the tab cannot edit or Hand to chat is off", () => {
+test("the hand-off button is disabled when the tab cannot edit", () => {
   const states: Array<[string, string[]]> = [["A", ["Research: needed"]]];
   const button = (v: FutureView): string => /<button data-fhand[^>]*>/.exec(futurePanel(v, t))![0];
   assert.ok(!button(withResearch(states)).includes("disabled"));
   assert.ok(button(withResearch(states, { canEdit: false })).includes(" disabled"));
-  const off = button(withResearch(states, { handEnabled: false }));
-  assert.ok(off.includes(" disabled"));
-  assert.ok(off.includes("~handOffTip~"));
 });
 
 test("research ready shows the not-reviewed label and the review button; other states do not", () => {
@@ -215,17 +234,17 @@ test("research ready shows the not-reviewed label and the review button; other s
   }
 });
 
-test("the controls show icons for wow, reach, effort and risk with the full name in the tooltip", () => {
-  const html = futurePanel(view(), t);
+test("the menu headings show icons for wow, reach, effort and risk beside the full name", () => {
+  const m = futureMenu(view(), t);
   for (const icon of ["\u2728", "\u{1F465}", "\u23F1\uFE0F", "\u26A0\uFE0F"]) {
-    assert.ok(html.includes(`aria-hidden="true">${icon}</span>`), icon);
+    assert.ok(m.includes(`aria-hidden="true">${icon}</span>`), icon);
   }
-  assert.ok(/<select data-ff="wow"[^>]*title="~wow~" aria-label="~wow~"/.test(html));
+  assert.ok(m.includes("</span> ~wow~</div>"));
 });
 
-test("a tab that cannot edit disables every research control", () => {
+test("a tab that cannot edit disables every research control and the menu button", () => {
   const html = futurePanel(withResearch([["A", ["Research: ready"]]], { canEdit: false }), t);
-  assert.ok(html.includes('data-ff="research" data-fi="0"') && /<select data-ff="research"[^>]*disabled>/.test(html));
+  assert.ok(/<button[^>]*data-menu="fut"[^>]* disabled[ >]/.test(html), "the menu button is off");
   assert.ok(/<textarea[^>]*data-fq="0"[^>]* disabled>/.test(html));
   assert.ok(html.includes('<button data-frev="0" disabled title="markReviewed">'));
 });

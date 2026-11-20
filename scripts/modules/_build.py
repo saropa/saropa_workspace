@@ -47,8 +47,8 @@ def sync_extension_docs() -> None:
     """
     header("SYNC DOCS")
     for src, dst in GENERATED_DOC_PAIRS:
-        if dst.exists():
-            dst.chmod(0o644)  # copies are read-only between syncs; unlock to overwrite
+        # Unlink first: a read-only stale copy makes copyfile raise PermissionError.
+        dst.unlink(missing_ok=True)
         shutil.copyfile(src, dst)
         dst.chmod(0o444)  # read-only so nothing hand-edits the generated copy
         success(f"Synced extension/{dst.name} <- {src.name}")
@@ -110,6 +110,21 @@ def type_check() -> int:
             return fail(f"Type check timed out after {TSC_TIMEOUT}s.", 4)
         return fail("Type check failed (tsc --noEmit).", 4)
     success(f"Type check passed ({elapsed:.1f}s).")
+    return 0
+
+
+def run_unit_tests() -> int:
+    """Run the unit suite (includes the class init-order guard); any failure blocks a full publish."""
+    code = ensure_dependencies()
+    if code:
+        return code
+    header("UNIT TESTS")
+    result = run(["npm", "run", "test:unit"], EXTENSION_DIR, capture=True, check=False,
+                 timeout=NPM_INSTALL_TIMEOUT, label="npm run test:unit")
+    if result.returncode != 0:
+        print_failure_tail(result)
+        return fail("Unit tests failed (npm run test:unit).", 4)
+    success("Unit tests passed.")
     return 0
 
 

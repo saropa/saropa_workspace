@@ -35,5 +35,8 @@ export function keywordLine(model: BoardModel, t: BoardStrings): string {
   if (!canEdit) {
     return "";
   }
-  return `<div class="kwline" role="note" title="${escapeHtml(lab(t, "markPlainTip"))}"><span class="kwtxt" title="${escapeHtml(lab(t, "markPlainTip"))}">${escapeHtml(lab(t, "markPlain"))}</span>${buttons}</div>`;
+  const why = escapeHtml(`${lab(t, "markPlain")} ${lab(t, "markPlainTip")}`);
+  // The button's name starts with its visible text (label in name); the sentence rides along as its description.
+  const named = buttons.replace(/^<button /, `<button aria-label="${escapeHtml(`${lab(t, "edit")}. ${lab(t, "markPlain")}`)}" `);
+  return `<div class="kwline" title="${why}">${named}</div>`;
 }

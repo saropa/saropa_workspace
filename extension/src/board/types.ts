@@ -111,6 +111,8 @@ export interface SkippedProject {
 export interface BoardConfig {
   version: number;
   ignore: string[];
+  // True keeps documents that git ignores on the board (the includeGitIgnored setting); default hides them.
+  includeGitIgnored?: boolean;
   ruleSets: Record<string, RuleSetDef>;
   projects: ProjectDef[];
   // File extensions that are scanned (lower-case, with the dot).
@@ -121,6 +123,10 @@ export interface BoardConfig {
   groups?: Array<{ name: string; match: string[] }>;
   // Globs of "project/path" that are never grouped.
   ungrouped?: string[];
+  // Rows put in a set order inside their group, by project: the paths, first to last.
+  order?: Record<string, string[]>;
+  // Tags, link words and naming a team changes (the Tags and rules editor writes it; see org/settings.ts).
+  organize?: unknown;
   // Parts of the severity dictionary a team replaces (phrases, weights, negation ...).
   severity?: Partial<SeverityDict>;
   // Severities chosen by hand for single documents (written from the row menu). They win over the
@@ -182,3 +188,15 @@ export function emptyCounts(): StatusCounts {
     grey: 0,
   };
 }
+
+// The layouts of the Release Board's Group by menu: one card per project, group, status or severity, or one merged list.
+export const GROUP_BYS = ["project", "group", "status", "severity", "none"] as const;
+export type GroupBy = (typeof GROUP_BYS)[number];
+
+// How the Gantt lays out several projects: only the open workspace's projects, one section
+// each (local, the default), every project one section each, or all rows in one section.
+export const GANTT_LAYOUTS = ["local", "split", "unified"] as const;
+export type GanttLayout = (typeof GANTT_LAYOUTS)[number];
+
+// The layout a message or setting names, or undefined for anything outside the fixed list.
+export const asGanttLayout = (v: unknown): GanttLayout | undefined => GANTT_LAYOUTS.find((g) => g === v);

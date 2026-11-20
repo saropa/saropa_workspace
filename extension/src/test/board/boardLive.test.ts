@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 function item(project: string, p: string): BoardItem {
-  return { id: 0, project, path: p, title: p, status: "red", kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping: true };
+  return { id: 0, project, path: p, title: p, status: "red", kind: "", hub: false, waitsOn: [], blocksCount: 0, pinned: false, stopping: true, blocks: true };
 }
 
 function runFor(root: string, sourceFiles: string[]): BoardRun {

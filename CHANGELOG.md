@@ -46,6 +46,141 @@ cspell:disable
 
 ---
 
+## [2.7.2]
+
+### Added
+- Release Board Gantt: drag the edge of the name column to resize it (double-click resets, Left and Right keys move it when focused); the width is remembered.
+- Release Board: documents that git ignores are now hidden by default. A new setting, `releaseBoard.includeGitIgnored`, brings them back. A folder that is not a git repository hides nothing.
+
+### Fixed
+- Release Board: danger words in file paths, links and code no longer raise a document's severity; only sentences count.
+- Release Board Gantt: open bars are queued in the order shown; a bar that waits on a row listed later pulls that row in just before it, and with no links the start order is the display order.
+- A Release Board project is amber only when the board could not read something. Missing lint or test results and unsorted documents no longer make it amber, and open work never does. The status bar button is red for a blocker, amber when something could not be read, and green otherwise. Only the projects of the folders open in this window count, never the extra projects you chose.
+
+### Changed
+- Release Board Gantt project headers no longer show the fold arrow, and the hover highlight now spans the full header width.
+- Release Board Gantt: inside each project the open bars follow one another in the order shown, each starting where the previous ends and never before what it waits on. Width follows the item's open minutes (a standard width, with the dashed edge, when there is no estimate) and each section fits the axis. The Unified layout is one queue across all projects.
+- The Gantt on the Release Board has a new Local layout next to Split and Unified. Local shows only the projects of the open folders and hides the extra chosen projects. It is now the default; pick Split or Unified to see all projects.
+- Internal refactor: Release Board patch writes for `Needs:` lines now go through one `writeNeeds` helper that hands over the write and its Undo record.
+- Internal refactor: board code split into small leaf modules so the modules no longer import each other in a cycle.
+
+## [2.7.1]
+
+The Release Board Gantt is easier to read and its header is calmer.
+
+### Changed
+- Release Board: in a project where you marked the blockers, a strip asks "which comes first?" in batches of up to five pair questions (A, B or Skip; Escape keeps the answers given). One write and one Undo per batch. Folders are asked first, then the documents of the top folder. The project menu has "Order the blockers..."; the row menu has "Ask where this goes..." and "Forget order answers". Answers set the order only; documents are not edited.
+- Release Board Gantt: your "which comes first" answers (kept in the marks file, never written into documents) set the order of blockers. A row follows the rows you said come before it; the tooltip names the source, and a row ordered partly by inference carries a dotted chain mark. Up next skips a blocker that follows an open one.
+- Release Board row menu: "Make this a real dependency" on a row with a "which comes first" answer writes it into the document as a `Needs:` line (one write, one Undo; several answers ask which). The answer stays; the line wins over it.
+- Release Board Gantt: the bar slot width is now per project, so one long ordered chain narrows only its own section, not every bar on the board.
+- Gantt rows: titles wrap to two lines in a wider title column; the project name shrinks first; the hidden chain slot takes no width until you hover, focus or drag. Tooltips still show the full text.
+- Gantt Unified: blockers come first (red, then purple, then amber), then work order.
+- Gantt bars: the length is the minutes of all open steps in the document, no longer the filtered Steps list. An empty bar now means no estimate.
+- Release Board header: one scope-and-mode pill ("All 3 · Deliberate"). Group by, time and devices, and their filter line, moved into the Board tab, where they apply.
+- Future tab: shows "200+" and a note when more documents exist than are listed.
+- Release Board: in a project where you have marked which items block the next release, red now means only "you marked it". Red-folder items you did not mark show an amber diamond ("Address now"); severity no longer turns them red. Projects with no answer keep today's rules. The hand pin is now worded "Blocks the next release".
+
+- Release Board asks which items block the next release: a one-line question in a project with more than five red items (Board card and Gantt section), a multi-select picker (picking none is valid), an Undo, "Choose what blocks the next release..." in the project menu, and a "Blocks the next release" checkbox in the row menu. Answered projects ask again only for new extreme or critical items.
+
+- Release Board, blocks flag: the "Blocks the next release" checkbox in a row menu also answers the project; the picker shows a pin that comes from the rules file as ticked with its reason and never writes it; the project name tooltip says which rule makes red; the mode menu says how many projects keep their own marks; the Gantt draws unmarked red-folder items with an amber diamond and "Address now"; the wording for red folders now matches the rule; at most 10 changed rows get the changed outline.
+
+- Release Board Gantt: an "Up next" list at the top (at most five items: what is in progress, then blockers that wait on nothing, the ones that unblock the most first; each tooltip says why), an "N in progress" pill that turns amber past three, and each Up next item marked in its project.
+- Release Board Gantt: project sections start closed on a big board (the three projects with the most blockers stay open, five rows each with "Show N more"); every header is one line with the project name, light and "18 open - 9 block", and the block count stays visible when closed. A closed section opens while a row is dragged over it, so every row stays a drop target.
+- Release Board Gantt: inside a project the automatic folder groups are collapsed sub-headers with counts. The light moved from the end of a section to its header; a big board keeps only the last two (or none) of the finished rows and says how many are not shown.
+
+### Fixed
+- Release Board marks: the 5000th pin was written and then dropped on the next read; the write now refuses past the limit the reader keeps. A local "not pinned" now switches off a pin that comes from the shared marks file.
+
+---
+
+## [2.7.0]
+
+The Gantt key now floats over the board, and status symbols show their colors, and board rows line up better. [log](https://github.com/saropa/saropa-workspace/blob/v2.7.0/CHANGELOG.md)
+
+### Changed
+- Board rows: a long work item name stays on one line and ends with an ellipsis; hovering shows the full name and, on a second line, its path.
+- Release Board header: the ☰ view menu is gone; its "Tags and rules..." entry now lives in the ⋮ actions menu next to Settings.
+- Board rows: status pills have one fixed width, so titles line up. The title and the facts cell are middle-aligned.
+- The kebab menu on board rows and group headings is always visible, not only on hover.
+- The Gantt key opens as a floating panel under the "?" button instead of pushing the rows down. The status symbols (● Blocks, ◆ Review, ◐ In progress, ■ Done) are listed in a table.
+- Status symbols in the row menu are color coded: red, amber, purple, blue, green, and gray for reference. The blocking symbol is now red on the Gantt tab too.
+- The Release Board header settings are now separate pills (scope, mode, group, time, devices). Each shows its current value and opens a small menu; the filter pills for time and devices open the same menus. The view menu keeps only the tags and rules entry.
+
+### Added
+- Gantt tab: a **Split** / **Unified** switch next to the key button when two or more projects show. Unified puts every project's rows in one section in work order, each row naming its project, with the worst light of the projects. Saved in the `releaseBoard.ganttLayout` setting; Split stays the default.
+
+## [2.6.1]
+
+The Release Board opens again. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.1/CHANGELOG.md)
+
+### Fixed
+- The Release Board opened with an error (Cannot read properties of undefined) in 2.6.0. A failed open now closes its blank tab and shows one error message, and a saved result that cannot be drawn no longer stops the open.
+
+## [2.6.0]
+
+The Release Board is calmer: red only for what really blocks a release, a one-line header, and fewer marks on every row. You can now hand work to an AI as a saved document. [log](https://github.com/saropa/saropa-workspace/blob/v2.6.0/CHANGELOG.md)
+
+### Added
+- **Release Board: Hand off.** Choose **Hand off** in a row menu, a group or project menu, or the options menu (whole board), or tick the boxes on several rows and press **Hand off**. A side drawer previews the document as Markdown or JSON for a Fix, Plan, Review or Triage job. **Copy** saves the full document to `.saropa/handoff` in the project (never committed, the last 20 are kept) and copies one short line that tells an agent to read it; **Copy full text** copies the whole document; **Run in terminal** runs your command. New settings `releaseBoard.handoff.terminalCommand` and `releaseBoard.handoff.copyMode`. Keys, tokens and home folders are removed from the text.
+- **Release Board: Bring back an AI reply, and Organize with AI.** The hand-off drawer has a new **Bring back** tab. Paste the reply (the block tagged `json saropa-patch`, or the patch alone), or let the AI save `<id>.result.json` in `.saropa/handoff/` and press the **AI result ready** pill. A list shows each proposed change as before and after; tick the ones to apply, and nothing applies unticked. Only status, severity, group and `Needs:` links can change; anything else, unknown documents, circular links, changes to a document edited since the hand-off and oversized replies are left out with a reason. **Apply chosen** saves at once with one Undo for the whole batch. A new **Organize** task (and **Organize with AI…** in the project actions menu) asks an AI to propose how the documents should be organized, as a patch you review the same way. The board never calls an AI itself.
+- **Release Board: Gantt list, the first tab and the default view.** One list of items grouped by project, each with a bar on a work-order axis (never days; width from the step minutes known, a dashed edge when none are). Finished items that open work needed stay in the list, dimmed, as history. Each group ends with its GO / NO-GO light, arrows for what a row waits on or blocks show only for the row you point at or select, and rows changed since you last looked get a dotted blue border. A `?` pill holds the key. Read-only.
+- **Release Board: Active now pill.** When Saropa Chat Explorer is installed, a project row or card shows an Active now pill while a chat worked in its folder in the last 5 minutes or is running or waiting. The board looks every 30 seconds while it shows; a pause and play pill in the header stops and resumes that. Without Chat Explorer the board is unchanged apart from a brief notice at the top. New setting `releaseBoard.chatActivity` turns the look off.
+- **Release Board: groups.** Group by in the view options menu now also offers **Group**, **Status** and **Severity**: one card per group of related documents, per status or per severity, each with its documents, count pills and an "auto" or "by you" tag. A card starts closed unless it holds a blocker. **Move to group…** in the row menu puts a document in a group you list by hand, in a new group, or takes it out of its group (a group the board found is left by listing the document under `ungrouped`). It is written to `.saropa/release-board.json` at once, with Undo, like a status change. A group listed by hand now shows even with one document.
+- **Release Board: Waits on and Blocks.** Choose **Waits on…** in a row menu to search the open items and pick what the document waits on; **Blocks…** picks the documents that wait on it. A preview shows the line first (for example `Needs: docs/PLAN_A.md`), then **Add** writes it into the waiting document, saved at once with **Undo** for ten seconds (the document is put back exactly as it was). Existing links are listed at the top with a remove entry. A link that would make a circle is refused with a reason. Unsaved copies, symbolic links and files that are not plain UTF-8 are left alone.
+- **Release Board: Tags and rules editor.** Choose **Tags and rules…** in the view options menu to edit, in one tab, the tags that group documents (words, emoji, colour, order, on or off, with a live count of the open documents each tag matches), the phrases that mean one document waits on another, how group names are cleaned, and (opens the existing editor) the severity keywords. Import, export and Reset to default are there too. Changes go into your rules file under one `organize` key, keep its formatting, and can be undone right after saving.
+- **Release Board: proposed links.** The board now reads file names (phase 1 and phase 2, v1 and v2) and wording ("blocked by", "depends on", "X blocks this") and proposes which document waits on which. A **Proposed links** pill opens the same review list as an AI reply: each proposal shows before and after, how likely it is, and why on hover. Nothing is ticked and nothing is applied until you tick it; ticked ones are written as `Needs:` lines in one step with one **Undo**. **Reject** remembers the pairs so they are not proposed again. Proposals that would make a circle, links that already exist and SQL files are never offered, and the **Waits on…** picker lists a document's proposals first.
+- **Release Board: drag and drop to organize.** Drag a row (Board or Gantt tab) onto a status at the top to change its status, onto a group you made to move it there (or onto "no group" to take it out), or onto the chain pill of another Gantt row to make that row wait on it. Each drop is saved at once with Undo, with no preview, through the same writes as the row menu; a refused drop (a circle, a group the board found, a document claimed by an earlier pattern, an unsaved copy, a symbolic link) shows a short notice and the row stays put. Gantt rows now have the row menu, which does everything a drop does from the keyboard. The Gantt order is not saved: it follows what waits on what.
+- **Release Board: reorder rows inside a group.** On the Board tab, drag a row into the gap between two rows of a group you made, or press Alt+Up or Alt+Down on a row, to put it in a set place. The order is saved at once with Undo, as an `order` list per project in `.saropa/release-board.json` (paths, first to last). Rows without a place follow the ordered ones in the automatic order; a path whose file is gone from disk is dropped on the next save, and a full list (500 per project) is refused. A group the board found, a group that spans projects and a document a pattern in its group claims are refused with a short notice. The Gantt keeps its work order.
+
+- **Release Board: up and down arrow buttons on rows.** On the Board and Gantt tabs, the arrows on a row move it one place in a group you listed by hand (same as Alt+Up and Alt+Down), saved with Undo. Dropping a dragged row on a Board row now counts as a drop in the nearest gap (fixes drops that did nothing). The Gantt now follows the stored order.
+
+- **Release Board: left and right chain buttons on rows.** Next to the up and down arrows, the right arrow (or Alt+Right) makes a row wait on the row above it, and the left arrow (or Alt+Left) makes the row above wait on it. Saved at once with Undo, through the same Waits on write as a drop. A cycle, a duplicate link or a document that cannot hold needs is refused with the usual message; both buttons are off on a group's first row.
+
+- **Release Board: auto groups, names, emoji and collapse.** Documents now group themselves by folder, file-name sequence (phase 1 to 4), shared name word, topic tag or shared source files, finished documents included so a group stays put as work completes. Each group has a readable name, an emoji and a colour stripe on its header, an "auto" or "by you" tag, and a tooltip that says why it exists and why it has that name, emoji and colour. A group you made by hand, or named in a document's front matter, always wins. With many documents the board folds: a project of 50 or more documents opens at most the 3 groups with the most blockers, closed groups keep their red count, and groups show 5 (3 from 1,000 documents) rows before a "Show more" button; a handful of documents show no group headings. Layout bands remember the previous build so one document more or less does not reshuffle the page.
+
+### Changed
+- **Release Board: visual polish.** Pop-up menus flip above their button and scroll inside when short of room, so none is cut off on a narrow panel. The header keeps the scope switch compact and the Changes button and menus together; "Add more projects" moved into the options menu. A project card shows its light and name only (its lists carry the counts), the roll-up skips lights with no projects and is left out under cards, and an In progress list no longer repeats a status pill on each row. The NO-GO tag closing each Gantt project is grey, undated Gantt bars are short, and Gantt names wrap on a narrow panel. On the Future tab the controls sit side by side, the Proposed button is a small pill and the dropdowns follow the theme. The Done status in the row menu uses a square so it no longer looks ticked, and the pale UNVERIFIED, GO and Review pills are darker in the light theme.
+- **Release Board: calmer page.** The NO-GO light is a tinted pill. Red now means only "blocks the release"; errors in named files, a stale `Needs:` line and a waiting link are amber. Each row is a status pill (shape, word and severity), the title and one facts pill; the row menu button shows on hover or focus. Project rows show count pills instead of a row of squares. Counts no longer sit in brackets, and every new pill and mark has a tooltip.
+- **Release Board: one-line header.** A This project / All projects switch, the tabs and two menus (view options with the release mode, project actions with scan again, projects, rules file, keywords, settings and start-up). Applied time and context filters show as removable pills under the header.
+- **Release Board: menus instead of chips.** The time and device chips in the Steps box moved into the view options menu; the filter pills under the header still clear them. A scope and mode pill in the header (for example "All 5 · Deliberate") shows the detail in its tooltip. The add-projects hint is one small button instead of a sentence.
+- **Release Board: "Since you last looked" stays until dismissed.** It no longer clears by itself after a few seconds. A Changes button in the header opens it, Dismiss clears it, and rows of documents that became blockers since your last look get a static dotted blue outline.
+- **Release Board: one card per project.** With Group by Project (the default; Group by None in the view options menu keeps the merged lists) each project is a card that holds its own Path to GO and lists. A card starts closed, except the only card or the open project when it is NO-GO, and its fold state resets when its light changes. New setting `releaseBoard.groupBy`.
+- **Release Board: quieter sections.** Empty sections are not drawn, lists show five rows and a "Show N more" pill, the Steps box starts folded when no step fits, and Since you last looked, Linked, Tidy, No rule, Outside and Unnamed crashes sit behind one More strip. The Since section opens by itself once when a document became a blocker.
+- **Release Board: change status and severity in place.** Click a row's status pill (or its row menu) to pick a status, raise or lower the severity, choose one of the five levels, or go back to automatic. A line in the menu says what the choice does to the release before you pick it. The change is written to the rules file at once with no dialog, and an Undo bar for ten seconds puts the file back exactly as it was (it leaves the file alone if it changed after your edit). The row shows as pending until the scan confirms it. `+` and `-` raise and lower the severity of the row you are on.
+- **Release Board: Hand to chat is replaced by Hand off.** The row, Path to GO and Sittings buttons and the six `releaseBoard.handToChat.*` settings are gone. The Future tab's **Hand all** now saves one research hand-off for the flagged documents and asks for one confirmation.
+- **Release Board: Path to GO steps and Sittings lines cannot be handed off yet.** Hand off covers documents, groups, projects, chosen items and the whole board; a hand-off over several projects now writes one document in each project's own folder and copies one line naming all of them.
+- **Release Board: render check fixes.** Menus fit the window, so the last row-menu entry is no longer cut off. The view menu shows one check mark. Red marks only the status pill of a row and the NO-GO chip of a card. Explanations moved behind tooltips (a ? mark on Future and Severity), and the header buttons are told apart. Rows are tighter on a narrow panel and the tag controls stay together.
+
+### Fixed
+- **Release Board: safer saves.** A save leaves no `.md` temporary file for the scan to read; leftovers from a crash are swept after ten minutes. A read-only file is refused instead of replaced, one file vanishing mid-scan no longer empties a project, a Tags file with entries from a newer version asks before it drops them, and a document that names thousands of source folders no longer slows the board.
+- **Release Board: safer saving.** Saves to the rules file and to documents now wait their turn instead of overwriting each other, replace the file whole (a failed save leaves the old file as it was), and refuse a folder that cannot be written. Undo in the Tags editor goes back to the folder you saved in, saving the Tags editor keeps settings it does not know, and a hand-off no longer follows links, overwrites your own `.gitignore` or runs a sibling folder name as a command. Very large or hostile documents no longer freeze the editor while the board reads them.
+
+---
+
+## [2.5.0]
+
+You can now choose which files and folders the Release Board leaves out. [log](https://github.com/saropa/saropa-workspace/blob/v2.5.0/CHANGELOG.md)
+
+### Added
+- **Release Board: exclude files and folders.** New setting `saropaWorkspace.releaseBoard.exclude`, a list of globs matched against each path in a project. The default is `reports/**`, so generated reports no longer show on the board.
+
+---
+
+## [2.4.0]
+
+The Release Board is tidier: icons on the Future controls, one fold style everywhere, and an icon before every section heading. [log](https://github.com/saropa/saropa-workspace/blob/v2.4.0/CHANGELOG.md)
+
+### Changed
+- **Release Board: Future tab declutter.** Wow, Reach, Effort and Risk show as small icons (hover for the full name). The Research question only appears once a research state is set, in its own multi-line box. The "Research needed" checkbox is gone; use the Research dropdown. A guessed value is now shown in italic with the normal dropdown border.
+- **Release Board: one fold style.** Every folding section uses the same box, with the arrow at the far right, shown on hover or focus.
+- **Release Board: section icons.** Each section heading starts with a colored icon. Turn them off with the setting `saropaWorkspace.releaseBoard.sectionIcons`.
+
+### Fixed
+- **Process sampling on macOS.** The process list was empty on macOS because CPU times with fractions of a second were dropped.
+- **Doc shortcuts on macOS.** A README is now offered under its real file name spelling.
+
+---
+
 ## [2.3.0]
 
 The Release Board opens in its own tab group beside your files and remembers where you move it, has a Future tab for deferred and blocked work, its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start, and more daily reports now add a Dependencies mark, row notes, Tidy entries and a line in "Since you last looked", plus six new read-only report recipes, and a document's severity can be corrected from its row menu (Change severity, Back to automatic). [log](https://github.com/saropa/saropa-workspace/blob/v2.3.0/CHANGELOG.md)
@@ -363,146 +498,6 @@ Pinned Windows scripts and executable files can now be run directly without extr
 
 - **Batch files and other Windows executables are recognized as runnable** — a freshly pinned `.bat`, `.cmd`, `.exe`, or `.com` file with no configured interpreter and no shebang is now offered as a run target instead of falling back to open-the-file, since the shell executes these directly without an interpreter prefix.
 - **Configure Run panel's empty-command hint no longer says "opens the file"** for those same batch/executable file types — it now says the file runs directly, matching what actually happens when the command box is left blank.
-
----
-
-## [1.6.9]
-
-Fixes a bug where running a script "in an external window" would show the launched toast but never actually open a window. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.9/CHANGELOG.md)
-
-### Fixed
-
-- **External window launches now actually open the window** — the outer PowerShell wrapper no longer runs detached. VS Code's host process runs child processes inside a Windows Job Object that denies breakaway, so a detached wrapper's internal `Start-Process` call silently failed to create the target window (exit code 0, no error) while reporting success. The wrapper's own console is now hidden instead, so only the real external window is visible.
-
----
-
-## [1.6.8]
-
-This release adds standard dialog keyboard shortcuts, auto-generated names, and content-based tag suggestions to the Customize panel. The Launcher now includes a recent-workspaces quick-pick when no folder is open. Bug fixes address webview disposable leaks, unclosed stderr streams during failed process spawns, and silently swallowed PowerShell errors. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.8/CHANGELOG.md)
-
-### Improved
-
-- **Customize panel: name suggestion** — the name field pre-populates with a title-cased guess from the filename (strips extension, replaces underscores/hyphens with spaces), so the friendly name is one Save away instead of typed from scratch.
-- **Customize panel: content-based tag suggestions** — "From file" chips suggest tags derived from the file's word frequency (excluding grammar and common programming keywords), weighted toward longer, more meaningful words.
-- **Customize panel: color swatch selection** — the selected color swatch now shows a visible focus ring, making the active tint unmistakable in all themes.
-- **Launcher: "No folder open" is now a clickable link** — clicking it opens a recent-workspaces quick-pick (up to 5 entries, most recent first) with a "Browse…" fallback that opens a file picker filtered to JSON config files. Selecting an entry opens the containing folder as the workspace. On first use (no history), the file picker opens directly.
-- **Tree tooltip: tint color name** — hovering a shortcut with a custom tint now shows the color name (e.g. "Tint: Red") in the tooltip, confirming which color was applied without opening Customize.
-- **Customize panel: keyboard shortcuts** — `Ctrl+Enter` (`Cmd+Enter` on macOS) saves, `Escape` cancels, matching VS Code's standard dialog conventions.
-
-### Fixed
-
-- **Custom color tinting now renders correctly** — user-selected tint colors from the Customize panel (the 20-swatch palette) now display their actual color in the launcher panel instead of falling back to gray when the webview cannot resolve extension-contributed CSS variables. Switching themes now refreshes tints immediately.
-- **External window launches now surface errors** — if the outer PowerShell process fails to open a new window (e.g. `Start-Process` errors), the failure is now captured and shown as an error toast instead of silently swallowed after a false "launched" success toast.
-- **Launcher: view-scoped disposable leak** — webview event listeners are now properly disposed when the launcher panel view is hidden and re-shown, preventing accumulated dead listeners across resolve cycles.
-- **External launcher: stderr cleanup on spawn error** — the piped stderr stream is now destroyed when the child process emits an error event without a subsequent exit, preventing a resource leak on ENOENT/EACCES failures.
-- **Customize panel: swatch selector hardened** — the CSS selector for color swatch lookup now escapes the color id, preventing a DOMException from corrupted config values.
-- **Launcher: note path validation** — opening a note from the launcher now validates the path against the note store before opening, matching the same validation pattern files and watches use.
-
----
-
-## [1.6.7]
-
-Upgrades the daily routine experience with the visual Saropa Morning Brief and smarter standup digests that highlight actionable project growth over automated noise. Background runs are now quieter by default, and new settings allow power users to disable start-up notifications entirely. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.7/CHANGELOG.md)
-
-### Added
-
-- New "Show run toasts" setting (`showRunToasts`, on by default) — turn it off to suppress the "Running…" and "Launched…" start toasts across all run locations, for power users who rely on the output channel instead. Error and completion toasts from background runs are unaffected
-- Saropa Morning Brief — a briefing screen that opens after a routine run with a verdict band ("All clear" / "Needs attention"), per-member cards with status glyphs and headlines, and one-click report access; the markdown summary remains on disk and one click away via the "Open full summary" footer button. The `Open Saropa Morning Brief` command opens the most recent brief at any time
-- Share dropdown in the Morning Brief footer groups export actions (Copy as Markdown, Open in browser, Save as HTML) behind a single "Share" button; the primary "Open full summary" button remains top-level for quick report access
-
-### Changed
-
-- Standup digest classifies commits — security findings listed first, then features, fix groups by area — and folds generated churn (machine-translation sweeps, large chore commits) into a single summary line; the raw log stays one click away inside a details block
-- Project stats leads with the day-over-day delta ("+3,412 lines, +12 files since the last report") instead of repeating the same static census every morning; the dominant-language share clause appears only when it moved by at least 0.5 percentage points
-- A clean scheduled morning routine no longer opens the summary window; the completion toast and status-bar flash link it. Manual runs and any run needing attention still open it
-
-### Fixed
-
-- Running a script in an external window no longer shows two toasts ("Running…" and "Launched…in a new external window"); only the location-specific toast appears
-
-### Internal
-
-- Added JSDoc documentation to all 30 previously undocumented exports across 7 modules (ciStatus, overnightDelta, promptTokens, scheduleStatusBar, scheduleStatusBarActions, setParamsPanel, shortcutsTreeProvider)
-- Split the 5 longest functions into named helpers: `setupSecondaryViews` (211 → ~20 lines), `writeRoutineSummary` (155 → ~40 lines), `handleLauncherMessage` (155 → ~50 lines), `buildAllItems` (90 → ~10 lines), and the `ShortcutTreeItem` constructor annotation branch
-- Extracted `syncViewCount` and `CountProvider` into a shared `views/viewCount.ts` module, replacing 5 identical closures across `wiringViews.ts` (4) and `wiringWatchers.ts` (1); the view parameter uses a narrow structural type so any `TreeView<T>` is accepted regardless of `T`
-- Morning Brief panel uses a webview-initiated ready handshake instead of a `setTimeout(50)` race; on tab restore the recreated script posts `ready` and the host responds with data, eliminating the timing race
-- Error messages surfaced from brief export actions use `errorMessage()` to extract `.message` from Error objects, avoiding raw stack traces in user-facing toasts
-- All brief file writes (temp files and save-dialog paths) use `fs/promises` consistently instead of mixing `vscode.workspace.fs` with Node FS
-- Project stats marker embeds a version field (`v: 1`) so future format changes can be detected; `parseStatsMarker` rejects markers with `v` above the current version
-
----
-
-## [1.6.6]
-
-Quickly share notes in plain text, Markdown links, or rich HTML, and enjoy a cleaner, keyboard-navigable Launcher context menu with organized submenus. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.6/CHANGELOG.md)
-
-### Added
-
-- "Copy Note Content" inline button and context menu action — reads the full note file and copies it to the clipboard, with a toast naming the file. Files over 5 MB or with binary content are refused with a specific warning
-- "Copy as Markdown Link" context menu action on notes — copies `[filename](relative-path)` for referencing notes in other documents
-- "Copy as HTML" context menu action on notes — converts Markdown to HTML before copying, so pasting into rich-text editors (Slack, email, Google Docs) preserves formatting (headings, bold, italic, code blocks, links, lists, blockquotes, horizontal rules)
-- Notes stat in the Launcher panel stat bar now shows even when the note count is zero, so the Notes pane toggle is always reachable
-
-### Hardened
-
-- Copy Note Content eliminates a time-of-check/time-of-use race by reading the file once and checking `byteLength` on the buffer, instead of running `stat` before `readFile`
-- Binary detection now catches UTF-16 LE and BE byte-order marks before the null-byte scan, preventing garbled clipboard content from non-UTF-8 text files
-- Copy as Markdown Link falls back to the bare filename when the note is stored outside the workspace (global notes), instead of embedding an absolute path that is non-portable
-- Launcher webview context menu now groups Configure & Schedule, Appearance, and File Actions into hover-expandable submenus so the menu fits on screen; Open, Run, Rename, and Remove stay at the top level for quick access; full keyboard navigation (Up/Down to move, Right to open submenu, Left/Escape to close it)
-
----
-
-## [1.6.5]
-
-Manage all your extension preferences in one place with a dedicated Settings panel, and give your shortcut names a cleaner look with optional title-casing. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.5/CHANGELOG.md)
-
-
-### Added
-
-- **Settings panel** — a new "Open Settings" screen (`Saropa Settings`) surfaces every extension preference in one place, organized into sections (General, Display, Terminal, Suggestions, Recipes, Sound, Process Monitor, Hygiene, Project Files, Advanced), each setting with a live control and an info icon showing its description. A search bar at the top filters settings by name or description. Number inputs enforce the schema-defined minimum per setting. Accessible from the command palette, the Shortcuts view overflow menu, and a gear icon in the Launcher tab header.
-- **Title-case display names** — a new `displayNames.titleCase` setting (off by default) strips the file extension, replaces underscores and hyphens with spaces, and capitalizes each word wherever a shortcut name appears. For example, `setup_arb_translate.py` becomes `Setup Arb Translate`. Only affects shortcuts without a custom label.
-- **Centralized display-name resolution** — all surfaces (tree row, launcher card, panel titles, toasts) resolve shortcut names through one function (`shortcutDisplayName`) so the title-case preference applies uniformly.
-
----
-
-## [1.6.4]
-
-The Launcher panel now has a Notes pane, sortable pane headers, and a smarter schedule status-bar indicator with configurable lead time. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.4/CHANGELOG.md)
-
-### Added
-
-- Notes pane in the Launcher panel — shows project and global notes as cards with filename, relative time, and a content preview in the expanded drawer
-- Notes stat chip in the header toggles the Notes section on and off
-- Recipes stat chip in the Launcher header — shows the recipe count and toggles the Recipes section on and off, matching the other pane toggle chips
-- Pane header click cycles the sort order: Grouped → A–Z → Z–A, with a sort indicator icon and label
-- "Just ran" flash on the schedule status-bar indicator — after a scheduled run completes, the indicator shows a check mark and the completion time for 2 minutes, one click away from the report
-- New `scheduleStatusBarLeadMinutes` setting controls how far in advance the status-bar indicator appears (default 30 minutes, set to 0 for run-time only, 1440 for always-visible)
-
-### Changed
-
-- Schedule status-bar indicator is now compact (time only, name in tooltip) and only appears within the configured lead-time window
-- Recipes pane icon changed from clock to lightbulb to distinguish it from the scheduled-run count
-
-### Removed
-
-- Chevron collapse controls from Launcher pane headers — replaced by the sort-cycling click and the header stat chip toggles
-
----
-
-## [1.6.3]
-
-The Launcher panel gets a usability overhaul with new section visibility toggle chips, a convenient one-click reset button to restore hidden panes, and a smoother startup experience with a new loading indicator. [log](https://github.com/saropa/saropa-workspace/blob/v1.6.3/CHANGELOG.md)
-
-### Added
-
-- An eye-icon reset button appears in the header when any section is toggled off — one click restores all sections to visible
-
-### Changed
-
-- Launcher panel shows a loading indicator on startup instead of a blank header until data arrives
-- Launcher header stat chips are now section visibility toggles (on/off) instead of pane filters — each chip independently shows or hides its section, with dimmed styling when off
-- The "scheduled" count is now an informational label (not a toggle), since scheduled cards live inside My shortcuts
-- Removed the folded-sections strip; pane visibility is controlled entirely from the header stat chips
 
 ---
 

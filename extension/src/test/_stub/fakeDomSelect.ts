@@ -51,6 +51,26 @@ function splitTopLevel(src: string, isSep: (ch: string) => boolean): string[] {
   return out;
 }
 
+/** Parses the "[...]" at `from` (the bracket itself) into an attribute test and the index after it. */
+function parseAttr(src: string, from: number): { simple: Simple; next: number } {
+  let end = from + 1;
+  for (let quote = "", escaped = false; end < src.length && (quote || src[end] !== "]"); end++) {
+    const c = src[end];
+    quote = quote ? (!escaped && c === quote ? "" : quote) : c === '"' || c === "'" ? c : "";
+    escaped = !!quote && !escaped && c === "\\";
+  }
+  const body = src.slice(from + 1, end);
+  const eq = body.indexOf("=");
+  if (eq > 0 && "^*~|$".includes(body[eq - 1])) {
+    throw new Error(`fakeDom: unsupported selector "${src}" (attribute operator ${body[eq - 1]}=)`);
+  }
+  const unquote = (v: string): string => v.trim().replace(/^(["'])([\s\S]*)\1$/, "$2").replace(/\\([\s\S])/g, "$1");
+  const simple: Simple = eq < 0
+    ? { kind: "attr", name: body.trim(), value: null }
+    : { kind: "attr", name: body.slice(0, eq).trim(), value: unquote(body.slice(eq + 1)) };
+  return { simple, next: end + 1 };
+}
+
 /** Parses one compound selector (no combinators) into its simple parts. */
 function parseCompound(src: string): Simple[] {
   const out: Simple[] = [];
@@ -75,22 +95,9 @@ function parseCompound(src: string): Simple[] {
       i++;
       out.push({ kind: "class", name: ident() });
     } else if (ch === "[") {
-      let end = i + 1;
-      for (let quote = "", escaped = false; end < src.length && (quote || src[end] !== "]"); end++) {
-        const c = src[end];
-        quote = quote ? (!escaped && c === quote ? "" : quote) : c === '"' || c === "'" ? c : "";
-        escaped = !!quote && !escaped && c === "\\";
-      }
-      const body = src.slice(i + 1, end);
-      i = end + 1;
-      const eq = body.indexOf("=");
-      if (eq > 0 && "^*~|$".includes(body[eq - 1])) {
-        throw new Error(`fakeDom: unsupported selector "${src}" (attribute operator ${body[eq - 1]}=)`);
-      }
-      const unquote = (v: string): string => v.trim().replace(/^(["'])([\s\S]*)\1$/, "$2").replace(/\\([\s\S])/g, "$1");
-      out.push(eq < 0
-        ? { kind: "attr", name: body.trim(), value: null }
-        : { kind: "attr", name: body.slice(0, eq).trim(), value: unquote(body.slice(eq + 1)) });
+      const attr = parseAttr(src, i);
+      i = attr.next;
+      out.push(attr.simple);
     } else if (src.startsWith(":not(", i)) {
       const end = closingParen(src, i + 4);
       out.push({ kind: "not", inner: parseCompound(src.slice(i + 5, end)) });

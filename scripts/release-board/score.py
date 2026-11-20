@@ -2,7 +2,16 @@ import json,re,os,sys,collections
 sys.path.insert(0,'.')
 import engine
 sev=json.load(open('severity.json')); cfg=json.load(open('saropa_board_rules.json'))
-def strip_code(t): return re.sub(r'```.*?```','',t,flags=re.S)
+EDGE='()[]{}<>"\'.,;:!?'
+def is_path(tok):
+    core=tok.strip(EDGE)
+    return ('/' in core or '\\' in core) and '.' in core and re.fullmatch(r'[A-Za-z0-9]{1,8}',core[core.rindex('.')+1:]) is not None
+def strip_code(t):
+    t=re.sub(r'```.*?```','',t,flags=re.S)
+    t=re.sub(r'`[^`\n]{0,500}`',' ',t)
+    t=re.sub(r'\]\([^)\n]{0,500}\)',']',t)
+    t=re.sub(r'https?://[^\s)>\]]+',' ',t,flags=re.I)
+    return re.sub(r'\S+',lambda m:'' if is_path(m.group(0)) else m.group(0),t)
 def count(text,ph):
     n=0;tl=text.lower();i=0
     while True:
@@ -12,7 +21,7 @@ def count(text,ph):
         if not any(pre.endswith(x) or x in pre[-len(x)-2:] for x in sev['negation']): n+=1
         i+=len(ph)
 def score(path,name):
-    t=strip_code(open(path,errors='ignore').read()); lines=t.splitlines()
+    raw=open(path,errors='ignore').read(); t=strip_code(raw); lines=t.splitlines()
     title=re.sub(r'[_-]',' ',name)+' '+(lines[0] if lines else ''); head='\n'.join(lines[1:20]); body='\n'.join(lines[20:])
     W=sev['weights'];res={};ev={}
     for lvl,phs in sev['phrases'].items():
@@ -29,7 +38,7 @@ def score(path,name):
         if res[lvl]>=sev['threshold']: level=lvl;break
     else:
         if res['low']>=sev['threshold'] and res['low']>max(res['extreme'],res['critical'],res['high']): level='low'
-    aud='pro' if any(p in t.lower() for p in sev['audience']['pro']) else 'all'
+    aud='pro' if any(p in raw.lower() for p in sev['audience']['pro']) else 'all'
     return level,aud,res,ev
 if __name__=='__main__':
     res,_,_=engine.classify(cfg); paths={p['id']:p['path'] for p in cfg['projects']}

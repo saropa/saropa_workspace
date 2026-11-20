@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { ScanResult, ScanSnapshot } from "../board/scanner";
+import { ScanResult, ScanSnapshot, withoutLinkText } from "../board/scanner";
 import { SafetyResult } from "../board/safety";
 import { ProjectHealth } from "../board/health";
 import { MarksFile } from "../board/marks";
@@ -54,13 +54,13 @@ export async function writeAccepted(dir: vscode.Uri, snap: ScanSnapshot): Promis
   await vscode.workspace.fs.createDirectory(dir);
   await vscode.workspace.fs.writeFile(
     vscode.Uri.joinPath(dir, CACHE_FILE),
-    Buffer.from(JSON.stringify(snap), "utf8")
+    Buffer.from(JSON.stringify(withoutLinkText(snap)), "utf8")
   );
 }
 
 // Stores what the board shows now, for the next first paint.
 export async function writeLast(dir: vscode.Uri, run: BoardRun): Promise<void> {
-  const last: LastRun = { version: 1, rows: run.result.rows, snapshot: run.result.snapshot, accepted: run.accepted, safety: run.safety, health: run.health };
+  const last: LastRun = { version: 1, rows: run.result.rows, snapshot: withoutLinkText(run.result.snapshot), accepted: run.accepted, safety: run.safety, health: run.health };
   await vscode.workspace.fs.createDirectory(dir);
   await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(dir, LAST_FILE), Buffer.from(JSON.stringify(last), "utf8"));
 }

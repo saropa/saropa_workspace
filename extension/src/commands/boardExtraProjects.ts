@@ -3,7 +3,7 @@ import * as nodePath from "node:path";
 import * as vscode from "vscode";
 import { mapLimit } from "../board/pool";
 import { withTimeout } from "../board/timeout";
-import { ProjectDef, RuleSetDef, SkipReason, SkippedProject } from "../board/types";
+import { GROUP_BYS, asGanttLayout, GanttLayout, GroupBy, ProjectDef, RuleSetDef, SkipReason, SkippedProject } from "../board/types";
 import { ProjectScope, asScope, cleanProjectPaths, folderName, folderProjects, skippedRows } from "../board/extraProjects";
 import { pathExists } from "./boardFileSource";
 
@@ -28,6 +28,30 @@ export function readProjectPaths(): unknown {
 
 export function readProjectScope(): ProjectScope {
   return asScope(vscode.workspace.getConfiguration(SECTION).get<unknown>("projectScope", "all"));
+}
+
+// Sets the scope; the setting change repaints the board through the configuration listener.
+export async function writeProjectScope(scope: ProjectScope): Promise<void> {
+  await vscode.workspace.getConfiguration(SECTION).update("projectScope", scope, vscode.ConfigurationTarget.Global);
+}
+
+export function readGroupBy(): GroupBy {
+  const v = vscode.workspace.getConfiguration(SECTION).get<string>("groupBy", "project");
+  return GROUP_BYS.find((g) => g === v) ?? "project";
+}
+
+export function readGanttLayout(): GanttLayout {
+  const v = vscode.workspace.getConfiguration(SECTION).get<string>("ganttLayout", "local");
+  return asGanttLayout(v) ?? "local";
+}
+
+export async function writeGanttLayout(value: GanttLayout): Promise<void> {
+  await vscode.workspace.getConfiguration(SECTION).update("ganttLayout", value, vscode.ConfigurationTarget.Global);
+}
+
+// Sets the grouping; the setting change repaints the board through the configuration listener.
+export async function writeGroupBy(value: GroupBy): Promise<void> {
+  await vscode.workspace.getConfiguration(SECTION).update("groupBy", value, vscode.ConfigurationTarget.Global);
 }
 
 // The open workspace folders as plain paths, for telling an open folder from a chosen one.
@@ -103,6 +127,26 @@ async function readFolderRules(root: vscode.Uri): Promise<Record<string, unknown
   }
 }
 
+// A folder that was probed: the reason it is skipped, or what was read from it.
+type FolderOk = { p: string; uri: vscode.Uri; roots: string[]; parsed?: Record<string, unknown> };
+type FolderCheck = { p: string; reason: SkipReason } | FolderOk;
+
+// Probes one chosen folder and reads its document roots and own rules file, or says why it is skipped.
+async function checkOne(p: string, defaultRoots: readonly string[]): Promise<FolderCheck> {
+  const uri = vscode.Uri.file(p);
+  const reason = await probe(uri);
+  if (reason) {
+    return { p, reason };
+  }
+  const roots: string[] = [];
+  for (const r of defaultRoots) {
+    if (await pathExists(vscode.Uri.joinPath(uri, r))) {
+      roots.push(r);
+    }
+  }
+  return { p, uri, roots, parsed: await readFolderRules(uri) };
+}
+
 export interface ExtraProjects {
   projects: ProjectDef[];
   ruleSets: Record<string, RuleSetDef>;
@@ -121,24 +165,10 @@ export async function loadExtraProjects(used: Set<string>, uniqueId: (name: stri
     return out;
   }
   const { paths, over } = chosenFolders();
-  const checkOne = async (p: string): Promise<{ p: string; reason: SkipReason } | { p: string; uri: vscode.Uri; roots: string[]; parsed?: Record<string, unknown> }> => {
-    const uri = vscode.Uri.file(p);
-    const reason = await probe(uri);
-    if (reason) {
-      return { p, reason };
-    }
-    const roots: string[] = [];
-    for (const r of defaultRoots) {
-      if (await pathExists(vscode.Uri.joinPath(uri, r))) {
-        roots.push(r);
-      }
-    }
-    return { p, uri, roots, parsed: await readFolderRules(uri) };
-  };
   // A folder that takes too long, or fails in any way, is one grey row, never a failed board.
   const checked = await mapLimit(paths, PROBE_PARALLEL, async (p) => {
     try {
-      return await withTimeout(checkOne(p), folderMs);
+      return await withTimeout(checkOne(p, defaultRoots), folderMs);
     } catch (e) {
       return { p, reason: (isTimeout(e) ? "timedOut" : "unreadable") as SkipReason };
     }
@@ -149,7 +179,7 @@ export async function loadExtraProjects(used: Set<string>, uniqueId: (name: stri
       bad.push({ path: c.p, reason: c.reason });
       continue;
     }
-    const ok = c as { p: string; uri: vscode.Uri; roots: string[]; parsed?: Record<string, unknown> };
+    const ok = c as FolderOk;
     const name = folderName(ok.p);
     const id = uniqueId(name, used);
     const made = folderProjects({

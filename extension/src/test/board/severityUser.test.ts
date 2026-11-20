@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SEVERITY_KEY, clearDocStatus, docStatusKeys, setDocSeverity, severityOverrides } from "../../board/ruleAssign";
 import { buildSidebarRows } from "../../board/sidebar";
-import { itemTarget } from "../../board/handToChat";
+import { fromModel } from "../../board/handoff";
 import { umbrellaLines } from "../../commands/boardStatusLight";
 import { buildBoard } from "../../board/boardModel";
 import { renderBoard } from "../../board/boardHtml";
@@ -122,7 +122,7 @@ test("a user severity wins over the computed one, in the item, the light and the
   assert.equal(a?.severity, "low");
   assert.equal(a?.severityByUser, true);
   assert.equal(a?.stopping, false);
-  assert.equal(lowered.projects[0].light, "unverified", "not no-go: the user lowered the only blocker");
+  assert.equal(lowered.projects[0].light, "go", "not no-go: the user lowered the only blocker");
   const raised = buildBoard(cfg([{ project: "app", path: "docs/B.md", severity: "extreme" }]), rows, undefined, true, s);
   assert.equal(raised.items.find((i) => i.path === "docs/B.md")?.stopping, true);
   assert.equal(raised.projects[0].light, "no-go", "raising a severity can only make the light worse");
@@ -151,7 +151,7 @@ test("a waiting (blocked) document counts with the severity chosen", () => {
   const s = snap({ "docs/A.md": BLOCKER });
   assert.equal(buildBoard(cfg(undefined), rows, undefined, true, s).projects[0].light, "no-go");
   const m = buildBoard(cfg([{ project: "app", path: "docs/A.md", severity: "low" }]), rows, undefined, true, s);
-  assert.equal(m.projects[0].light, "unverified");
+  assert.equal(m.projects[0].light, "go");
   assert.deepEqual(m.byUser, { count: 1, lowered: 1 });
 });
 
@@ -213,12 +213,11 @@ test("a lowered blocker is counted per project, in the sidebar tooltip and in th
   assert.deepEqual(umbrellaLines(undefined, undefined, 0), []);
 });
 
-test("Hand to chat says when the severity was set by hand", () => {
+test("the hand-off says when the severity was set by hand", () => {
   const m = buildBoard(cfg([{ project: "app", path: "docs/A.md", severity: "extreme" }]), [row("docs/A.md")], undefined, true, snap({ "docs/A.md": CALM }));
-  const t = itemTarget(m, m.items[0]);
-  assert.ok(t.evidence.some((e) => e.startsWith("Severity: extreme (set by hand in the rules file")));
+  assert.equal(fromModel(m, m.items, {}).items[0].severityBy, "user");
   const plain = buildBoard(cfg(undefined), [row("docs/A.md")], undefined, true, snap({ "docs/A.md": BLOCKER }));
-  assert.ok(itemTarget(plain, plain.items[0]).evidence.includes("Severity: extreme"));
+  assert.equal(fromModel(plain, plain.items, {}).items[0].severityBy, "auto");
 });
 
 test("the page marks what the user set, says so in the tooltip and counts lowered severities in the summary", () => {

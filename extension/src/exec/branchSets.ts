@@ -73,10 +73,11 @@ export class BranchSetBinder implements vscode.Disposable {
 
   // The whole branch -> binding map for this workspace.
   bindings(): Record<string, BranchSetBinding> {
-    return this.context.workspaceState.get<Record<string, BranchSetBinding>>(
+    const stored = this.context.workspaceState.get<Record<string, BranchSetBinding>>(
       BRANCH_SETS_KEY,
       {}
     );
+    return stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
   }
 
   getBinding(branch: string): BranchSetBinding | undefined {

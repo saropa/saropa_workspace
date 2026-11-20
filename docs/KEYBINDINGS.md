@@ -60,3 +60,16 @@ full relative path all work.
 
 All run paths route through the same runner, so a key-bound run behaves exactly
 like clicking the play button in the tree.
+
+## Release Board keys
+
+These work inside the Release Board tab and are not VS Code commands.
+
+| Keys | Action |
+|---|---|
+| `Alt+Up` / `Alt+Down` | Move the focused row one place up or down inside its group |
+| `Enter` or `Down` on a kebab button | Open its menu |
+| `Up` / `Down` in a menu | Move between entries |
+| `Esc` | Close a menu or the hand-off drawer |
+| `+` / `-` | Raise or lower the severity of the focused row |
+| `Enter` or `Space` on a section heading | Fold or unfold it |

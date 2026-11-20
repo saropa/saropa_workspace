@@ -67,7 +67,7 @@ test("marks: no checklist and no code", () => {
 });
 
 const link = (target: string, state: Link["state"], toPath?: string): Link => ({ fromProject: "app", fromPath: "a.md", target, state, toProject: toPath ? "app" : undefined, toPath });
-const item = (title: string): BoardItem => ({ id: 0, project: "app", path: "b.md", title, status: "amber", kind: "", hub: false, blocksCount: 0, waitsOn: [], pinned: false, stopping: false });
+const item = (title: string): BoardItem => ({ id: 0, project: "app", path: "b.md", title, status: "amber", kind: "", hub: false, blocksCount: 0, waitsOn: [], pinned: false, stopping: false, blocks: false });
 
 test("link summary: a problem link wins over an open one", () => {
   const s = linkSummary([link("x.md", "missing"), link("b.md", "open", "b.md")], new Map());

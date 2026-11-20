@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import * as vscode from "vscode";
-import { applyMarks, pinnedKeys } from "../board/marks";
-import { BoardRun, canRunHealth, hasOutsideProject, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
+import { answeredExtra, applyMarks, pinnedKeys } from "../board/marks";
+import { BoardRun, canRunHealth, logBoardError, hasOutsideProject, readLastRun, runBoardScan } from "../commands/releaseBoardCommands";
 import { buildBoard, BoardModel } from "../board/boardModel";
 import { trainsFor } from "./boardTrain";
 import { PathToGo, pathToGo } from "../board/pathToGo";
@@ -12,17 +12,20 @@ import { loadOutside } from "../commands/boardOutside";
 import { publishBoard } from "./editorLinks";
 import { loadLiveSignals, readLiveSettings } from "../commands/boardLive";
 import { LiveSignals } from "../board/liveEvidence";
-import { panelLeft, panelShowed, viewFor } from "./boardSinceLast";
-import { readHandSettings } from "../commands/boardHandToChat";
+import { panelShowed, viewFor } from "./boardSinceLast";
 import { markScanDone, setFailed, setPanelVisible } from "./boardFeed";
 import { strings } from "./boardStrings";
 import { FutureData, emptyFuture, loadFuture, readFutureSettings } from "../commands/boardFuture";
 import { FutureView } from "../board/boardHtmlFuture";
 import { FutureItem, FutureOutside, FutureSort } from "../board/futureList";
 import { startupOn } from "./boardStartup";
+import { readGanttLayout, readGroupBy, readProjectScope } from "../commands/boardExtraProjects";
 import { hintVisible, dismissHint } from "./boardProjectsHint";
-import { emptyPage, inProgressInput, liveInput, pathSettings, sittingsInput, tidyInput } from "./boardPanelActions";
+import { emptyPage, inProgressInput, liveInput, orgPreviousInput, pathSettings, saveOrgLayouts, sittingsInput, tidyInput } from "./boardPanelActions";
 import { collectEdited, readInProgressSettings } from "../commands/boardInProgress";
+import { ruleCategories } from "../board/ruleAssign";
+import { ChatPoll } from "./boardChats";
+import { BoardPatches } from "./boardPatches";
 
 // Least time between two looks at the Problems panel.
 export const LIVE_GAP_MS = 4000;
@@ -49,6 +52,14 @@ export abstract class BoardPanelCore {
   // The page shows a board whose documents are still being read; a scan that dies now leaves it so.
   protected partial = false;
   protected lastKey = "";
+  // The "since last look" view the page was painted with, so rows sent later are drawn the same way.
+  protected since: ReturnType<typeof viewFor> | undefined;
+  // A saved keyboard move, drawn into the next finished paint: the row to focus, the control used, the words to announce.
+  protected moved: { project: string; path: string; ctl: number; say: string } | undefined;
+  // The last inline change to a file, kept ten seconds so Undo can put the file back. The timer is
+  // missing while a refused or partial Undo keeps the bar: it stays until undone or dismissed.
+  // remaining names the files a batch has not yet put back.
+  protected undo: { label: string; restore: () => Promise<boolean>; remaining?: () => string[]; timer?: ReturnType<typeof setTimeout> } | undefined;
   // Sessions, review requests and other extensions' groups; loaded after the scan, never awaited by it.
   protected outside: Outside = emptyOutside();
   protected outsideToken = 0;
@@ -75,12 +86,30 @@ export abstract class BoardPanelCore {
   protected editedToken = 0;
   protected editedStale = false;
   protected editedTimer: ReturnType<typeof setTimeout> | undefined;
+  // The look at Chat Explorer chats that feeds the "Active now" pill; never part of a scan.
+  protected readonly chats: ChatPoll;
+  // An AI reply being reviewed, and the result file the watcher found; the page shows a pill for the file.
+  protected readonly patches: BoardPatches;
   protected readonly disposables: vscode.Disposable[] = [];
+  private renderErrorShown = false;
 
   constructor(
     protected readonly context: vscode.ExtensionContext,
     protected readonly panel: vscode.WebviewPanel
-  ) {}
+  ) {
+    // Built here, not as field initializers: those run before the parameter properties above are assigned.
+    this.chats = new ChatPoll(
+      () => this.run?.cfg.projects.map((p) => ({ id: p.id, folder: vscode.Uri.parse(p.path).fsPath })) ?? [],
+      () => this.panel.visible,
+      () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true))
+    );
+    this.patches = new BoardPatches(
+      () => (this.run && this.model ? { model: this.model, run: this.run } : undefined),
+      (m) => void this.panel.webview.postMessage(m),
+      () => (!this.scanning && !this.cached ? this.render() : (this.outsidePending = true)),
+      () => this.context.workspaceState
+    );
+  }
 
   protected abstract onMessage(message: unknown): Promise<void>;
   // The panel is gone: the module drops its reference.
@@ -116,11 +145,12 @@ export abstract class BoardPanelCore {
     this.cached = false;
     this.dirty = false;
     this.lastScanAt = Date.now();
-    this.render();
+    this.renderSafely({}, true);
     void this.refreshOutside();
     void this.refreshLive();
     void this.refreshFuture();
     void this.refreshEdited();
+    this.chats.start();
   }
 
   // Paints the previous result at once, dimmed, while the scan runs.
@@ -129,7 +159,26 @@ export abstract class BoardPanelCore {
     if (last && !this.run) {
       this.run = last;
       this.cached = true;
-      this.render({ stale: true });
+      this.renderSafely({ stale: true });
+    }
+  }
+
+  // A result that cannot be drawn must not stop the open. A stored one is dropped so the fresh
+  // scan runs; a fresh one is kept (it is the only scan there is), and the owner sees one error.
+  private renderSafely(state: RenderState = {}, fresh = false): void {
+    try {
+      this.render(state);
+    } catch (e) {
+      logBoardError(e);
+      if (fresh) {
+        if (!this.renderErrorShown) {
+          this.renderErrorShown = true;
+          void vscode.window.showErrorMessage(l10n("releaseBoard.openFailed", { error: e instanceof Error ? e.message : String(e) }));
+        }
+        return;
+      }
+      this.run = undefined;
+      this.cached = false;
     }
   }
 
@@ -191,6 +240,7 @@ export abstract class BoardPanelCore {
     void this.refreshLive();
     void this.refreshFuture();
     void this.refreshEdited();
+    this.chats.start();
   }
 
   // Looks up which board documents are being edited in this window and paints the In progress
@@ -303,7 +353,7 @@ export abstract class BoardPanelCore {
     if (!this.run || this.disposed) {
       return;
     }
-    const state: RenderState = { ...requested, startup: startupOn(this.context), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}) };
+    const state: RenderState = { ...requested, startup: startupOn(this.context), scope: readProjectScope(), groupBy: readGroupBy(), ganttLayout: readGanttLayout(), statuses: ruleCategories(this.run.cfg).map((c) => ({ label: c.label, status: c.status, kind: c.kind })), ...(this.undo ? { undo: this.undo.label } : {}), ...(this.moved && !requested.loading && !requested.stale ? { moved: this.moved } : {}), sectionIcons: vscode.workspace.getConfiguration("saropaWorkspace.releaseBoard").get<boolean>("sectionIcons", true), ...(hintVisible(this.context, this.run.cfg) ? { hint: true } : {}), ...this.chats.view(), ...this.patches.view() };
     const { cfg, marks } = this.run;
     // Hand marks: in progress turns an open document purple, pins join the rules file's pins.
     this.model = buildBoard(
@@ -314,9 +364,11 @@ export abstract class BoardPanelCore {
       this.run.result.snapshot,
       this.run.previous,
       this.run.health,
-      { needs: marks.needs, rejected: marks.rejected, pins: pinnedKeys(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited) }
+      { needs: marks.needs, rejected: marks.rejected, sharedRejected: marks.sharedRejected, pins: pinnedKeys(marks), ...answeredExtra(marks), outside: this.outside, sittings: sittingsInput(this.context), tidy: tidyInput(), live: liveInput(this.live), inProgress: inProgressInput(this.edited), orgPrevious: orgPreviousInput(this.context) }
     );
+    saveOrgLayouts(this.context, this.model);
     const model = this.model;
+    this.patches.scan();
     const settings = pathSettings();
     this.paths = settings
       ? model.projects.map((p) =>
@@ -333,16 +385,17 @@ export abstract class BoardPanelCore {
     // hold unread documents, which would read as blockers that cleared.
     const finished = !state.loading && !state.stale && !this.partial;
     const since = finished ? viewFor(model) : undefined;
+    this.since = since;
     if (finished && this.panel.visible) {
       panelShowed(model);
     }
     // The same board in the same state is not painted again: no flicker, no lost scroll.
     const trains = trainsFor(model, cfg);
     const fset = readFutureSettings();
-    const future: FutureView | undefined = fset.enabled ? { items: this.future.items, outside: this.future.outside, sort: this.futureSort ?? fset.defaultSort, canEdit: !state.stale && !state.loading, researchParallel: fset.researchParallel, handEnabled: readHandSettings().enabled } : undefined;
+    const future: FutureView | undefined = fset.enabled ? { items: this.future.items, outside: this.future.outside, cut: this.future.cut, sort: this.futureSort ?? fset.defaultSort, canEdit: !state.stale && !state.loading, researchParallel: fset.researchParallel } : undefined;
     this.futureShown = future?.items ?? [];
     this.futureOutsideShown = future?.outside ?? [];
-    const key = JSON.stringify([this.model, state, this.paths, since, readHandSettings().enabled, trains, future]);
+    const key = JSON.stringify([this.model, state, this.paths, since, trains, future]);
     if (key === this.lastKey) {
       return;
     }
@@ -355,18 +408,22 @@ export abstract class BoardPanelCore {
     const nonce = crypto.randomBytes(16).toString("base64");
     this.rev += 1;
     this.panel.webview.html = renderBoard(this.model, strings(), nonce, this.rev, state, this.paths, since, trains, future);
+    if (state.moved) {
+      this.moved = undefined;
+    }
   }
   protected dispose(): void {
     this.onClosed();
     setPanelVisible(false);
-    panelLeft();
     this.disposed = true;
+    clearTimeout(this.undo?.timer);
     this.outsideToken++;
     this.liveToken++;
     clearTimeout(this.timer);
     clearTimeout(this.liveTimer);
     clearTimeout(this.editedTimer);
     this.editedToken++;
+    this.chats.dispose();
     this.panel.dispose();
     for (const d of this.disposables) {
       d.dispose();

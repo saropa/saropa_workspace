@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BoardStrings, renderBoard } from "../../board/boardHtml";
-import { hintBar, isUmbrella, openBadge, projectsButtons, rollupBar, rollupCounts, skippedBlock } from "../../board/boardHtmlProjects";
+import { isUmbrella, openBadge, rollupBar, rollupCounts, skippedBlock } from "../../board/boardHtmlProjects";
 import { BoardModel, buildBoard } from "../../board/boardModel";
 import { FileSource, ProjectSnapshot, ScanSnapshot, scanAll } from "../../board/scanner";
 import { checkScan } from "../../board/safety";
@@ -16,9 +16,6 @@ const labels: Record<string, string> = {
   projectsTip: "Choose projects",
   settings: "Settings",
   settingsTip: "Open settings",
-  hintText: "Only this project is shown.",
-  hintAdd: "Add more projects",
-  hintDismiss: "Dismiss",
   hintDismissTip: "Hide the hint",
   rollup: "{count} projects",
   open: "open",
@@ -29,7 +26,6 @@ const labels: Record<string, string> = {
   skip_unreadable: "Unreadable.",
   skip_overLimit: "Limit {max}.",
   hidden: "Chosen projects hidden: {count}",
-  hiddenTip: "Shown with the Projects button",
 };
 const t = new Proxy({ projectLabels: labels } as unknown as BoardStrings, {
   get: (o, k: string) => (k === "projectLabels" ? labels : k === "noGo" ? "NO-GO" : k === "unverified" ? "UNVERIFIED" : k === "go" ? "GO" : k in o ? (o as never)[k] : `[${k}]`),
@@ -73,14 +69,14 @@ test("the order of a board with no chosen project is unchanged", () => {
   assert.ok(m.projects.every((p) => !("extra" in p)));
 });
 
-test("a chosen project is never greener than its evidence: no health result keeps it UNVERIFIED", () => {
+test("missing health results do not make a project amber", () => {
   const m = model(cfg(["zed"]), []);
-  assert.deepEqual(m.projects.map((p) => p.light), ["unverified", "unverified"]);
+  assert.deepEqual(m.projects.map((p) => p.light), ["go", "go"]);
 });
 
 test("a red document in a chosen project makes that project NO-GO and leaves the open one alone", () => {
   const m = model(cfg(["zed"]), [row("zed", "bugs/a.md", "red")]);
-  assert.deepEqual(m.projects.map((p) => [p.id, p.light]), [["app", "unverified"], ["zed", "no-go"]]);
+  assert.deepEqual(m.projects.map((p) => [p.id, p.light]), [["app", "go"], ["zed", "no-go"]]);
 });
 
 test("the model carries the grey rows from the config", () => {
@@ -90,7 +86,7 @@ test("the model carries the grey rows from the config", () => {
 
 test("the roll-up counts each light exactly", () => {
   const m = model(cfg(["a", "b", "c"]), [row("a", "bugs/x.md", "red"), row("b", "bugs/y.md", "red")]);
-  assert.deepEqual(rollupCounts(m.projects), { noGo: 2, unverified: 2, go: 0 });
+  assert.deepEqual(rollupCounts(m.projects), { noGo: 2, unverified: 0, go: 2 });
 });
 
 test("a single project has no roll-up, no open mark and no grey rows", () => {
@@ -108,7 +104,7 @@ test("with several projects the header states the total and how many are in each
   const m = model(cfg(["a", "b"]), [row("a", "bugs/x.md", "red")]);
   assert.equal(
     rollupBar(m, t),
-    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">3</span> projects</b><span class="go no-go" title="rollupLight"><span class="pill" title="pillTip">1</span> NO-GO</span><span class="go unverified" title="rollupLight"><span class="pill" title="pillTip">2</span> UNVERIFIED</span><span class="go go zero" title="rollupLight"><span class="pill" title="pillTip">0</span> GO</span></div>'
+    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">3</span> projects</b><span class="go no-go" title="rollupLight"><span class="pill" title="pillTip">1</span> NO-GO</span><span class="go go" title="rollupLight"><span class="pill" title="pillTip">2</span> GO</span></div>'
   );
 });
 
@@ -117,7 +113,7 @@ test("a chosen folder that could not be read is counted apart and never as a lig
   assert.equal(isUmbrella(m), true);
   assert.equal(
     rollupBar(m, t),
-    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">2</span> projects</b><span class="go no-go zero" title="rollupLight"><span class="pill" title="pillTip">0</span> NO-GO</span><span class="go unverified" title="rollupLight"><span class="pill" title="pillTip">1</span> UNVERIFIED</span><span class="go go zero" title="rollupLight"><span class="pill" title="pillTip">0</span> GO</span><span class="go skipped" title="rollupSkipped"><span class="pill" title="pillTip">1</span> NOT READ</span></div>'
+    '<div class="roll" role="status" title="rollupBar"><b title="rollupBar"><span class="pill" title="pillTip">2</span> projects</b><span class="go go" title="rollupLight"><span class="pill" title="pillTip">1</span> GO</span><span class="go skipped" title="rollupSkipped"><span class="pill" title="pillTip">1</span> NOT READ</span></div>'
   );
 });
 
@@ -136,35 +132,33 @@ test("a grey row names the folder and the reason and carries no path", () => {
   );
 });
 
-test("the top bar has a Projects and a Settings button, each with a tooltip", () => {
-  assert.equal(
-    projectsButtons(t),
-    '<button data-projects title="Choose projects" aria-label="Choose projects">Projects</button><button data-settings title="Open settings" aria-label="Open settings">Settings</button>'
-  );
+test("the project actions menu has Projects and Settings entries, each with a tooltip", () => {
+  const html = optsMenu(t);
+  assert.ok(html.includes('data-act="projects" title="Choose projects">Projects</button>'));
+  assert.ok(html.includes('data-act="settings" title="Open settings">Settings</button>'));
 });
 
-test("the hint is one line with the add and dismiss buttons, and only when asked for", () => {
-  assert.equal(hintBar(false, t), "");
-  assert.equal(hintBar(undefined, t), "");
-  assert.equal(
-    hintBar(true, t),
-    '<div class="hint" role="note" title="hintBar"><span class="f" title="hintBar">Only this project is shown.</span><button data-projects title="Choose projects">Add more projects</button><button data-hint-dismiss title="Hide the hint" aria-label="Hide the hint">Dismiss</button></div>'
-  );
+test("the hint lives in the options menu, with no bar of its own, and only when asked for", () => {
+  const m = model(cfg(["zed"]));
+  const on = renderBoard(m, t, "n", 7, { hint: true });
+  const menu = on.slice(on.indexOf('id="menu-opts"'));
+  assert.ok(menu.indexOf('data-act="hintDismiss"') < menu.indexOf('data-act="handBoard"'), "the hide entry leads the menu");
+  assert.equal(menu.match(/data-act="projects"/g)?.length, 1, "one Projects entry");
+  assert.ok(menu.includes('data-act="hintDismiss"'));
+  assert.ok(!on.includes('class="hint"'));
+  assert.ok(!renderBoard(m, t, "n", 7).includes('data-act="hintDismiss"'));
 });
 
 test("the page has the controls, the open mark and the roll-up in order, and sends only kinds of request", () => {
   const m = model(cfg(["zed"], [{ name: "gone", reason: "missing" }]));
   const html = renderBoard(m, t, "n", 7, { hint: true });
   const at = (s: string): number => html.indexOf(s);
-  assert.ok(at("data-projects title=") > 0 && at("data-projects title=") < at('class="hint"'));
-  assert.ok(at('class="hint"') < at('class="roll"'));
   assert.ok(at('class="roll"') < at('class="tag otag"'));
-  assert.ok(at('class="tag otag"') < at('class="vd skip"'));
+  assert.ok(at('class="vd skip"') < at('class="roll"'), "unread folders show above the tabs, on every tab");
   assert.equal(html.match(/<script/g)?.length, 1);
   assert.ok(html.includes("type:'projects',rev:REV"));
-  assert.ok(html.includes("type:'boardSettings',rev:REV"));
+  assert.ok(html.includes("type:'scope',value:act.slice(6),rev:REV"));
   assert.ok(html.includes("type:'hintDismiss',rev:REV"));
-  assert.ok(!renderBoard(m, t, "n", 7).includes('class="hint"'));
 });
 
 test("every work list row names its project when several are shown", () => {
@@ -211,7 +205,9 @@ test("a newly chosen project still needs an accepted scan of its own", () => {
 
 import { BoardItem, BoardProject } from "../../board/boardModel";
 import { boardLights, buildSidebarRows, hasDocuments, worstLight, SidebarLabels } from "../../board/sidebar";
-import { hiddenNote } from "../../board/boardHtmlProjects";
+import { settingPills } from "../../board/boardHtmlHeader";
+import { pillMenus, scopeTotal } from "../../board/boardHtmlMenus";
+import { optsMenu } from "../../board/boardHtmlMenus";
 import { lightTooltip, umbrellaLines } from "../../commands/boardStatusLight";
 import { dropFailed } from "../../board/scanner";
 
@@ -274,13 +270,17 @@ test("the status bar tooltip names what is not read and how many are hidden", ()
   assert.equal(lightTooltip("unverified", undefined, [], "base", ["Not read: gone (x)"]), "UNVERIFIED\nNot read: gone (x)\nbase");
 });
 
-test("the page says how many chosen projects are hidden", () => {
+test("the scope switch counts the projects and says in a tooltip how many chosen projects are hidden", () => {
   const c = cfg();
   c.hidden = 2;
   const m = model(c);
   assert.equal(m.hidden, 2);
-  assert.equal(hiddenNote(m, t), '<p class="note" title="Shown with the Projects button">Chosen projects hidden: <span class="pill" title="pillTip">2</span></p>');
-  assert.equal(hiddenNote(model(cfg()), t), "");
+  const html = settingPills(m, "openOnly", t);
+  assert.ok(html.includes("Chosen projects hidden: 2"), "the hidden count is in the tooltip, not a line on the page");
+  assert.ok(html.includes('data-menu="pscope"'));
+  assert.ok(pillMenus(t, m, "openOnly").includes("scopeAllTip"));
+  assert.equal(scopeTotal(m, "openOnly"), 3, "all projects: the open one plus the 2 hidden");
+  assert.equal(settingPills(model(cfg()), undefined, t).includes("Chosen projects hidden"), false, "no scope: the pill shows the mode alone");
 });
 
 test("a chosen project whose scan failed is left out and shown as a grey row", () => {

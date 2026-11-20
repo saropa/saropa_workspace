@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { gitIgnoredPaths } from "./gitIgnored";
 import { FileSource } from "./scanner";
 import { ScanFile } from "./types";
 
@@ -33,6 +34,9 @@ export function nodeFileSource(base: string): FileSource {
     async readHead(projectDir: string, p: string, lines: number): Promise<string> {
       const text = fs.readFileSync(path.join(base, projectDir, p), "utf8");
       return text.split(/\r?\n/).slice(0, lines).join("\n");
+    },
+    async gitIgnored(projectDir: string, paths: string[]): Promise<Set<string>> {
+      return gitIgnoredPaths(path.join(base, projectDir), paths);
     },
     // The whole file, read for open documents only.
     async readText(projectDir: string, p: string): Promise<string> {

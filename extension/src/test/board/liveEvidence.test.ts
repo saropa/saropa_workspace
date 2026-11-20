@@ -187,8 +187,12 @@ test("live evidence marks the row and leaves every light and reason as it was", 
 test("a clean project with live errors is not made NO-GO and a GO is not made greener", () => {
   const go = buildBoard(cfg, [], undefined, true, snapshot, undefined, healthy, { live });
   assert.equal(go.projects[0].light, "go");
-  const unverified = buildBoard(cfg, rows, undefined, true, snapshot, undefined, { app: { ...healthy.app, clean: false, lint: "missing" } }, { live });
-  assert.notEqual(unverified.projects[0].light, "go");
+  // Amber comes only from an unaccepted scan or an unread severity; missing lint evidence is a note and leaves GO as GO.
+  const noEvidence = { app: { ...healthy.app, clean: false, lint: "missing" as const } };
+  assert.equal(buildBoard(cfg, rows, undefined, true, snapshot, undefined, noEvidence, { live }).projects[0].light, "go");
+  const unverified = buildBoard(cfg, rows, undefined, false, snapshot, undefined, healthy, { live });
+  assert.equal(unverified.projects[0].light, "unverified");
+  assert.equal(unverified.projects[0].light, buildBoard(cfg, rows, undefined, false, snapshot, undefined, healthy).projects[0].light);
 });
 
 test("the unnamed box lists a crash in a file no open document names, with the project's bugs folder", () => {
@@ -201,7 +205,7 @@ test("the unnamed box lists a crash in a file no open document names, with the p
 
 const t = new Proxy({} as BoardStrings, {
   get: (_o, k: string) =>
-    k === "liveLogs" ? "{errors} errors, {crashes} crashes in debug runs" : k === "liveProblems" ? "{errors} errors, {warnings} warnings in Problems" : k === "liveLints" ? "{errors} lint errors, {warnings} lint warnings" : k === "handToChat" ? "" : `[${k}] {count}`,
+    k === "liveLogs" ? "{errors} errors, {crashes} crashes in debug runs" : k === "liveProblems" ? "{errors} errors, {warnings} warnings in Problems" : k === "liveLints" ? "{errors} lint errors, {warnings} lint warnings" : `[${k}] {count}`,
 });
 
 test("the page shows a flame with a tooltip, escapes file names, and offers the button by index only", () => {
@@ -214,7 +218,8 @@ test("the page shows a flame with a tooltip, escapes file names, and offers the 
   const snap2 = JSON.parse(JSON.stringify(snapshot)) as ScanSnapshot;
   const m = buildBoard(cfg, rows, undefined, true, snap2, undefined, healthy, { live: { ...live, signals: evil } });
   const html = renderBoard(m, t, "n");
-  assert.match(html, /class="flame hot"/);
+  assert.match(html, /class="flame"/);
+  assert.ok(!html.includes("flame hot"), "a flame is never red");
   assert.match(html, /1 errors, 1 crashes in debug runs/);
   assert.match(html, /lib\/lone\.dart: 0 errors, 1 crashes/);
   assert.match(html, /data-bug="0"/);

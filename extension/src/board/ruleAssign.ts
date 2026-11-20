@@ -1,5 +1,8 @@
-import { Severity } from "./severity";
 import { BoardConfig, BoardStatus, Rule } from "./types";
+import { AssignRefusal, OVERRIDE_RULE_SET, Parsed, docGlob, indentOf, isObject, losesData, parseForEdit, serialize } from "./ruleText";
+
+export { AssignRefusal, OVERRIDE_RULE_SET, Parsed, docGlob, indentOf, isObject, losesData, parseForEdit, serialize } from "./ruleText";
+export { SEVERITY_KEY, SEVERITY_LEVELS, SeverityOverride, SeverityResult, clearDocStatus, docStatusKeys, overrideKey, setDocSeverity, severityOverrides } from "./ruleSeverity";
 
 // Assigning a category to a folder of documents no rule placed: which categories the
 // existing rules offer, and how a new rule is added to the text of the user's rules file.
@@ -10,10 +13,6 @@ export const RULES_PATH = ".saropa/release-board.json";
 
 // The rule set a rule added from the board goes into, when the file lists no projects.
 export const USER_RULE_SET = "my-rules";
-
-// The rule set a status chosen for one document goes into, when the file lists no projects. It is
-// read before the shipped rules, so the chosen status wins over the rule that placed the document.
-export const OVERRIDE_RULE_SET = "my-overrides";
 
 // One category the existing rules can put a document in.
 export interface RuleCategory {
@@ -84,30 +83,12 @@ export function folderGlob(folder: string): string | undefined {
   return clean === "" ? "*" : `${clean}/**`;
 }
 
-// Why a rule could not be added.
-export type AssignRefusal = "parse" | "shape" | "glob" | "encoding" | "lossy" | "none";
-
 export type AssignResult = { ok: true; text: string; id: string; glob: string } | { ok: false; reason: AssignRefusal };
 
 // A short id for the folder: lower-case letters, digits and dashes.
 function slug(folder: string): string {
   const s = folder.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return s || "root";
-}
-
-export const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
-
-// The indent of a JSON text: its first indented line, else two spaces.
-export function indentOf(text: string): string {
-  const m = /^([ \t]+)\S/m.exec(text);
-  return m ? m[1] : "  ";
-}
-
-// The glob of one document: its path, when the path holds no character the globs read as a
-// wildcard or "$". Undefined otherwise.
-export function docGlob(docPath: string): string | undefined {
-  const clean = docPath.replace(/\\/g, "/").replace(/^\/+/, "");
-  return clean === "" || /[*?{}$]/.test(clean) ? undefined : clean;
 }
 
 // What a rule is added with: the glob, the id it starts from, the rule set it goes into when the
@@ -141,41 +122,6 @@ export function addFolderRule(text: string | undefined, a: { project: string; fo
 export function addDocRule(text: string | undefined, a: { project: string; path: string; category: RuleCategory }): AssignResult {
   const glob = docGlob(a.path);
   return glob === undefined ? { ok: false, reason: "glob" } : addRule(text, { project: a.project, glob, idBase: `status-${slug(a.path)}`, set: OVERRIDE_RULE_SET, front: true, category: a.category });
-}
-
-// A rules file text read for an edit: the parsed object, and whether the file was blank.
-type Parsed = { ok: true; doc: Record<string, unknown>; blank: boolean; source: string } | { ok: false; reason: AssignRefusal };
-
-function parseForEdit(text: string | undefined): Parsed {
-  const blank = text === undefined || text.trim() === "";
-  let doc: unknown;
-  if (blank) {
-    doc = { version: 1 };
-  } else {
-    try {
-      doc = JSON.parse(text);
-    } catch {
-      return { ok: false, reason: "parse" };
-    }
-  }
-  // Only a file that parses is looked at for data a rewrite would lose.
-  if (!blank && losesData(text as string)) {
-    return { ok: false, reason: "lossy" };
-  }
-  if (!isObject(doc)) {
-    return { ok: false, reason: "shape" };
-  }
-  return { ok: true, doc, blank, source: blank ? "" : (text as string) };
-}
-
-// The edited object as file text: the indent and line ends of the source are kept.
-function serialize(p: { doc: Record<string, unknown>; blank: boolean; source: string }): string {
-  const eol = p.source.includes("\r\n") ? "\r\n" : "\n";
-  let out = JSON.stringify(p.doc, null, p.blank ? "  " : indentOf(p.source));
-  if (eol === "\r\n") {
-    out = out.replace(/\n/g, eol);
-  }
-  return out + (p.blank || /\n$/.test(p.source) ? eol : "");
 }
 
 function addRule(text: string | undefined, a: RuleSpec): AssignResult {
@@ -260,196 +206,4 @@ export function decodeRules(bytes: Uint8Array): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-// True when writing the parsed file back would lose something: an object with the same key twice
-// (the later one wins in a parse, the first is lost), or a number a double cannot hold exactly.
-// A single pass over the text; strings are skipped by their quotes.
-export function losesData(text: string): boolean {
-  const keys: Array<Set<string> | undefined> = [];
-  let i = 0;
-  const n = text.length;
-  while (i < n) {
-    const c = text[i];
-    if (c === '"') {
-      let j = i + 1;
-      while (j < n && text[j] !== '"') {
-        j += text[j] === "\\" ? 2 : 1;
-      }
-      const top = keys[keys.length - 1];
-      let k = j + 1;
-      while (k < n && " \t\r\n".includes(text[k])) {
-        k++;
-      }
-      if (top && text[k] === ":") {
-        const name = text.slice(i, j + 1);
-        if (top.has(name)) {
-          return true;
-        }
-        top.add(name);
-      }
-      i = j + 1;
-    } else if (c === "{") {
-      keys.push(new Set());
-      i++;
-    } else if (c === "[") {
-      keys.push(undefined);
-      i++;
-    } else if (c === "}" || c === "]") {
-      keys.pop();
-      i++;
-    } else if (c === "-" || (c >= "0" && c <= "9")) {
-      let j = i + 1;
-      while (j < n && /[0-9.eE+-]/.test(text[j])) {
-        j++;
-      }
-      const tok = text.slice(i, j);
-      const digits = tok.replace(/[eE].*$/, "").replace(/[^0-9]/g, "").replace(/^0+/, "");
-      if (digits.length > 15 && Number(tok) !== Math.trunc(Number(tok))) {
-        return true;
-      }
-      if (digits.length > 15 && !Number.isSafeInteger(Number(tok))) {
-        return true;
-      }
-      i = j;
-    } else {
-      i++;
-    }
-  }
-  return false;
-}
-
-// The levels a document's severity can be set to by hand, most severe first.
-export const SEVERITY_LEVELS: readonly Severity[] = ["extreme", "critical", "high", "medium", "low"];
-
-// The key of the rules file that holds severities chosen for single documents.
-export const SEVERITY_KEY = "severityOverrides";
-
-// A severity chosen by hand for one document of one project. The path is exact, never a glob.
-export interface SeverityOverride {
-  project: string;
-  path: string;
-  severity: Severity;
-}
-
-// The key of a document in the lookup maps: project, tab, path (a tab cannot be part of an id).
-export const overrideKey = (project: string, path: string): string => `${project}\t${path}`;
-
-// The severities chosen by hand, from a rules file's parsed content. An entry of the wrong shape,
-// with an unknown level or with a wildcard in its path is ignored; the first entry of a document wins.
-export function severityOverrides(cfg: { severityOverrides?: unknown }): Map<string, Severity> {
-  const out = new Map<string, Severity>();
-  const list = cfg.severityOverrides;
-  for (const e of Array.isArray(list) ? list : []) {
-    if (!isObject(e) || typeof e.project !== "string" || typeof e.path !== "string" || docGlob(e.path) === undefined) {
-      continue;
-    }
-    const level = SEVERITY_LEVELS.find((l) => l === e.severity);
-    const key = overrideKey(e.project, e.path);
-    if (level && !out.has(key)) {
-      out.set(key, level);
-    }
-  }
-  return out;
-}
-
-export type SeverityResult = { ok: true; text: string } | { ok: false; reason: AssignRefusal };
-
-// Sets the severity of one document, or (severity undefined) takes the entry away so the
-// computed one applies again. Same refusals as a rule: text that does not parse, has the wrong
-// shape, has a key twice, or a path that holds a wildcard. Taking away what is not there is
-// refused as "none" and nothing is written.
-export function setDocSeverity(text: string | undefined, a: { project: string; path: string; severity: Severity | undefined }): SeverityResult {
-  if (docGlob(a.path) === undefined || (a.severity !== undefined && !SEVERITY_LEVELS.includes(a.severity))) {
-    return { ok: false, reason: "glob" };
-  }
-  const parsed = parseForEdit(text);
-  if (!parsed.ok) {
-    return parsed;
-  }
-  const doc = parsed.doc;
-  if (doc[SEVERITY_KEY] !== undefined && !Array.isArray(doc[SEVERITY_KEY])) {
-    return { ok: false, reason: "shape" };
-  }
-  const list = (Array.isArray(doc[SEVERITY_KEY]) ? doc[SEVERITY_KEY] : []) as unknown[];
-  const same = (e: unknown): boolean => isObject(e) && e.project === a.project && e.path === a.path;
-  const kept = list.filter((e) => !same(e));
-  if (a.severity === undefined) {
-    if (kept.length === list.length) {
-      return { ok: false, reason: "none" };
-    }
-  } else {
-    kept.push({ project: a.project, path: a.path, severity: a.severity });
-  }
-  if (kept.length === 0) {
-    delete doc[SEVERITY_KEY];
-  } else {
-    doc[SEVERITY_KEY] = kept;
-  }
-  return { ok: true, text: serialize(parsed) };
-}
-
-// True when a rule is one the board wrote for a single document's status: an id that starts with
-// "status-", a final rule, and an exact path with a project. With `project` and `path` it must name them.
-function isDocStatusRule(r: unknown, project?: string, path?: string): r is { id: string; when: { path: string; project: string } } {
-  if (!isObject(r) || typeof r.id !== "string" || !r.id.startsWith("status-") || !isObject(r.when) || !isObject(r.set) || r.set.final !== true) {
-    return false;
-  }
-  const w = r.when;
-  return typeof w.path === "string" && typeof w.project === "string" && docGlob(w.path) !== undefined && (project === undefined || w.project === project) && (path === undefined || w.path === path);
-}
-
-// The rule lists the board writes status rules into: the rules of the project (every project when
-// none is named) and the "my-overrides" rule set.
-function statusRuleLists(doc: { projects?: unknown; ruleSets?: unknown }, project?: string): unknown[][] {
-  const lists: unknown[][] = [];
-  if (Array.isArray(doc.projects)) {
-    for (const p of doc.projects) {
-      if (isObject(p) && (project === undefined || p.id === project) && Array.isArray(p.rules)) {
-        lists.push(p.rules);
-      }
-    }
-  }
-  const set = isObject(doc.ruleSets) ? doc.ruleSets[OVERRIDE_RULE_SET] : undefined;
-  if (isObject(set) && Array.isArray(set.rules)) {
-    lists.push(set.rules);
-  }
-  return lists;
-}
-
-// The documents (as overrideKey) that have a status chosen from the board, from the rules file's
-// parsed content. The same test as the one Back to automatic uses to take them away.
-export function docStatusKeys(cfg: { projects?: unknown; ruleSets?: unknown }): Set<string> {
-  const out = new Set<string>();
-  for (const rules of statusRuleLists(cfg)) {
-    for (const r of rules) {
-      if (isDocStatusRule(r)) {
-        out.add(overrideKey(r.when.project, r.when.path));
-      }
-    }
-  }
-  return out;
-}
-
-// Takes away the status chosen by hand for one document: the rules the board wrote for its exact
-// path (ids that start with "status-", in the project's own rules or in the "my-overrides" set).
-export function clearDocStatus(text: string | undefined, a: { project: string; path: string }): SeverityResult {
-  const glob = docGlob(a.path);
-  if (glob === undefined) {
-    return { ok: false, reason: "glob" };
-  }
-  const parsed = parseForEdit(text);
-  if (!parsed.ok) {
-    return parsed;
-  }
-  let removed = 0;
-  for (const rules of statusRuleLists(parsed.doc, a.project)) {
-    for (let i = rules.length - 1; i >= 0; i--) {
-      if (isDocStatusRule(rules[i], a.project, glob)) {
-        rules.splice(i, 1);
-        removed += 1;
-      }
-    }
-  }
-  return removed === 0 ? { ok: false, reason: "none" } : { ok: true, text: serialize(parsed) };
 }

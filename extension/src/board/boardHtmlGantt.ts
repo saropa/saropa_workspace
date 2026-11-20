@@ -1,0 +1,280 @@
+import type { BoardItem, BoardModel } from "./boardModelParts";
+import { dragAttrs, moveArrows } from "./boardHtmlDrag";
+import { kebab, rowData } from "./boardHtmlMenus";
+import { ganttStrips } from "./boardHtmlAsk";
+import type { SinceView } from "./sinceLast";
+import { BoardStrings, docLink, escapeHtml, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
+import { GanttGroup, GanttRow, buildGantt, inProgressCount, shownModel, upNext } from "./ganttModel";
+import { layoutFor, openGroups } from "./org/layout";
+import { GANTT_LAYOUTS, GanttLayout } from "./types";
+
+// The Gantt tab of the board page: one list of items grouped by project, each with a bar on a
+// work-order axis (never days), a light closing each group, finished items dimmed as history,
+// and dependency arrows drawn only for the row that is hovered or selected. An open row can be
+// dragged (see boardHtmlDrag.ts) and has the row menu.
+
+export const GANTT_STYLE = `
+.gtop{position:relative;display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}.glay{display:inline-flex}.glay button{border-radius:0}.glay button:first-child{border-radius:4px 0 0 4px}.glay button:last-child{border-radius:0 4px 4px 0;margin-left:-1px}.glay button[aria-pressed=true]{background:var(--blue);color:var(--bg)}.gpn{color:var(--mute);font-size:11px;white-space:nowrap;flex:0 1 auto;min-width:0;max-width:30%;overflow:hidden;text-overflow:ellipsis}
+.gantt{position:relative;border:1px solid var(--line);border-radius:6px}
+#gSvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5}#gSvg path{fill:none;stroke:var(--amber);stroke-width:1.5;marker-end:url(#gAr)}#gAr path{fill:var(--amber)}
+.gsplit{position:absolute;top:0;bottom:0;left:0;width:9px;margin-left:-4px;z-index:6;cursor:col-resize;touch-action:none}.gsplit::after{content:"";position:absolute;top:0;bottom:0;left:4px;width:1px;background:var(--line)}.gsplit:hover::after,.gsplit:focus-visible::after,.gsplit.on::after{width:3px;left:3px;background:var(--blue)}
+.gaxis{display:grid;grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}
+.gaxis .ticks{display:flex;justify-content:space-between;margin:0 10px}
+.gh{display:flex;align-items:center;gap:8px;margin:0;padding:0;background:var(--panel);border-top:1px solid var(--line);font-size:inherit;font-weight:600}.gg:first-of-type .gh{border-top:0}
+.gtog{display:flex;align-items:center;gap:8px;flex:1;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:5px 10px}
+.gh .go{flex:none}.gcn{color:var(--mute);font-weight:400;white-space:nowrap}.gcn .gred{color:var(--red);font-weight:600}
+.gg.col .grows,.gg.col [data-rowsmore],.gg.col .gf{display:none}.gr[hidden]{display:none}
+.gsub{list-style:none;padding:0 10px 0 22px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);background:color-mix(in srgb,var(--panel) 60%,transparent)}
+.gsb{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:4px 0}.gsb::before{content:"\\25B8";color:var(--mute)}.gsb[aria-expanded=true]::before{content:"\\25BE"}
+.upn{flex:none;font-size:10px;line-height:14px;padding:0 5px;border:1px solid var(--line);border-radius:8px;color:var(--mute)}
+.gun{margin:0 0 10px;padding:6px 10px;border:1px solid var(--line);border-radius:6px}.gun h2{display:flex;align-items:center;gap:8px;margin:0 0 4px}.gunl{list-style:none;margin:0;padding:0}.gu{display:flex;align-items:center;gap:6px;padding:3px 0;min-width:0}.gu .tt{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.gwip{font-size:11px;font-weight:400;padding:0 6px;border:1px solid var(--line);border-radius:8px;color:var(--mute)}.gwip.over{color:var(--amber);border-color:var(--amber)}
+.gkey{position:absolute;top:100%;left:0;z-index:20;max-width:min(560px,100%);margin-top:4px;padding:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.4);font-size:12px}.gkey[hidden]{display:none}.gkey p{margin:2px 0}.gkey .kh{font-weight:600}.gkey table{border-collapse:collapse;margin:4px 0}.gkey td{padding:2px 12px 2px 0}.gkey td.sg{font-size:14px;text-align:center}
+.grows{list-style:none;margin:0;padding:0}
+.gr{display:grid;grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr;align-items:center;min-height:30px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.gr:hover,.gr[aria-current=true]{background:rgba(128,128,128,.15)}
+.gr.done{opacity:.5}.gr.chg{outline:1px dotted var(--blue);outline-offset:-1px}
+.gl{display:flex;align-items:center;gap:6px;padding:3px 10px;min-width:0}.gl .tt{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.sg.red{color:var(--red)}.sg.blue{color:var(--blue)}.sg.reference{color:var(--mute)}.sg.amber{color:var(--amber)}.sg.purple{color:var(--purple)}.sg.green{color:var(--green)}
+.gt{position:relative;height:26px;margin:0 10px}
+.bar{position:absolute;top:4px;height:18px;left:calc(var(--s)*1%);width:calc(var(--w)*1%);min-width:3px;box-sizing:border-box;border-radius:4px;border:1px solid;font-size:11px;padding:0 6px;line-height:16px;overflow:hidden;white-space:nowrap}
+.bar.red{border-color:color-mix(in srgb,var(--red) 55%,transparent);background:color-mix(in srgb,var(--red) 16%,transparent)}
+.bar.amber{border-color:color-mix(in srgb,var(--amber) 45%,transparent);background:color-mix(in srgb,var(--amber) 12%,transparent)}
+.bar.purple{border-color:color-mix(in srgb,var(--purple) 50%,transparent);background:color-mix(in srgb,var(--purple) 14%,transparent)}
+.bar.green{border-color:color-mix(in srgb,var(--green) 40%,transparent);background:color-mix(in srgb,var(--green) 10%,transparent)}
+.bar.est{border-style:dashed}.gr.rel .bar{box-shadow:0 0 0 1px var(--amber)}
+.gf{display:flex;align-items:center;gap:8px;padding:5px 10px;border-top:1px dashed var(--line);color:var(--mute)}
+.bar.est{min-width:3.5em}
+@media (max-width:480px){.gsplit{display:none}.gaxis,.gr{grid-template-columns:minmax(0,1fr) 84px}.gl .tt{white-space:normal;overflow-wrap:anywhere}.gaxis .ticks{margin:0 4px}.gt{margin:0 6px}}
+`;
+
+// Arrows for the hovered or selected row, a click or Enter on a row to keep it selected. Row
+// lookups are cached once per render; a group header folds its rows, remembered like other folds.
+export const GANTT_SCRIPT = `
+(()=>{const g=document.getElementById('gantt');const kb=document.getElementById('gKeyBtn');if(kb){kb.addEventListener('click',()=>{const k=document.getElementById('gKey');const on=k.hidden;k.hidden=!on;kb.setAttribute('aria-expanded',String(on));});}if(!g){return;}
+const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.id='gSvg';svg.setAttribute('aria-hidden','true');svg.innerHTML='<defs><marker id="gAr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z"/></marker></defs>';g.insertBefore(svg,g.firstChild);let hov=null,sel=null,lit=[];
+let ROWS=[],BY=new Map(),AFT=new Map(),DEP=new Map();const idx=()=>{ROWS=[...g.querySelectorAll('.gr')];BY=new Map();AFT=new Map();DEP=new Map();ROWS.forEach(r=>{const id=r.dataset.gid;BY.set(id,r);const a=r.dataset.after?r.dataset.after.split(','):[];AFT.set(id,a);a.forEach(x=>{if(!DEP.has(x)){DEP.set(x,[]);}DEP.get(x).push(id);});});};idx();window.addEventListener('ganttrows',()=>{idx();sync();});
+const shown=r=>r&&r.offsetParent!==null;
+const edge=(a,b)=>{const ra=BY.get(a),rb=BY.get(b);if(!shown(ra)||!shown(rb)){return;}ra.classList.add('rel');rb.classList.add('rel');lit.push(ra,rb);const box=g.getBoundingClientRect(),A=ra.querySelector('.bar').getBoundingClientRect(),B=rb.querySelector('.bar').getBoundingClientRect();const x1=A.right-box.left,y1=A.top+A.height/2-box.top,x2=B.left-box.left-2,y2=B.top+B.height/2-box.top,dx=Math.max(24,Math.abs(x2-x1)/2);const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d','M'+x1+' '+y1+' C'+(x1+dx)+' '+y1+' '+(x2-dx)+' '+y2+' '+x2+' '+y2);svg.appendChild(p);};
+const draw=()=>{if(g.offsetParent===null){return;}svg.setAttribute('width',g.offsetWidth);svg.setAttribute('height',g.offsetHeight);svg.querySelectorAll('path').forEach(p=>p.remove());lit.forEach(r=>r.classList.remove('rel'));lit=[];[hov,sel].forEach((id,i,all)=>{if(id===null||all.indexOf(id)!==i||!BY.has(id)){return;}AFT.get(id).forEach(a=>edge(a,id));(DEP.get(id)||[]).forEach(d=>edge(id,d));});};
+const select=r=>{sel=sel===r.dataset.gid?null:r.dataset.gid;ROWS.forEach(x=>{if(x.dataset.gid===sel){x.setAttribute('aria-current','true');}else{x.removeAttribute('aria-current');}});draw();};
+const S0=vscode.getState()||{};const COL=new Set(S0.gcol||[]),OPN=new Set(S0.gopen||[]);const save=()=>vscode.setState({...(vscode.getState()||{}),gcol:[...COL].slice(-100),gopen:[...OPN].slice(-100)});
+// One name-column width for the whole Gantt, kept in the saved state and read back here at start-up.
+const SP=document.getElementById('gSplit');const axis=g.querySelector('.gaxis');let W=Number(S0.gsplit)>0?Number(S0.gsplit):0;
+const spMin=()=>Math.min(200,Math.max(80,g.clientWidth-160)),spMax=()=>Math.max(spMin(),g.clientWidth-160);
+const spPlace=()=>{if(!SP||!axis||g.offsetParent===null){return;}const w=W>0?Math.min(spMax(),Math.max(spMin(),W)):axis.firstElementChild.offsetWidth;if(W>0){g.style.setProperty('--gcol',w+'px');}else{g.style.removeProperty('--gcol');}SP.style.left=w+'px';SP.setAttribute('aria-valuemin',String(Math.round(spMin())));SP.setAttribute('aria-valuemax',String(Math.round(spMax())));SP.setAttribute('aria-valuenow',String(Math.round(w)));draw();};
+const spSet=(w,keep)=>{W=w>0?Math.round(Math.min(spMax(),Math.max(spMin(),w))):0;spPlace();if(keep){vscode.setState({...(vscode.getState()||{}),gsplit:W});}};
+if(SP){spPlace();window.addEventListener('resize',spPlace);
+SP.addEventListener('pointerdown',e=>{e.preventDefault();SP.focus();SP.setPointerCapture(e.pointerId);SP.classList.add('on');});
+SP.addEventListener('pointermove',e=>{if(SP.hasPointerCapture(e.pointerId)){spSet(e.clientX-axis.getBoundingClientRect().left,false);}});
+const spEnd=e=>{if(SP.hasPointerCapture(e.pointerId)){SP.releasePointerCapture(e.pointerId);}SP.classList.remove('on');spSet(W,true);};
+SP.addEventListener('pointerup',spEnd);SP.addEventListener('pointercancel',spEnd);
+SP.addEventListener('dblclick',()=>spSet(0,true));
+SP.addEventListener('keydown',e=>{const cur=Number(SP.getAttribute('aria-valuenow'));if(e.key==='ArrowLeft'){e.preventDefault();spSet(cur-16,true);}else if(e.key==='ArrowRight'){e.preventDefault();spSet(cur+16,true);}else if(e.key==='Home'){e.preventDefault();spSet(spMin(),true);}else if(e.key==='End'){e.preventDefault();spSet(spMax(),true);}});}
+const fold=(s,on)=>{s.classList.toggle('col',on);const b=s.querySelector('.gtog');if(b){b.setAttribute('aria-expanded',String(!on));}};
+const sync=()=>{g.querySelectorAll('.gr[data-sk]').forEach(r=>{r.hidden=!OPN.has(r.dataset.sk);});g.querySelectorAll('.gsb').forEach(b=>b.setAttribute('aria-expanded',String(OPN.has(b.dataset.sk))));};
+g.querySelectorAll('.gg').forEach(s=>{if(COL.has(s.dataset.gk)){fold(s,true);}else if(OPN.has(s.dataset.gk)){fold(s,false);}});sync();
+g.addEventListener('mouseover',e=>{const r=e.target.closest('.gr');const id=r?r.dataset.gid:null;if(id!==hov){hov=id;draw();}});
+g.addEventListener('mouseleave',()=>{if(hov!==null){hov=null;draw();}});
+g.addEventListener('click',e=>{const t=e.target.closest('.gtog');if(t){const s=t.closest('.gg');const k=s.dataset.gk;const on=!s.classList.contains('col');fold(s,on);if(on){COL.add(k);OPN.delete(k);}else{COL.delete(k);OPN.add(k);}save();hov=null;draw();return;}const u=e.target.closest('.gsb');if(u){const k=u.dataset.sk;if(OPN.has(k)){OPN.delete(k);}else{OPN.add(k);}save();sync();hov=null;draw();return;}const r=e.target.closest('.gr');if(r&&!e.target.closest('a,button')){select(r);}});
+// A row dragged over a closed section or group header opens it (not remembered), so every row stays a drop target.
+let pend=null;g.addEventListener('dragover',e=>{if(!document.body.classList.contains('dragging')){return;}const h=e.target.closest&&e.target.closest('.gtog,.gsb');if(!h||h===pend){return;}const shut=h.classList.contains('gtog')?h.closest('.gg').classList.contains('col'):h.getAttribute('aria-expanded')==='false';if(!shut){return;}pend=h;setTimeout(()=>{if(pend!==h||!document.body.classList.contains('dragging')){return;}pend=null;if(h.classList.contains('gtog')){fold(h.closest('.gg'),false);}else{g.querySelectorAll('.gr[data-sk]').forEach(r=>{if(r.dataset.sk===h.dataset.sk){r.hidden=false;}});h.setAttribute('aria-expanded','true');}draw();},350);});
+document.addEventListener('drop',()=>{pend=null;},true);document.addEventListener('dragend',()=>{pend=null;},true);
+g.addEventListener('dragleave',e=>{if(pend&&e.target.closest&&e.target.closest('.gtog,.gsb')===pend){pend=null;}});
+g.addEventListener('keydown',e=>{const r=e.target.closest('.gr');if(r&&r===e.target&&(e.key==='Enter'||e.key===' ')){e.preventDefault();select(r);}});
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{spPlace();draw();}));window.addEventListener('resize',draw);})();`;
+
+// "30m", "1h", "1h 30m".
+function minutesLabel(m: number): string {
+  return m < 60 ? `${m}m` : m % 60 === 0 ? `${m / 60}h` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+const SHAPE = { red: "●", amber: "◆", purple: "◐", green: "■" };
+
+function row(r: GanttRow, key: string, t: BoardStrings, gk: string, item?: BoardItem, move?: { up: boolean; down: boolean }): string {
+  const proj = r.project === undefined ? "" : `<span class="gpn" ${titleAttr(r.project)}>${escapeHtml(r.project)}</span>`;
+  const word = pl(t, r.status === "green" ? "ganttDoneWord" : r.serious ? "st.serious" : "st." + r.status);
+  const rowTip = [
+    r.status === "green" ? pl(t, "ganttDone", { title: r.title }) : pl(t, r.serious ? "stTip.serious" : "stTip." + r.status, { title: r.title }),
+    r.waits.length > 0 ? pl(t, "ganttWaits", { names: r.waits.join(", ") }) : "",
+    r.askedNames.length > 0 ? pl(t, "ganttAsked", { names: r.askedNames.join(", ") }) : "",
+    r.inferred.length > 0 ? pl(t, "ganttInferred", { names: r.inferred.join(", ") }) : "",
+    r.changed ? pl(t, "ganttChanged") : "",
+  ].filter(Boolean).join(" ");
+  const barTip = r.minutes > 0 ? pl(t, "ganttBar", { title: r.title, minutes: minutesLabel(r.minutes) }) : pl(t, "ganttBarNone", { title: r.title });
+  const name = r.id === undefined ? `<span ${titleAttr(r.path)}>${escapeHtml(r.title)}</span>` : docLink(r.title, r.path, `data-id="${r.id}" tabindex="-1"`);
+  const cls = `gr${r.status === "green" ? " done" : ""}${r.outlined ? " chg" : ""}`;
+  // A row in a group sits under that group's sub-header and starts hidden until the header is opened.
+  const grouped = r.sub === undefined ? "" : ` data-sk="${escapeHtml(subKey(gk, r.sub.id))}" hidden`;
+  // A row ordered partly by inference carries the dotted chain mark, so it never reads as asked.
+  const inferMark = r.inferred.length > 0 ? `<span class="ginf" role="img" aria-label="${escapeHtml(pl(t, "ganttInferredTip"))}" ${tip(t, "ganttInferredTip")}>⛓</span>` : "";
+  const upMark = r.up ? `<span class="upn" ${tip(t, "upNextMarkTip")}>${escapeHtml(pl(t, "upNext"))}</span>` : "";
+  // An open row can be dragged, takes a dropped row on its Waits on slot and has the row menu.
+  const slotSay = escapeHtml(pl(t, "dropWaits", { title: r.title }));
+  const open = item === undefined ? "" : `<span class="gslot" data-drop="waits" data-to="${item.id}" data-say="${slotSay}" title="${slotSay}" aria-hidden="true">⛓</span>${move ? moveArrows(t, item.title, move.up, move.down) : ""}${kebab(t, "row", item.id, item.title, rowData(item))}`;
+  return `<li class="${cls}" tabindex="0" data-gid="${key}" data-after="${r.after.join(",")}"${grouped}${item === undefined ? "" : dragAttrs(item.id)} ${titleAttr(rowTip)}><div class="gl"><span class="sg ${r.status}" aria-hidden="true" ${titleAttr(word)}>${SHAPE[r.status]}</span><span class="tt">${name}</span>${inferMark}${upMark}${proj}${open}</div><div class="gt"><div class="bar ${r.status}${r.minutes > 0 ? "" : " est"}" style="--s:${r.start};--w:${r.width}" ${titleAttr(barTip)}>${r.minutes > 0 ? `<span class="m">${escapeHtml(minutesLabel(r.minutes))}</span>` : ""}</div></div></li>`;
+}
+
+// Rows of a section drawn in the page; the rest are sent when the page asks (a project of 2,000 documents).
+export const GANTT_ROWS = 150;
+
+// Where each open row can move: only a group listed by hand with more than one row, all in one project, takes a
+// move (the same rule as the Board tab). Places are read from the rows as drawn, so the arrows always match the
+// order on the page. Up is off for the group's first row and down for its last.
+function moves(groups: GanttGroup[], model: BoardModel): Map<number, { up: boolean; down: boolean }> {
+  const byGroup = new Map<string, BoardItem[]>();
+  for (const g of groups) {
+    for (const r of g.rows) {
+      const i = r.id === undefined ? undefined : model.items[r.id];
+      if (i?.group?.byUser === true && i.group.stored !== undefined) {
+        byGroup.set(i.group.id, [...(byGroup.get(i.group.id) ?? []), i]);
+      }
+    }
+  }
+  const out = new Map<number, { up: boolean; down: boolean }>();
+  for (const rows of byGroup.values()) {
+    if (rows.length > 1 && new Set(rows.map((i) => i.project)).size === 1) {
+      rows.forEach((i, k) => out.set(i.id, { up: k > 0, down: k < rows.length - 1 }));
+    }
+  }
+  return out;
+}
+
+// The key of one group's fold inside one section (remembered like the section's own).
+const subKey = (gk: string, sub: string): string => `${gk}|${sub}`;
+
+// How many rows the first view draws. The row limit of the board size counts the ungrouped open rows; the finished
+// rows and every group that holds a blocker (they come first) are always drawn, and the other groups are folded
+// under their sub-headers. With no limit, or a short section, everything up to GANTT_ROWS.
+function firstRows(g: GanttGroup, limit: number | null): number {
+  const lead = g.rows.findIndex((r) => r.id !== undefined);
+  const start = lead < 0 ? g.rows.length : lead;
+  const hot = new Set(g.rows.filter((r) => r.sub && r.status === "red").map((r) => r.sub!.id));
+  const kept = g.rows.filter((r) => r.sub && hot.has(r.sub.id)).length;
+  const plain = g.rows.filter((r) => r.id !== undefined && !r.sub).length;
+  return limit !== null && plain > limit ? start + kept + limit : Math.min(g.rows.length, GANTT_ROWS);
+}
+
+function rowsHtml(g: GanttGroup, n: number, from: number, to: number, t: BoardStrings, model: BoardModel, all: GanttGroup[]): string {
+  const move = moves(all, model);
+  const stat = new Map<string, { n: number; red: number }>();
+  for (const r of g.rows) {
+    if (r.sub) {
+      const c = stat.get(r.sub.id) ?? { n: 0, red: 0 };
+      stat.set(r.sub.id, { n: c.n + 1, red: c.red + (r.status === "red" ? 1 : 0) });
+    }
+  }
+  return g.rows.slice(from, to).map((r, k) => {
+    const at = from + k;
+    const head = r.sub && g.rows[at - 1]?.sub?.id !== r.sub.id ? subHeader(r.sub, stat.get(r.sub.id)!, subKey(g.id, r.sub.id), t) : "";
+    return head + row(r, r.id === undefined ? `f${n}-${at}` : String(r.id), t, g.id, r.id === undefined ? undefined : model.items[r.id], r.id === undefined ? undefined : move.get(r.id));
+  }).join("");
+}
+
+// " · 3 changed" on the header when rows changed since the last look.
+function changedNote(t: BoardStrings, g: GanttGroup): string {
+  const n = g.rows.filter((r) => r.changed).length;
+  return n > 0 ? ` · ${pillify(t, escapeHtml(pl(t, "ganttChangedCount", { count: n })))}` : "";
+}
+
+// "18 open · 9 block"; the block part is red and left out when nothing blocks.
+function counts(t: BoardStrings, open: number, block: number): string {
+  return `${pillify(t, escapeHtml(pl(t, "ganttCountOpen", { count: open })))}${block > 0 ? ` · <span class="gred">${pillify(t, escapeHtml(pl(t, "ganttCountBlock", { count: block })))}</span>` : ""}`;
+}
+
+// A group's sub-header: closed until opened, with its counts (the red count stays visible while closed).
+function subHeader(sub: { id: string; name: string }, c: { n: number; red: number }, key: string, t: BoardStrings): string {
+  return `<li class="gsub"><button type="button" class="gsb" data-sk="${escapeHtml(key)}" aria-expanded="false" ${tip(t, "ganttSub", { name: sub.name, count: c.n })}>${escapeHtml(sub.name)} <span class="gcn">${counts(t, c.n, c.red)}</span></button></li>`;
+}
+
+// The rows of one section from a position, for the page's "Show more". Undefined for a section or position the model does not hold.
+export function ganttRows(model: BoardModel, t: BoardStrings, since: SinceView | undefined, id: string, from: number, layout: GanttLayout = "local"): { html: string; count: number } | undefined {
+  const groups = buildGantt(model, since, layout, pl(t, "scopeAll"));
+  const n = groups.findIndex((g) => g.id === id);
+  if (n < 0 || !Number.isInteger(from) || from < 1 || from >= groups[n].rows.length) {
+    return undefined;
+  }
+  return { html: rowsHtml(groups[n], n, from, groups[n].rows.length, t, model, groups), count: groups[n].rows.length - from };
+}
+
+function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel, all: GanttGroup[], isOpen: boolean, limit: number | null): string {
+  const light = g.light === "no-go" ? t.noGo : g.light === "go" ? t.go : t.unverified;
+  const cut = firstRows(g, limit);
+  const rows = rowsHtml(g, n, 0, cut, t, model, all);
+  const rest = g.rows.length - cut;
+  const more = rest > 0 ? `<button type="button" class="sec" data-rowsmore data-lid="${escapeHtml(g.id)}" data-by="gantt" data-from="${cut}" aria-expanded="false" ${tip(t, "showMoreTip")}>${pillify(t, escapeHtml(pl(t, "showMore", { count: rest })))}</button><ul class="grows" role="list" data-lid="${escapeHtml(g.id)}" data-by="gantt" data-kind="more"></ul>` : "";
+  const lightTip = tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light));
+  const gtip = tip(t, "ganttGroup", { name: g.name, count: g.open });
+  const foot = g.finishedCut > 0 ? `<div class="gf">${escapeHtml(pl(t, "ganttFinishedCut", { count: g.finishedCut }))}</div>` : "";
+  return `<section class="gg${isOpen ? "" : " col"}" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${gtip}><button type="button" class="gtog" aria-expanded="${isOpen}" aria-controls="gr${n}" ${gtip}>${escapeHtml(g.name)} <span class="go gtl ${g.light}" ${lightTip}>${escapeHtml(light)}</span> <span class="gcn">${counts(t, g.open, g.blocks)}${changedNote(t, g)}</span></button></h2>${ganttStrips(g.id, model.projects, t)}<ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}${foot}</section>`;
+}
+
+// Up next: at most five items to work on first, with the reason in each tooltip, and the in-progress pill
+// (amber past three). Each is also in its project below, marked.
+export const WIP_LIMIT = 3;
+function upNextBox(model: BoardModel, t: BoardStrings): string {
+  const items = upNext(model);
+  if (items.length === 0) {
+    return "";
+  }
+  const names = new Map(model.projects.map((p) => [p.id, p.name]));
+  const several = model.projects.length > 1;
+  const going = inProgressCount(model);
+  const over = going > WIP_LIMIT;
+  const pillTip = over ? pl(t, "ganttWipOverTip", { count: going, max: WIP_LIMIT }) : pl(t, "ganttWipTip", { count: going });
+  const wip = going > 0 ? `<span class="gwip${over ? " over" : ""}" ${titleAttr(pillTip)}>${pillify(t, escapeHtml(pl(t, "ganttWip", { count: going })))}</span>` : "";
+  const lis = items.map((i) => {
+    const k = i.status === "purple" ? "purple" : "red";
+    const why = [
+      i.status === "purple" ? pl(t, "upNextInProgress") : "",
+      i.blocksCount > 0 ? pl(t, "upNextBlocks", { count: i.blocksCount }) : "",
+      i.severity ? pl(t, "sev." + i.severity) : "",
+      i.openMinutes ? minutesLabel(i.openMinutes) : "",
+    ].filter(Boolean).join(", ") || pl(t, "upNextWhyNone");
+    const proj = several ? `<span class="gpn" ${titleAttr(names.get(i.project) ?? i.project)}>${escapeHtml(names.get(i.project) ?? i.project)}</span>` : "";
+    return `<li class="gu" ${titleAttr(pl(t, "upNextWhy", { reasons: why }))}><span class="sg ${k}" aria-hidden="true" ${titleAttr(pl(t, "st." + k))}>${SHAPE[k]}</span><span class="tt">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${proj}</li>`;
+  }).join("");
+  return `<div class="gun" id="gUpNext" role="region" aria-labelledby="gunh" ${tip(t, "upNextTip")}><h2 id="gunh" ${tip(t, "upNextTip")}>${escapeHtml(pl(t, "upNext"))} ${wip}</h2><ul class="gunl" role="list" ${tip(t, "upNextTip")}>${lis}</ul></div>`;
+}
+
+// The key as a floating panel under the "?" button, hidden until it is pressed. The status symbols
+// are a table; the first line of ganttKey is the heading and its second line (the symbols in words)
+// is replaced by that table.
+function keyPanel(t: BoardStrings): string {
+  const lines = pl(t, "ganttKey").split("\n").filter((l) => l.trim() !== "");
+  const status = (["red", "amber", "purple", "green"] as const)
+    .map((k) => `<tr><td class="sg ${k}">${SHAPE[k]}</td><td>${escapeHtml(pl(t, k === "green" ? "ganttDoneWord" : "st." + k))}</td></tr>`).join("");
+  const rest = lines.slice(2).map((l) => `<p>${escapeHtml(l)}</p>`).join("");
+  return `<div class="gkey" id="gKey" hidden><p class="kh">${escapeHtml(lines[0] ?? "")}</p><table>${status}</table>${rest}</div>`;
+}
+
+// The Gantt tab button.
+export function ganttTab(selected: boolean, t: BoardStrings): string {
+  return `<button role="tab" id="tb-gantt" data-tab="gantt" aria-selected="${selected}" aria-controls="tab-gantt" ${tip(t, "tabGantt")}>${escapeHtml(pl(t, "ganttTabName"))}</button>`;
+}
+
+const LAYOUT_KEYS: Record<GanttLayout, { label: string; tip: string }> = {
+  local: { label: "ganttLocal", tip: "ganttLocalTip" },
+  split: { label: "ganttSplit", tip: "ganttSplitTip" },
+  unified: { label: "ganttUnified", tip: "ganttUnifiedTip" },
+};
+
+// The Local, Split and Unified buttons, shown only when there is a choice to make (see ganttPanel).
+export function layoutToggle(t: BoardStrings, layout: GanttLayout): string {
+  const label = escapeHtml(pl(t, "ganttLayout"));
+  return `<span class="glay" role="group" aria-label="${label}" title="${label}">${GANTT_LAYOUTS.map((l) => `<button type="button" class="sec" data-glayout="${l}" aria-pressed="${l === layout}" ${tip(t, LAYOUT_KEYS[l].tip)}>${escapeHtml(pl(t, LAYOUT_KEYS[l].label))}</button>`).join("")}</span>`;
+}
+
+// The Gantt tab's content: the key pill, the axis and one section per project.
+export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView, layout: GanttLayout = "local"): string {
+  const groups = buildGantt(model, since, layout, pl(t, "scopeAll"));
+  // The toggle shows when the full board has several projects, or Local hides any, so the user can always leave Local.
+  const several = buildGantt(model, since, "split").length > 1 || model.projects.some((p) => p.extra);
+  // The board size decides how many sections start open and how many rows each draws first; the user's own fold wins in the page.
+  const layout0 = layoutFor(shownModel(model, layout).items.length);
+  const open = openGroups(layout0, groups.map((g) => ({ id: g.id, blockers: g.blocks })));
+  const body = groups.length === 0
+    ? `<p class="note">${escapeHtml(pl(t, "ganttEmpty"))}</p>`
+    : `${upNextBox(shownModel(model, layout), t)}<div class="gantt" id="gantt"><div class="gsplit" id="gSplit" role="separator" aria-orientation="vertical" tabindex="0" aria-valuemin="200" aria-valuemax="600" aria-valuenow="200" aria-label="${escapeHtml(pl(t, "ganttResizeLabel"))}" ${tip(t, "ganttResizeTip")}></div><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model, groups, open.has(g.id), layout0.rowLimit)).join("")}</div>`;
+  return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button>${several ? layoutToggle(t, layout) : ""}${keyPanel(t)}</div>${body}</section>`;
+}

@@ -178,9 +178,9 @@ path; **Open report** buttons resolve the file on your machine.
 
 The board guesses a document's status from its rules and its severity from a phrase list. When a guess is wrong, fix it for that document:
 
-1. Click the small kebab button (three dots) on the document's row.
-2. **Change status** picks another status. **Change severity** picks extreme, critical, high, medium or low.
-3. Confirm. The choice is written to `.saropa/release-board.json`: a rule for the exact path (status) or an entry under `severityOverrides` (severity), both for that project only.
+1. Click the status pill on the document's row (or its kebab button, three dots).
+2. Pick another status, or a severity: Raise, Lower, extreme, critical, high, medium or low. A line in the menu says what the choice would do to the project's light.
+3. The choice is saved at once, with an **Undo** bar for ten seconds. It is written to `.saropa/release-board.json`: a rule for the exact path (status) or an entry under `severityOverrides` (severity), both for that project only.
 
 A document changed this way shows a **Set** mark, and its tooltips say "Set by hand in the rules file. Back to automatic in the row menu." A line under the intro counts the severities set by hand and how many were lowered below a level that stops the release.
 
@@ -191,3 +191,20 @@ A lower severity can turn a blocker green, so the confirmation says so. A pinned
 ```json
 { "severityOverrides": [{ "project": "app", "path": "docs/PLAN_x.md", "severity": "low" }] }
 ```
+
+## Group and reorder documents on the Release Board
+
+1. Set **View options > Group by** to **Group**. Auto groups appear with a name, emoji and colored stripe; hover one to see why it exists.
+2. To move a document, open its row menu and choose **Move to group...**, or drag the row onto the group. Drag it out of the group to ungroup it.
+3. To reorder inside a group, focus the row and press **Alt+Up** or **Alt+Down**.
+4. Every change is saved at once with an **Undo** bar.
+
+To change how groups are found, open **View options > Tags and rules...**, edit the **Tags** tab and press **Save**. The changes go under the `organize` key of `.saropa/release-board.json`.
+
+## Hand work to an AI agent and bring the answer back
+
+1. Open a row menu (or **Project actions**) and choose **Hand off...**.
+2. Pick the scope, a task (**Fix**, **Plan**, **Review**, **Triage** or **Organize**) and a format. The drawer shows the exact text.
+3. Press **Save to file** (written to `.saropa/handoff/`), **Copy** (one line pointing at the file), or **Run in terminal**.
+4. When the agent has replied, open **Project actions > Bring back AI result...**, paste the reply and press **Read reply**.
+5. Tick the changes you accept and press **Apply chosen**. Items that changed since the agent saw them are skipped.

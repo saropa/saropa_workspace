@@ -1,4 +1,5 @@
 import { BoardGroupProvider, addBoardGroup } from "./commands/boardOutside";
+import { sweepBoardTemps } from "./commands/boardWrite";
 import * as vscode from "vscode";
 import { ShortcutStore } from "./model/shortcutStore";
 import { ShortcutsTreeProvider } from "./views/shortcutsTreeProvider";
@@ -289,6 +290,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Worksp
   context.subscriptions.push({ dispose: () => store.dispose() });
 
   initCoreStores(context);
+  void sweepBoardTemps();
 
   // One-time notice for BUG-014's default flip (aiContext.enabled true -> false):
   // synchronous and config/globalState-only (no store or workspace data needed), so

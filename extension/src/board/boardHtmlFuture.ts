@@ -1,7 +1,9 @@
 import { EFFORTS, Importance, IMPORTANCES, MAX_FREE_TEXT, REACHES, RESEARCH_STATES, RISKS } from "./futureBlock";
 import { FUTURE_SORTS, FutureGroup, FutureItem, FutureOutside, FutureSort, groupItems, scoreOf } from "./futureList";
 import { researchCounts, researchQueue } from "./futureResearch";
-import { BoardStrings, collapsible, docLink, sectionIcon, escapeHtml, fillT, pill, pillify, tip, titleAttr } from "./boardHtmlUtil";
+import { BoardStrings, collapsible, docLink, sectionIcon, escapeHtml, fillT, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
+import { item, kebab } from "./boardHtmlMenus";
+import { ganttTab } from "./boardHtmlGantt";
 
 // The Future tab of the board page: deferred and blocked documents under their flag, with
 // the characteristics and the controls that set them. Every control carries only an index;
@@ -11,13 +13,13 @@ import { BoardStrings, collapsible, docLink, sectionIcon, escapeHtml, fillT, pil
 export interface FutureView {
   items: FutureItem[];
   outside: FutureOutside[];
+  // True when more documents exist than are listed: the tab count reads "200+" and a note says so.
+  cut?: boolean;
   sort: FutureSort;
   // False while a scan is running or the stored result is on screen: the controls are off.
   canEdit: boolean;
-  // Most documents handed to a chat at once (the setting, already checked).
+  // Most documents handed off at once (the setting, already checked).
   researchParallel: number;
-  // False when Hand to chat is turned off: the hand-off button stays but cannot be used.
-  handEnabled: boolean;
 }
 
 // One word of the tab's text table; the key itself when the table has no entry.
@@ -26,81 +28,104 @@ export function ft(t: BoardStrings, key: string): string {
   return table && typeof table === "object" ? (table[key] ?? key) : key;
 }
 
+// The count the tab shows: the listed number, with "+" when more exist.
+function countText(view: FutureView): string {
+  return `${view.items.length}${view.cut === true ? "+" : ""}`;
+}
+
 // True when the tab has something to list. Outside items alone do not make a tab.
 export function hasFuture(view: FutureView | undefined): view is FutureView {
   return view !== undefined && view.items.length > 0;
 }
 
-// The two tab buttons; empty when the Future tab has nothing to list.
-export function futureTabs(view: FutureView | undefined, t: BoardStrings): string {
-  if (!hasFuture(view)) {
-    return "";
-  }
-  const tabLabel = ft(t, "tab").replace("{count}", () => String(view.items.length));
-  return `<div class="tabs" role="tablist" ${tip(t, "tabs")}><button role="tab" id="tb-board" data-tab="board" aria-selected="true" aria-controls="tab-board" ${tip(t, "tabBoard")}>${escapeHtml(ft(t, "tabBoard"))}</button><button role="tab" id="tb-future" data-tab="future" aria-selected="false" aria-controls="tab-future" ${tip(t, "tabFuture")}>${pillify(t, escapeHtml(tabLabel))}</button></div>`;
+// The tab buttons: Gantt first (the default view), Board, and Future when it has something to list.
+export function viewTabs(view: FutureView | undefined, t: BoardStrings): string {
+  const future = hasFuture(view)
+    ? `<button role="tab" id="tb-future" data-tab="future" aria-selected="false" aria-controls="tab-future" ${tip(t, "tabFuture")}>${ft(t, "tab").split("{count}").map((part) => pillify(t, escapeHtml(part))).join(pill(t, countText(view)))}</button>`
+    : "";
+  return `<div class="tabs" role="tablist" ${tip(t, "tabs")}>${ganttTab(true, t)}<button role="tab" id="tb-board" data-tab="board" aria-selected="false" aria-controls="tab-board" ${tip(t, "tabBoard")}>${escapeHtml(ft(t, "tabBoard"))}</button>${future}</div>`;
 }
 
 function options(values: readonly string[], current: string, label: (v: string) => string): string {
   return values.map((v) => `<option value="${escapeHtml(v)}"${v === current ? " selected" : ""}>${escapeHtml(label(v))}</option>`).join("");
 }
 
-// The leading label of a control: a short glyph when one is given (the full name stays in the
-// tooltip and the aria-label), otherwise the name itself.
-function labelOf(t: BoardStrings, name: string, icon?: string): string {
-  return `<span class="k" ${tip(t, "futureLabelTip", { name })}${icon ? ' aria-hidden="true"' : ""}>${escapeHtml(icon ?? name)}</span>`;
+// The pill that shows an item's importance flag, and the value the menu ticks for it. An item with
+// no written flag shows the flag its folder implies, marked as a guess.
+function importanceOf(item: FutureItem): string {
+  return item.importance === undefined && item.group === "unflagged" ? "" : (item.importance ?? item.group);
 }
 
-function control(t: BoardStrings, i: number, field: string, values: readonly string[], current: string, guessed: boolean, off: string, label: (v: string) => string, icon?: string): string {
-  const name = ft(t, field);
-  const named = guessed ? `${name}: ${ft(t, "guessedTip")}` : name;
-  return `<label class="fcl">${labelOf(t, named, icon)}<select data-ff="${field}" data-fi="${i}" class="${guessed ? "guess" : ""}" title="${escapeHtml(named)}" aria-label="${escapeHtml(named)}"${off}>${options(values, current, label)}</select></label>`;
-}
-
-function importanceControl(t: BoardStrings, i: number, item: FutureItem, off: string): string {
+function importancePill(t: BoardStrings, item: FutureItem): string {
   const name = ft(t, "importance");
-  const flag = (v: string): string => ft(t, "flag." + v);
-  const none = item.importance === undefined && item.group === "unflagged";
-  const opts = `${none ? `<option value="" selected>${escapeHtml(flag("unflagged"))}</option>` : ""}${options(IMPORTANCES, none ? "" : (item.importance ?? item.group), flag)}`;
-  const propose =
-    item.importance === undefined
-      ? `<button data-faccept="${i}" data-fv="${item.proposed}"${off} title="${escapeHtml(ft(t, "acceptTip"))}">${escapeHtml(ft(t, "proposed").replace("{flag}", () => flag(item.proposed)))}</button>`
-      : "";
-  return `<label class="fcl"><span class="k" ${tip(t, "futureLabelTip", { name })}>${escapeHtml(name)}</span><select data-ff="importance" data-fi="${i}" class="${item.importance === undefined ? "guess" : ""}" title="${escapeHtml(name)}" aria-label="${escapeHtml(name)}"${off}>${opts}</select></label>${propose}`;
+  const text = ft(t, "flag." + (importanceOf(item) || "unflagged"));
+  const guess = item.importance === undefined;
+  const tipText = `${name}: ${text}${guess ? ` (${ft(t, "guessedTip")})` : ""}`;
+  return `<span class="imp${guess ? " guess" : ""}" title="${escapeHtml(tipText)}">${escapeHtml(text)}</span>`;
 }
 
-// The research controls of one item: the state, then (only when a research state is set) the
-// question on its own row and, when the research is ready, the label and the review button.
-// The state is set here, by the hand-off, the chat and the review.
+// The one menu of the tab: a radio group per characteristic, ticked by the page script from the
+// values on the kebab that opened it. The empty importance and the proposal appear only for an item
+// with no written flag.
+export function futureMenu(view: FutureView | undefined, t: BoardStrings): string {
+  if (!hasFuture(view)) {
+    return "";
+  }
+  const group = (field: string, values: readonly string[], label: (v: string) => string, icon = ""): string => {
+    const name = ft(t, field);
+    const rows = values.map((v) => item(`ff:${field}:${v}`, label(v), `${name}: ${label(v)}`, ` data-ffield="${field}" data-fval="${escapeHtml(v)}" aria-checked="false"${v === "" ? " hidden disabled" : ""}`, "menuitemradio")).join("");
+    return `<div class="mh" role="presentation" id="mh-f${field}" ${tip(t, "futureGroupTip", { name })}>${icon ? `<span aria-hidden="true">${icon}</span> ` : ""}${escapeHtml(name)}</div><div role="group" aria-labelledby="mh-f${field}" ${tip(t, "futureGroupTip", { name })}>${rows}</div>`;
+  };
+  const flag = (v: string): string => ft(t, "flag." + (v || "unflagged"));
+  const propose = item("fpropose", "", ft(t, "acceptTip"), " hidden disabled");
+  const body = group("importance", ["", ...IMPORTANCES], flag) + propose + group("wow", ["1", "2", "3", "4", "5"], (v) => v, "\u2728") + group("reach", REACHES, (v) => ft(t, "reach." + v), "\u{1F465}") + group("effort", EFFORTS, (v) => v, "\u23F1\uFE0F") + group("risk", RISKS, (v) => ft(t, "risk." + v), "\u26A0\uFE0F") + group("research", RESEARCH_STATES, (v) => ft(t, "research." + v));
+  const list = pl(t, "futureMenuList");
+  return `<div class="menu" id="menu-fut" role="menu" hidden aria-label="${escapeHtml(list)}" title="${escapeHtml(list)}">${body}</div>`;
+}
+
+// The kebab of one item. It carries the item's current values for the page script to tick.
+function futureKebab(t: BoardStrings, i: number, it: FutureItem, canEdit: boolean): string {
+  const g = (f: string): boolean => it.guessed.includes(f as never);
+  const attrs = [
+    `data-importance="${escapeHtml(importanceOf(it))}"`,
+    `data-wow="${it.wow}"`,
+    `data-reach="${escapeHtml(it.reach)}"`,
+    `data-effort="${escapeHtml(it.effort)}"`,
+    `data-risk="${escapeHtml(it.risk)}"`,
+    `data-research="${escapeHtml(it.research)}"`,
+    `data-gs="${["wow", "reach", "effort", "risk"].filter(g).join(",")}${it.importance === undefined ? ",importance" : ""}"`,
+  ];
+  if (it.importance === undefined) {
+    attrs.push(`data-pv="${escapeHtml(it.proposed)}"`, `data-pl="${escapeHtml(ft(t, "proposed").replace("{flag}", () => ft(t, "flag." + it.proposed)))}"`);
+  }
+  return kebab(t, "fut", i, it.title, ` ${attrs.join(" ")}${canEdit ? "" : " disabled"}`);
+}
+
+// The research line of one item, only when a research state is set: the state, then (when the
+// research is ready) the label and the review button, and the question on its own row. The state
+// itself is set from the item's menu, by the hand-off, the chat and the review.
 function researchRow(item: FutureItem, i: number, t: BoardStrings, off: string): string {
-  const state = control(t, i, "research", RESEARCH_STATES, item.research, false, off, (v) => ft(t, "research." + v));
+  if (item.research === "none") {
+    return "";
+  }
+  const state = `<span class="tag" ${tip(t, "futureGroupTip", { name: ft(t, "research") })}>${escapeHtml(ft(t, "research"))}: ${escapeHtml(ft(t, "research." + item.research))}</span>`;
   const ready =
     item.research === "ready"
       ? `<span class="tag" title="${escapeHtml(ft(t, "readyTip"))}">${escapeHtml(ft(t, "readyNotReviewed"))}</span><button data-frev="${i}"${off} ${tip(t, "markReviewed")}>${escapeHtml(ft(t, "markReviewed"))}</button>`
       : "";
   const q = ft(t, "question");
-  const question =
-    item.research === "none"
-      ? ""
-      : `<div class="fc fqrow"><label class="fcl fqwrap"><span class="k" ${tip(t, "futureLabelTip", { name: q })}>${escapeHtml(q)}</span><textarea class="fq" rows="2" data-fq="${i}" maxlength="${MAX_FREE_TEXT}" placeholder="${escapeHtml(ft(t, "questionHint"))}" title="${escapeHtml(ft(t, "questionHint"))}" aria-label="${escapeHtml(q)}"${off}>${escapeHtml(item.researchQuestion ?? "")}</textarea></label></div>`;
+  const question = `<div class="fc fqrow"><label class="fcl fqwrap"><span class="k" ${tip(t, "futureLabelTip", { name: q })}>${escapeHtml(q)}</span><textarea class="fq" rows="2" data-fq="${i}" maxlength="${MAX_FREE_TEXT}" placeholder="${escapeHtml(ft(t, "questionHint"))}" title="${escapeHtml(ft(t, "questionHint"))}" aria-label="${escapeHtml(q)}"${off}>${escapeHtml(item.researchQuestion ?? "")}</textarea></label></div>`;
   return `<div class="fc fr">${state}${ready}</div>${question}`;
 }
 
 function itemRow(item: FutureItem, i: number, t: BoardStrings, canEdit: boolean): string {
   const off = canEdit ? "" : " disabled";
-  const g = (f: string): boolean => item.guessed.includes(f as never);
   const score = ft(t, "scoreTip").replace("{score}", () => String(scoreOf(item)));
   const blocker =
     item.group === "not-feasible"
       ? `<div class="fb" ${tip(t, "blockerRow")}><span class="k" ${tip(t, "blockerRow")}>${escapeHtml(ft(t, "blocker"))}</span> <span>${escapeHtml(item.blocker ?? ft(t, "noBlocker"))}</span> <button class="sec" data-fblock="${i}"${off} ${tip(t, "editBlocker")}>${escapeHtml(ft(t, "editBlocker"))}</button></div>`
       : "";
-  const controls = [
-    importanceControl(t, i, item, off),
-    control(t, i, "wow", ["1", "2", "3", "4", "5"], String(item.wow), g("wow"), off, (v) => v, "\u2728"),
-    control(t, i, "reach", REACHES, item.reach, g("reach"), off, (v) => ft(t, "reach." + v), "\u{1F465}"),
-    control(t, i, "effort", EFFORTS, item.effort, g("effort"), off, (v) => v, "\u23F1\uFE0F"),
-    control(t, i, "risk", RISKS, item.risk, g("risk"), off, (v) => ft(t, "risk." + v), "\u26A0\uFE0F"),
-  ].join("");
-  return `<div class="fut" data-fut="${i}" ${tip(t, "futureRow")}><div class="fl"><span class="tag" ${tip(t, "project", { name: item.projectName })}>${escapeHtml(item.projectName)}</span><span class="f">${docLink(item.title, item.path, `data-fopen="${i}"`)}</span><span class="pill" title="${escapeHtml(score)}">${escapeHtml(String(scoreOf(item)))}</span></div><div class="fc">${controls}</div>${researchRow(item, i, t, off)}${blocker}</div>`;
+  return `<div class="fut" data-fut="${i}" ${tip(t, "futureRow")}><div class="fl"><span class="tag" ${tip(t, "project", { name: item.projectName })}>${escapeHtml(item.projectName)}</span><span class="f">${docLink(item.title, item.path, `data-fopen="${i}"`)}</span><span class="pill" title="${escapeHtml(score)}">${escapeHtml(String(scoreOf(item)))}</span>${importancePill(t, item)}${futureKebab(t, i, item, canEdit)}</div>${researchRow(item, i, t, off)}${blocker}</div>`;
 }
 
 // The research summary and the hand-off button; empty when no document has a research state.
@@ -115,9 +140,8 @@ function researchBar(view: FutureView, t: BoardStrings): string {
   if (c.needed > 0) {
     const { batch, queued } = researchQueue(view.items, view.sort, view.researchParallel);
     const label = queued > 0 ? ft(t, "handBatch").replace("{batch}", () => String(batch.length)).replace("{queued}", () => String(queued)) : num("handAll", batch.length);
-    const off = view.canEdit && view.handEnabled ? "" : " disabled";
-    const handTip = view.handEnabled ? ft(t, "handTip") : ft(t, "handOffTip");
-    button = ` <button data-fhand title="${escapeHtml(handTip)}"${off}>${pillify(t, escapeHtml(label))}</button>`;
+    const off = view.canEdit ? "" : " disabled";
+    button = ` <button data-fhand title="${escapeHtml(ft(t, "handTip"))}"${off}>${pillify(t, escapeHtml(label))}</button>`;
   }
   return `<div class="fresearch"><span ${tip(t, "researchCounts")}>${pillify(t, escapeHtml(parts.join(" \u00b7 ")))}</span>${button}</div>`;
 }
@@ -148,5 +172,5 @@ export function futurePanel(view: FutureView | undefined, t: BoardStrings): stri
       return collapsible({ t, id: "future:" + g.group, cls: "box fg", level: 3, tipAttr: tip(t, "futureGroup", { name: label(g.group) }), head: `${escapeHtml(label(g.group))} ${pill(t, g.entries.length, "count", { count: g.entries.length })}`, body: g.entries.map((e) => itemRow(e.item, e.i, t, view.canEdit)).join(""), open: g.entries.length <= 25 });
     })
     .join("");
-  return `<section id="tab-future" role="tabpanel" aria-labelledby="tb-future" aria-label="${escapeHtml(ft(t, "tab").replace("{count}", () => String(view.items.length)))}" hidden><h2 ${tip(t, "futureHeading")}>${sectionIcon(t, "future")}${escapeHtml(ft(t, "heading"))}</h2><p class="note">${escapeHtml(ft(t, "note"))}</p><div class="fsort">${sort}</div>${researchBar(view, t)}${groups}${outsideBox(view, t)}</section>`;
+  return `<section id="tab-future" role="tabpanel" aria-labelledby="tb-future" aria-label="${escapeHtml(ft(t, "tab").replace("{count}", () => countText(view)))}" hidden><h2 ${tip(t, "futureHeading")}>${sectionIcon(t, "future")}${escapeHtml(ft(t, "heading"))} <span class="qm" tabindex="0" role="note" aria-describedby="qm-fut" title="${escapeHtml(ft(t, "note"))}" data-tip="${escapeHtml(ft(t, "note"))}">?</span><span id="qm-fut" hidden>${escapeHtml(ft(t, "note"))}</span></h2><div class="fsort">${sort}</div>${view.cut === true ? `<p class="note">${escapeHtml(ft(t, "cutNote").replace("{count}", () => String(view.items.length)))}</p>` : ""}${researchBar(view, t)}${groups}${outsideBox(view, t)}</section>`;
 }

@@ -6,6 +6,8 @@ export interface BoardStrings {
   // Labels of the Projects and Settings buttons, the hint, the roll-up and the grey rows,
   // keyed by name (see boardHtmlProjects.ts). Optional: a plain-browser check may omit them.
   projectLabels?: Record<string, string>;
+  // The AI hand-off drawer, its menu items and the selection line; the key itself shows when a label is missing.
+  handoffLabels?: Record<string, string>;
   // Text of the keyword line and the options menu entry (see keywordMark.ts). `edit` is empty
   // when the keyword editor is switched off.
   keywordLabels?: Record<string, string>;
@@ -18,7 +20,6 @@ export interface BoardStrings {
   resolveNow: string;
   workOn: string;
   inProgress: string;
-  nothingHere: string;
   more: string;
   blocked: string;
   refresh: string;
@@ -106,9 +107,6 @@ export interface BoardStrings {
   sittingsUntaggedNote: string;
   // "{count}" minutes a step is thought to take.
   stepMinutes: string;
-  // Label of the Hand to chat button; empty when the feature is off (no button is drawn).
-  handToChat: string;
-  handToChatTip: string;
   tidyHeading: string;
   // "{days}" days without a change.
   tidyNote: string;
@@ -161,8 +159,8 @@ export interface BoardStrings {
   polish: Record<string, string>;
 }
 
-// Small helpers shared by every part of the page: escaping, placeholder filling and the
-// Hand to chat button.
+// Small helpers shared by every part of the page: escaping, placeholder filling and
+// title attributes.
 
 // Escapes text for HTML. Every piece of untrusted text goes through this before it is placed in the page.
 export function escapeHtml(s: string): string {
@@ -175,11 +173,6 @@ export function liveLine(f: LiveFile, t: BoardStrings): string {
   const raw = (tmpl: string, c: { errors: number; warnings: number; crashes?: number }): string => tmpl.replace(/\{(\w+)\}/g, (m, k: string) => String(v(c)[k] ?? m));
   const bits = [f.logs ? raw(t.liveLogs, f.logs) : "", f.problems ? raw(t.liveProblems, f.problems) : "", f.lints ? raw(t.liveLints, f.lints) : ""].filter(Boolean);
   return `${f.file}: ${bits.join("; ")}`;
-}
-
-// The Hand to chat button. It carries only indexes; the host builds the prompt from the model it rendered.
-export function handButton(t: BoardStrings, attrs: string): string {
-  return t.handToChat ? `<button class="hb sec" ${attrs} title="${escapeHtml(t.handToChatTip)}">${escapeHtml(t.handToChat)}</button>` : "";
 }
 
 // One word or sentence of the control and tooltip table, with {name} placeholders filled in.
@@ -195,7 +188,7 @@ export function tip(t: BoardStrings, key: string, vars: Record<string, string | 
   return `title="${escapeHtml(pl(t, key, vars))}"`;
 }
 
-// A title attribute from plain text, escaped.
+// A title attribute from plain text, escaped. Never shortened: the full text is the hover.
 export function titleAttr(text: string): string {
   return `title="${escapeHtml(text)}"`;
 }
@@ -206,9 +199,9 @@ export function glyphTip(t: BoardStrings, look: string, text: string): string {
 }
 
 // A document the page can open: an underlined link whose tooltip is the document's path inside
-// its project. It carries only an index (`attr`, e.g. data-id="3"); the host resolves it.
+// its project (full name first, so a name cut by the ellipsis stays readable). It carries only an index (`attr`, e.g. data-id="3"); the host resolves it.
 export function docLink(text: string, path: string, attr: string): string {
-  return `<a class="doc" href="#" ${attr} ${titleAttr(path)}>${escapeHtml(text)}</a>`;
+  return `<a class="doc" href="#" ${attr} title="${escapeHtml(path ? `${text}\n${path}` : text)}">${escapeHtml(text)}</a>`;
 }
 
 // Fills {name} placeholders after escaping, so a document title can never add markup. Values in
@@ -297,10 +290,10 @@ export function sectionIcon(t: BoardStrings, id: string): string {
 
 // A section the reader can fold: a details element whose summary holds the heading. Native
 // details gives keyboard support and the expanded state; the page script remembers it per
-// viewer under `id`. Expanded unless `open` is false.
-export function collapsible(o: { t: BoardStrings; id: string; head: string; body: string; tipAttr: string; cls?: string; domId?: string; level?: 2 | 3; open?: boolean; attrs?: string }): string {
+// viewer under `sec` (default `id`, which also picks the icon). Expanded unless `open` is false.
+export function collapsible(o: { t: BoardStrings; id: string; head: string; body: string; tipAttr: string; cls?: string; domId?: string; level?: 2 | 3; open?: boolean; attrs?: string; sec?: string }): string {
   const h = o.level === 3 ? "h3" : "h2";
-  return `<details class="${o.cls ?? "box"}"${o.domId ? ` id="${o.domId}"` : ""} data-sec="${escapeHtml(o.id)}"${o.open === false ? "" : " open"}${o.attrs ?? ""}><summary class="sh" ${o.tipAttr}><${h} ${o.tipAttr}>${sectionIcon(o.t, o.id)}${o.head}</${h}></summary>${o.body}</details>`;
+  return `<details class="${o.cls ?? "box"}"${o.domId ? ` id="${o.domId}"` : ""} data-sec="${escapeHtml(o.sec ?? o.id)}"${o.open === false ? "" : " open"}${o.attrs ?? ""}><summary class="sh" ${o.tipAttr}><${h} ${o.tipAttr}>${sectionIcon(o.t, o.id)}${o.head}</${h}></summary>${o.body}</details>`;
 }
 
 // Like fill, for page text: a number among the values goes in as a pill.

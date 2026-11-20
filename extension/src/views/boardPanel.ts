@@ -1,45 +1,43 @@
 import * as vscode from "vscode";
 import { acceptBoardRun, enableDailyReport, openRulesFile, runHealthNow } from "../commands/releaseBoardCommands";
 import { l10n } from "../i18n/l10n";
+import { SHARED_FILE, clearSharedRejected } from "../commands/boardMarks";
 import { moveToArchive } from "../commands/boardTidy";
 import { findNewestReportUri } from "../commands/boardRecipeEvidence";
 import { startBugDocument } from "../commands/boardLive";
 import { chooseColumn, parsePlacement } from "../board/placement";
 import { currentBoard } from "./boardFeed";
-import { applySuggestion, handToChat, openDocument, openExternalLink, openSittingsLine, saveSitting, setBoardColumnSource, documentColumn } from "./boardPanelActions";
-import { BoardPanelWiring } from "./boardPanelWiring";
-import { editBlocker, readFutureSettings, setFutureField, setResearchQuestion } from "../commands/boardFuture";
-import { handResearch, markReviewed } from "../commands/boardFutureResearch";
-import { assignFolderRule, backToAutomatic, changeDocSeverity, changeDocStatus, previewFolder } from "../commands/boardRuleAssign";
-import { researchQueue } from "../board/futureResearch";
-import { busyReason } from "./boardBusy";
-import { openKeywordEditor } from "./keywordEditorPanel";
+import { markSeenNow } from "./boardSinceLast";
+import { PLACEMENT_KEY, applySuggestion, closeFailedOpen, rememberColumn, rejectProposals, undoRejected, openDocument, openExternalLink, openSittingsLine, saveSitting, documentColumn } from "./boardPanelActions";
+import { BoardPanelFuture } from "./boardPanelFuture";
+import { cardRows } from "../board/boardHtmlGroups";
+import { ganttRows } from "../board/boardHtmlGantt";
+import { pl } from "../board/boardHtmlUtil";
+import { strings } from "./boardStrings";
+import type { BoardItem } from "../board/boardModel";
+import { openTagsEditor } from "./tagsEditorPanel";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
+import { handoffAct, handoffDoc, openMessage, parseRequest, scopeOfMenu } from "./boardHandoff";
+import { readGanttLayout, writeGanttLayout, writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
+import { GROUP_BYS, asGanttLayout } from "../board/types";
 import { chooseProjects, openBoardSettings } from "./boardProjectsFlow";
-import { FUTURE_SORTS, FutureItem, FutureSort, blockKeyOf, foldersFor, isFieldValue } from "../board/futureList";
+import { FUTURE_SORTS, FutureSort } from "../board/futureList";
 
 // The Release Board first screen, an editor-tab webview. One instance: opening it again
 // reveals it and rescans. The page is static HTML under a strict CSP; its only messages
 // are "refresh", "accept", "profile", "suggest", "rules", "open <id>", "external <group,
-// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "hand <kind, index>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "assign <index>", "preview <index>", "keywords" and "keywordsRestore", and the host resolves each id or index against the model it rendered, so the page
+// item>", "path <project, step>", "tidy <index>", "liveBug <index>", "handoff <scope, indexes, task, format>", "linksOpen <low>", "linksNot <index>", "linksUnreject", "handoffAct <act, scope, indexes, task, format>", "scopeMenu <entry, scope>", "futureSet <index, field, value>", "futureBlocker <index>", "futureQuestion <index, value>", "futureReviewed <index>", "futureHand", "futureOpen <index>", "futureSort <value>", "startup <boolean>", "scope <all or openOnly>", "assign <index>", "preview <index>", "keywords", "keywordsRestore" and "chatPoll", and the host resolves each id or index against the model it rendered, so the page
 // can never name an arbitrary path or address.
 
 let current: BoardPanel | undefined;
-const PLACEMENT_KEY = "saropaWorkspace.releaseBoard.column";
-
-class BoardPanel extends BoardPanelWiring {
+class BoardPanel extends BoardPanelFuture {
   // Run buttons in flight (project:kind) and a review dialog that is open: a second click is ignored.
   private readonly starting = new Set<string>();
   private reviewing = false;
-  // A Future tab edit (with its dialogs) is under way: a second one is ignored.
-  private editing = false;
   // A tidy move (with its confirmation) is under way: a second click is ignored.
   private moving = false;
-  // A rule is being assigned to a folder (with its dialogs): a second click is ignored.
-  private assigning = false;
-
   protected onClosed(): void {
     current = undefined;
   }
@@ -50,8 +48,10 @@ class BoardPanel extends BoardPanelWiring {
     }
     const msg = message as { type?: string; id?: number; rev?: number; value?: string; key?: string };
     if (msg.rev !== this.rev) {
-      if (msg.type === "hand") {
-        void vscode.window.showInformationMessage(l10n("releaseBoard.handToChat.stale"));
+      if (msg.type === "handoff" || msg.type === "handoffAct") {
+        void vscode.window.showInformationMessage(l10n("releaseBoard.handoff.stale"));
+      } else if (msg.type === "drop") {
+        void vscode.window.showInformationMessage(l10n("releaseBoard.drop.stale"));
       }
       return;
     }
@@ -72,11 +72,38 @@ class BoardPanel extends BoardPanelWiring {
       this.render(this.cached ? { stale: true } : {});
     } else if (msg.type === "step" && typeof (message as { i?: unknown }).i === "number") {
       await openSittingsLine(this.model, this.run, (message as { i: number }).i);
-    } else if (msg.type === "hand") {
-      await handToChat(this.model, this.paths, this.run, message as { k?: unknown; i?: unknown; p?: unknown; s?: unknown });
+    } else if (msg.type === "handoff" || msg.type === "handoffAct") {
+      const req = parseRequest(message as Record<string, unknown>);
+      if (req && msg.type === "handoff") {
+        handoffDoc(this.post, this.model, this.run, req);
+      } else if (req) {
+        await handoffAct(this.post, this.model, this.run, req, (message as { act?: unknown }).act);
+      }
+    } else if (msg.type === "scopeMenu" && ["hand", "tags", "ask", "order"].includes((message as { act?: unknown }).act as string) && typeof (message as { id?: unknown }).id === "string") {
+      const at = scopeOfMenu((message as { id: string }).id);
+      if (at && ((message as { act?: unknown }).act === "ask" || (message as { act?: unknown }).act === "order")) {
+        // Only a project menu asks; a group heading has no such entry.
+        if (at.scope === "project") {
+          await ((message as { act?: unknown }).act === "ask" ? this.askBlockers(at.i, true) : this.askOrder(at.i, "again"));
+        }
+      } else if (at && (message as { act?: unknown }).act === "tags") {
+        await this.tagsRules(this.scopeItems(at.scope, at.i));
+      } else if (at) {
+        this.post(openMessage(at.scope, at.i));
+      }
     } else {
       await this.onActionMessage(message as Record<string, unknown>);
     }
+  }
+
+  // Draws the rows of a closed card or a "Show more" with the row renderer of the page and sends them back.
+  // It always replies, with an empty result when there is nothing to draw, so the page never waits.
+  private sendRows(id: string, by: unknown, from: number): void {
+    const model = this.model;
+    const t = strings();
+    const valid = by === "group" || by === "status" || by === "severity" || by === "gantt";
+    const out = !model || !valid ? undefined : by === "gantt" ? ganttRows(model, t, this.since, id, from, readGanttLayout()) : cardRows(model, by, id, from, new Map(model.projects.map((p) => [p.id, p.name])), t);
+    void this.panel.webview.postMessage({ type: "rows", id, by: typeof by === "string" ? by : "", from, html: out ? out.html : "", label: out ? pl(t, "rowsShown", { count: out.count }) : "", rev: this.rev });
   }
 
   private async onActionMessage(message: Record<string, unknown>): Promise<void> {
@@ -100,18 +127,78 @@ class BoardPanel extends BoardPanelWiring {
       await this.noRule(message.type, message.i);
     } else if (message.type === "projects" || message.type === "boardSettings" || message.type === "hintDismiss") {
       await this.projectsMessage(message.type);
+    } else if (message.type === "groupBy" && GROUP_BYS.some((g) => g === message.value)) {
+      // The setting change draws the board again through the configuration listener.
+      await writeGroupBy(GROUP_BYS.find((g) => g === message.value)!);
+    } else if (message.type === "ganttLayout" && asGanttLayout(message.value) !== undefined) {
+      await writeGanttLayout(asGanttLayout(message.value)!);
+    } else if (message.type === "scope" && (message.value === "all" || message.value === "openOnly")) {
+      await writeProjectScope(message.value);
+    } else if (message.type === "rows" && typeof message.id === "string" && message.id.length <= 1000 && typeof message.from === "number") {
+      this.sendRows(message.id, message.by, message.from);
+    } else if (message.type === "chatPoll") {
+      this.chats.toggle();
+    } else if (message.type === "drop") {
+      await this.drop(message);
+    } else if (message.type === "blockersAsk" && Number.isInteger(message.p)) {
+      await this.askBlockers(message.p as number, false);
+    } else if (message.type === "orderAsk" && Number.isInteger(message.p)) {
+      await this.askOrder(message.p as number, "batch");
     } else if (message.type === "rowMenu" && typeof message.id === "number" && typeof message.act === "string") {
       await this.rowMenu(message.act, message.id);
     } else if (message.type === "optsMenu" && typeof message.act === "string") {
       await this.optsMenu(message.act);
     } else if (message.type === "keywords" || message.type === "keywordsRestore") {
       await this.keywords(message.type === "keywordsRestore");
+    } else if (message.type === "patchRead" && typeof message.text === "string") {
+      this.patches.read(message.text, "paste");
+    } else if (message.type === "patchOpen") {
+      this.patches.open();
+    } else if (message.type === "patchApply" && Array.isArray(message.ids)) {
+      await this.patchApply(message.ids.filter((x): x is number => Number.isInteger(x)));
+    } else if (message.type === "linksOpen") {
+      this.patches.readLinks(message.low === true);
+    } else if (message.type === "linksNot" && Number.isInteger(message.i)) {
+      // One proposal turned down; the list is drawn again from the board once the mark is saved.
+      const key = this.patches.rejectedKey(message.i as number);
+      if (key) {
+        this.patches.lastRejected = await rejectProposals(this.context, [key]);
+      }
+    } else if (message.type === "linksUnreject") {
+      // Only what the last Reject added; the shared file's rejections are cleared on their own, with a confirmation.
+      const keys = this.patches.lastRejected;
+      this.patches.lastRejected = [];
+      await undoRejected(this.context, keys);
+      this.patches.reshowLinks();
+    } else if (message.type === "linksClearShared") {
+      const yes = l10n("releaseBoard.sharedRejectedYes");
+      if ((await vscode.window.showWarningMessage(l10n("releaseBoard.sharedRejectedConfirm", { file: SHARED_FILE }), { modal: true }, yes)) === yes) {
+        await clearSharedRejected();
+      }
+    } else if (message.type === "patchReject") {
+      // For the proposed links the unticked rows are remembered as rejected; the ticked ones stay proposed.
+      const keys = this.patches.rejectedKeys(Array.isArray(message.ids) ? message.ids.filter((x): x is number => Number.isInteger(x)) : []);
+      this.patches.clear();
+      this.post({ type: "patchDone", applied: 0, skipped: 0 });
+      if (keys.length > 0) {
+        this.patches.lastRejected = await rejectProposals(this.context, keys);
+        this.dirty = true;
+        await this.refresh();
+      }
+    } else if (message.type === "undoDismiss") {
+      clearTimeout(this.undo?.timer);
+      this.undo = undefined;
+      this.post({ type: "undoOff" });
+    } else if (message.type === "undo") {
+      await this.undoChange();
     } else if (message.type === "startup") {
       await this.startup(message.value);
     } else if (message.type === "rules") {
       await openRulesFile(undefined, documentColumn());
     } else if (message.type === "accept") {
       await this.accept();
+    } else if (message.type === "sinceDismiss") {
+      markSeenNow(this.model);
     } else if (message.type === "open" && typeof message.id === "number") {
       await this.openItem(message.id);
     } else if (message.type === "path" && typeof message.p === "number" && typeof message.s === "number") {
@@ -142,90 +229,6 @@ class BoardPanel extends BoardPanelWiring {
     if (!ok) {
       this.lastKey = "";
       this.render(this.scanning ? { loading: true } : this.cached ? { stale: true } : {});
-    }
-  }
-
-  // The listed document and its project folder for an index the page sent; the index is
-  // resolved against the Future list this panel painted, never a path from the page.
-  private futureTarget(i: unknown): { item: FutureItem; root: vscode.Uri } | undefined {
-    const item = typeof i === "number" ? this.futureShown[i] : undefined;
-    const def = this.run?.cfg.projects.find((p) => p.id === item?.project);
-    return item && def ? { item, root: vscode.Uri.parse(def.path) } : undefined;
-  }
-
-  // Sets one flag or characteristic, or the blocker line, of a listed document. The page is
-  // painted again afterwards whatever the outcome, so its controls show what the file holds.
-  private async futureEdit(message: Record<string, unknown>): Promise<void> {
-    const target = this.futureTarget(message.i);
-    const field = typeof message.field === "string" ? message.field : "";
-    const key = blockKeyOf(field);
-    if (!target || this.cached || this.editing) {
-      return;
-    }
-    this.editing = true;
-    try {
-      if (message.type === "futureBlocker") {
-        await editBlocker(target.root, target.item);
-      } else if (message.type === "futureQuestion") {
-        if (typeof message.value === "string") {
-          await setResearchQuestion(target.root, target.item, message.value);
-        }
-      } else if (message.type === "futureReviewed") {
-        if (target.item.research === "ready") {
-          await markReviewed(target.root, target.item);
-        }
-      } else if (key && isFieldValue(field, message.value)) {
-        await setFutureField(target.root, target.item, key, message.value, this.run ? foldersFor(this.run.cfg, target.item.project) : undefined);
-      }
-    } catch (e) {
-      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-    } finally {
-      this.editing = false;
-    }
-    this.lastKey = "";
-    this.dirty = true;
-    await this.refreshFuture();
-  }
-
-  // Hands the next batch of flagged documents to a chat, one prompt each. The batch is
-  // chosen here from the list this panel painted and the setting, never from the page.
-  private async futureHand(): Promise<void> {
-    const run = this.run;
-    if (!run || this.cached || this.editing || this.scanning) {
-      return;
-    }
-    this.editing = true;
-    try {
-      const sort = this.futureSort ?? readFutureSettings().defaultSort;
-      const { batch, queued } = researchQueue(this.futureShown, sort, readFutureSettings().researchParallel);
-      const entries = batch.flatMap((i) => {
-        const item = this.futureShown[i];
-        const def = run.cfg.projects.find((p) => p.id === item.project);
-        return def ? [{ item, root: vscode.Uri.parse(def.path) }] : [];
-      });
-      const done = await handResearch(entries);
-      if (done.handed > 0) {
-        void vscode.window.showInformationMessage(l10n(queued > 0 ? "releaseBoard.future.research.handedQueued" : "releaseBoard.future.research.handed", { count: done.handed, queued }));
-      }
-    } catch (e) {
-      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-    } finally {
-      this.editing = false;
-    }
-    this.lastKey = "";
-    this.dirty = true;
-    await this.refreshFuture();
-  }
-
-  // Opens a listed document (a deferred one by index, a read-only one by outside index).
-  private async futureOpen(message: Record<string, unknown>): Promise<void> {
-    const item = typeof message.i === "number" ? this.futureShown[message.i] : undefined;
-    const outside = typeof message.o === "number" ? this.futureOutsideShown[message.o] : undefined;
-    const hit = item ?? outside;
-    const def = this.run?.cfg.projects.find((p) => p.id === hit?.project);
-    if (hit && def) {
-      const pos = outside ? new vscode.Position(Math.max(0, outside.line - 1), 0) : undefined;
-      await openDocument(vscode.Uri.joinPath(vscode.Uri.parse(def.path), hit.path), pos ? new vscode.Range(pos, pos) : undefined);
     }
   }
 
@@ -264,93 +267,32 @@ class BoardPanel extends BoardPanelWiring {
     }
   }
 
-  // A folder row of "Documents with no rule". The index is resolved against the list this panel
-  // rendered. Assigning asks for a category and a confirmation before the rules file is written,
-  // then scans again; a preview only reports.
-  private async noRule(kind: "assign" | "preview", i: number): Promise<void> {
-    const entry = this.model?.needsRule[i];
-    const run = this.run;
-    if (!entry || !run) {
-      return;
-    }
-    const busy = this.busyReason();
-    if (busy) {
-      void vscode.window.showInformationMessage(l10n(busy));
-      return;
-    }
-    if (kind === "preview") {
-      previewFolder(run, entry);
-      return;
-    }
-    this.assigning = true;
-    try {
-      if (await assignFolderRule(run, entry)) {
-        this.dirty = true;
-        await this.refresh();
-      }
-    } catch (e) {
-      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-    } finally {
-      this.assigning = false;
-    }
-  }
-
-  private busyReason(): string | undefined {
-    return busyReason({ assigning: this.assigning, scanning: this.scanning, cached: this.cached });
-  }
-
-  // An entry of the menu on a document row. The page sent the entry name and the item's index;
-  // the document is the one this panel painted at that index.
-  private async rowMenu(act: string, id: number): Promise<void> {
-    const item = this.model?.items[id];
-    const run = this.run;
-    if (!item || !run) {
-      return;
-    }
-    const folder = item.path.includes("/") ? item.path.slice(0, item.path.lastIndexOf("/")) : "";
-    if (act === "open") {
-      await this.openItem(id);
-    } else if (act === "hand") {
-      await handToChat(this.model, this.paths, run, { k: "item", i: id });
-    } else if (act === "rules") {
-      await openRulesFile({ project: item.project, folder }, documentColumn());
-    } else if (act === "status" || act === "assign" || act === "severity" || act === "auto") {
-      const busy = this.busyReason();
-      if (busy) {
-        void vscode.window.showInformationMessage(l10n(busy));
-        return;
-      }
-      this.assigning = true;
-      try {
-        const wrote =
-          act === "status"
-            ? await changeDocStatus(run, item)
-            : act === "severity"
-              ? await changeDocSeverity(run, item)
-              : act === "auto"
-                ? await backToAutomatic(run, item)
-                : await assignFolderRule(run, { project: item.project, folder, count: 1 }, true);
-        if (wrote) {
-          this.dirty = true;
-          await this.refresh();
-        }
-      } catch (e) {
-        void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
-      } finally {
-        this.assigning = false;
-      }
-    }
-  }
 
   // An entry of the board options menu.
   private async optsMenu(act: string): Promise<void> {
     if (act === "rules") {
       await openRulesFile(undefined, documentColumn());
+    } else if (act === "handBoard") {
+      this.post(openMessage("board"));
+    } else if (act === "organize") {
+      this.post({ ...openMessage("board"), task: "organize" });
+    } else if (act === "bringBack") {
+      this.post({ type: "handoffBack" });
     } else if (act === "keywords") {
       await this.keywords(false);
+    } else if (act === "tagsRules") {
+      await this.tagsRules();
     } else if (act === "projects" || act === "settings") {
       await this.projectsMessage(act === "settings" ? "boardSettings" : "projects");
     }
+  }
+
+  // The Tags and rules editor. It gets the model this panel painted; nothing the page names is trusted.
+  // The documents of a project or group heading ("group": the group the item at `i` is in).
+  private scopeItems(scope: string, i: number): BoardItem[] {
+    const items = this.model?.items ?? [];
+    const at = items[i];
+    return !at ? [] : scope === "group" ? items.filter((x) => x.project === at.project && x.group === at.group) : items.filter((x) => x.project === at.project);
   }
 
   // The keyword editor, or Restore defaults. Both change what every document's severity is, and so
@@ -369,17 +311,17 @@ class BoardPanel extends BoardPanelWiring {
     }
     const busy = this.busyReason();
     if (busy) {
-      void vscode.window.showInformationMessage(l10n(busy));
+      void vscode.window.showInformationMessage(this.busyText(busy));
+      return;
+    }
+    if (!restore) {
+      await openTagsEditor({ ...this.editorInput(run, model), tab: "severity" });
       return;
     }
     const onSaved = async (): Promise<void> => {
       this.dirty = true;
       await this.refresh();
     };
-    if (!restore) {
-      await openKeywordEditor({ cfg: run.cfg, items: model.items, projectNames: new Map(model.projects.map((p) => [p.id, p.name])), profile: model.profile, onSaved });
-      return;
-    }
     this.assigning = true;
     try {
       if ((await saveSeverity({ kind: "restore" })) === "saved") {
@@ -416,14 +358,6 @@ class BoardPanel extends BoardPanelWiring {
     } else {
       void vscode.window.showWarningMessage(l10n("releaseBoard.acceptStale"));
       await this.refresh();
-    }
-  }
-
-  private async openItem(id: number): Promise<void> {
-    const item = this.model?.items[id];
-    const project = this.run?.cfg.projects.find((p) => p.id === item?.project);
-    if (item && project) {
-      await openDocument(vscode.Uri.joinPath(vscode.Uri.parse(project.path), item.path));
     }
   }
 
@@ -525,22 +459,15 @@ export async function openBoard(context: vscode.ExtensionContext, background = f
     { viewColumn: column, preserveFocus: background },
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [] }
   );
-  // Remember where the tab is, also after the user drags it to another group.
-  let lastColumn = panel.viewColumn;
-  const remember = (): void => {
-    if (panel.viewColumn !== undefined) {
-      lastColumn = panel.viewColumn;
-      void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
-    }
-  };
-  remember();
-  panel.onDidChangeViewState(remember);
-  setBoardColumnSource(() => panel.viewColumn);
-  panel.onDidDispose(() => {
-    setBoardColumnSource(() => undefined);
-    void context.workspaceState.update(PLACEMENT_KEY, lastColumn);
-  });
-  current = new BoardPanel(context, panel);
+  // Anything that fails while the tab is set up closes it again: no blank tab is left behind.
+  try {
+    rememberColumn(context, panel);
+    current = new BoardPanel(context, panel);
+  } catch (e) {
+    current = undefined;
+    closeFailedOpen(panel, e, background);
+    return;
+  }
   const fresh = background ? currentBoard() : undefined;
   if (fresh) {
     current.seed(fresh.run);
