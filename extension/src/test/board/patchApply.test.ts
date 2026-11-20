@@ -68,9 +68,16 @@ test("setDocGroup: the document leaves its old group, and the other entries of t
   ]);
 });
 
-test("setDocGroup: a group this change empties is dropped", () => {
+test("setDocGroup: a group this change empties stays, as when the board moves the document", () => {
   const text = file({ groups: [{ name: "A", match: [ENTRY] }] });
-  assert.deepEqual(groupsOf(setDocGroup(text, { ...GROUP, group: "B" })), [{ name: "B", match: [ENTRY] }]);
+  assert.deepEqual(groupsOf(setDocGroup(text, { ...GROUP, group: "B" })), [{ name: "A", match: [] }, { name: "B", match: [ENTRY] }]);
+});
+
+test("setDocGroup: a document listed in ungrouped is taken out of that list when it gets a group", () => {
+  const text = file({ ungrouped: [ENTRY, "app/x.md"] });
+  const doc = JSON.parse(textOf(setDocGroup(text, GROUP))) as { ungrouped?: string[]; groups?: unknown };
+  assert.deepEqual(doc.ungrouped, ["app/x.md"]);
+  assert.deepEqual(doc.groups, [{ name: "Launch", match: [ENTRY] }]);
 });
 
 test("setDocGroup: a group the owner left with an empty list stays", () => {
@@ -79,9 +86,9 @@ test("setDocGroup: a group the owner left with an empty list stays", () => {
   assert.deepEqual(groupsOf(setDocGroup(text, GROUP)), [{ name: "Empty", match: [] }, { name: "Launch", match: [ENTRY] }]);
 });
 
-test("setDocGroup: moving a document into the group that is its only holder keeps that group", () => {
+test("setDocGroup: moving a document into the group it is already in is refused as nothing to change", () => {
   const text = file({ groups: [{ name: "Launch", match: [ENTRY] }] });
-  assert.deepEqual(groupsOf(setDocGroup(text, GROUP)), [{ name: "Launch", match: [ENTRY] }]);
+  assert.equal(reasonOf(setDocGroup(text, GROUP)), "none");
 });
 
 test("setDocGroup: an earlier group whose pattern still claims the document makes the change refused as shadowed", () => {

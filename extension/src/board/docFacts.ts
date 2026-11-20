@@ -4,8 +4,9 @@
 // time. Ported from the prototype (scripts/release-board/meta.py).
 
 // Bump when the way facts are read changes, so cached facts from an older reader are dropped.
-export const FACTS_VERSION = 7;
+export const FACTS_VERSION = 8;
 
+import { blankFences } from "./fences";
 import { readFrontMatter } from "./org/frontMatter";
 import { DocStep, headingText, scanSteps } from "./docSteps";
 import { MAX_LINE, needsLineParts, parseNeeds, mapLinks, needsSeparators, needsTargets } from "./docNeeds";
@@ -252,7 +253,7 @@ export function readFacts(fullText: string, path: string, opt: FactsOptions = {}
   const langs = countLangs(fenceLines);
   const codeBlocks = isSql ? 0 : Math.floor(fenceLines.length / 2);
   // A fenced block leaves its line breaks behind, so line numbers still match the file.
-  const body = isSql ? text : text.replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ""));
+  const body = isSql ? text : blankFences(text);
 
   // Line by line, so a long run of blank lines or spaces costs linear time.
   const lines = body.split(/\r\n|[\n\r\u2028\u2029]/);

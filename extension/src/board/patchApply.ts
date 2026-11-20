@@ -1,6 +1,7 @@
-import { globToRegExp } from "./glob";
+import { scanFences } from "./fences";
+import { setDocGroup as boardSetDocGroup } from "./groupEdit";
 import { PatchRow, PatchTarget, cleanText } from "./patch";
-import { AssignRefusal, RuleCategory, addDocRule, docGlob, isObject, parseForEdit, serialize, setDocSeverity } from "./ruleAssign";
+import { AssignRefusal, RuleCategory, addDocRule, docGlob, isObject, parseForEdit, setDocSeverity } from "./ruleAssign";
 import { Severity } from "./severity";
 
 // Turns accepted patch rows into new file text. Pure: the host reads and writes the files and
@@ -8,73 +9,38 @@ import { Severity } from "./severity";
 
 type Edit = { ok: true; text: string } | { ok: false; reason: AssignRefusal | "none" | "shadowed" | "lookalike" | "status" };
 
-// The name of the manual group a document falls into: the first group, in the file's order, with
-// an entry that matches it (the board joins documents to manual groups the same way).
-function groupOfDoc(list: Array<{ name: string; match: unknown[] }>, key: string): string | undefined {
-  for (const g of list) {
-    for (const m of g.match) {
-      try {
-        if (typeof m === "string" && globToRegExp(m).test(key)) {
-          return g.name;
-        }
-      } catch {
-        // An entry that is not a usable glob matches nothing.
-      }
-    }
-  }
-  return undefined;
-}
-
 const foldName = (v: string): string => cleanText(v).toLowerCase();
 
-// Puts one document into the manual group of that name (made when missing) in the rules file
-// text, and takes its entry out of any other group first. Refused when a group of the file has
-// the same name apart from case or hidden characters, and when an earlier group's pattern would
-// still claim the document (the group would not take effect). A group the owner left with an
-// empty list stays; only a group this change emptied is dropped.
+// Puts one document into the manual group of that name, through the same function the board's own
+// group move uses (groupEdit.ts), so an applied reply patch and a drag on the board leave the
+// rules file the same way: an emptied group stays, and the "ungrouped" list is honored. Only
+// what a reply can do and the board cannot is checked here: a group name that differs from an
+// existing one only by case or hidden characters is refused, since the board would show two
+// identical-looking groups.
 export function setDocGroup(text: string | undefined, a: { project: string; path: string; group: string }): Edit {
-  const glob = docGlob(a.path);
-  if (glob === undefined) {
+  // The path alone must be a plain path, as before; the board's version checks "project/path".
+  if (docGlob(a.path) === undefined) {
     return { ok: false, reason: "glob" };
   }
   const parsed = parseForEdit(text);
-  if (!parsed.ok) {
-    return parsed;
-  }
-  const doc = parsed.doc;
-  if (doc.groups !== undefined && !Array.isArray(doc.groups)) {
-    return { ok: false, reason: "shape" };
-  }
-  const groups = (Array.isArray(doc.groups) ? doc.groups : []) as unknown[];
-  if (groups.some((g) => !isObject(g) || typeof g.name !== "string" || !Array.isArray(g.match))) {
-    return { ok: false, reason: "shape" };
-  }
-  const entry = `${a.project}/${glob}`;
-  const list = groups as Array<{ name: string; match: unknown[] }>;
-  if (list.some((g) => g.name !== a.group && foldName(g.name) === foldName(a.group))) {
-    return { ok: false, reason: "lookalike" };
-  }
-  const emptied = new Set<unknown>();
-  for (const g of list) {
-    const kept = g.match.filter((m) => m !== entry);
-    if (kept.length === 0 && g.match.length > 0) {
-      emptied.add(g);
+  if (parsed.ok && Array.isArray(parsed.doc.groups)) {
+    // A reply may not touch a file whose groups are malformed (the board's own edit is laxer).
+    const list: unknown[] = parsed.doc.groups;
+    if (list.some((g) => !isObject(g) || typeof g.name !== "string" || !Array.isArray(g.match))) {
+      return { ok: false, reason: "shape" };
     }
-    g.match = kept;
+    const names = list.map((g) => (g as { name: string }).name);
+    if (names.some((n) => n !== a.group && foldName(n) === foldName(a.group))) {
+      return { ok: false, reason: "lookalike" };
+    }
   }
-  const target = list.find((g) => g.name === a.group);
-  if (target) {
-    target.match.push(entry);
-    emptied.delete(target);
-  } else {
-    list.push({ name: a.group, match: [entry] });
+  const r = boardSetDocGroup(text, a);
+  if (r.ok) {
+    return r;
   }
-  const next = list.filter((g) => !emptied.has(g));
-  if (groupOfDoc(next, entry) !== a.group) {
-    return { ok: false, reason: "shadowed" };
-  }
-  doc.groups = next;
-  return { ok: true, text: serialize(parsed) };
+  // Reasons the patch messages have no text for map to the nearest one they do have: another
+  // rule still decides the document, or the change would be a no-op.
+  return { ok: false, reason: r.reason === "claimed" ? "shadowed" : r.reason === "same" ? "none" : r.reason };
 }
 
 // The row's change as new rules file text: a status rule, a severity entry or a group entry.
@@ -118,30 +84,8 @@ function splitParts(body: string): string[] {
 
 const bodyOf = (line: string): string => line.replace(/\r?\n$/, "");
 
-// The text as lines that keep their own endings, and which lines sit in a fenced code block
-// (``` or ~~~, the fence lines included).
-function scanLines(text: string): { lines: string[]; fenced: boolean[] } {
-  const lines = text.split(/(?<=\n)/);
-  const fenced: boolean[] = [];
-  let open: { ch: string; n: number } | undefined;
-  for (const line of lines) {
-    const body = bodyOf(line);
-    const f = body.length <= MAX_LINE ? /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(body) : null;
-    if (!open) {
-      const starts = f !== null && !(f[1][0] === "`" && f[2].includes("`"));
-      fenced.push(starts);
-      if (starts && f) {
-        open = { ch: f[1][0], n: f[1].length };
-      }
-    } else {
-      fenced.push(true);
-      if (f && f[1][0] === open.ch && f[1].length >= open.n && f[2].trim() === "") {
-        open = undefined;
-      }
-    }
-  }
-  return { lines, fenced };
-}
+// Fence detection lives in fences.ts so this writer and the Needs readers agree on what is code.
+const scanLines = scanFences;
 
 // The line of the first Needs line outside code fences, or -1.
 function needsAt(scan: { lines: string[]; fenced: boolean[] }): number {

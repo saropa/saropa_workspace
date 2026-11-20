@@ -1,3 +1,4 @@
+import { blankFences } from "./fences";
 import { MAX_FACTS_CHARS, MAX_LINE, mapLinks, needsLineParts, needsSeparators, needsTargets, parseNeeds, readsNeeds } from "./docFacts";
 
 // Adds a "Needs:" line to the text of a document, or takes a target out of one. Every line break
@@ -13,8 +14,9 @@ export type NeedsEdit = { ok: true; text: string } | { ok: false; reason: NeedsR
 // patch writer and the facts reader keep), so a hostile text cannot stall the editor.
 const MAX_DOC = MAX_FACTS_CHARS;
 
-// The text with fenced code blanked out (its line breaks stay), as the board reads it.
-const blank = (text: string): string => text.replace(/```[\s\S]*?```/g, (m) => m.replace(/[^\n]/g, ""));
+// The text with fenced code blanked out (its line breaks stay), as the board reads it. Shared
+// with the facts reader and the patch writer so a ~~~ block counts as code on all three sides.
+const blank = blankFences;
 
 // The text as lines and the breaks between them (lines at even places, breaks at odd ones), and
 // the lines as the board reads them: a Needs line inside a fence counts for nothing.

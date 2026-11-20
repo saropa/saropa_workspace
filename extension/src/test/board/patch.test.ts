@@ -122,7 +122,7 @@ test("a group is written into the rules file once, moved out of other groups", (
   const first = setDocGroup(undefined, { project: "app", path: "a.md", group: "Launch" });
   assert.equal(first.ok, true);
   const moved = setDocGroup((first as { text: string }).text, { project: "app", path: "a.md", group: "Store" });
-  assert.deepEqual(JSON.parse((moved as { text: string }).text).groups, [{ name: "Store", match: ["app/a.md"] }]);
+  assert.deepEqual(JSON.parse((moved as { text: string }).text).groups, [{ name: "Launch", match: [] }, { name: "Store", match: ["app/a.md"] }]);
   assert.deepEqual(setDocGroup("{ nope", { project: "app", path: "a.md", group: "x" }), { ok: false, reason: "parse" });
   assert.deepEqual(setDocGroup('{"groups": 3}', { project: "app", path: "a.md", group: "x" }), { ok: false, reason: "shape" });
   assert.deepEqual(setDocGroup(undefined, { project: "app", path: "a*.md", group: "x" }), { ok: false, reason: "glob" });
@@ -200,13 +200,14 @@ test("one change per kind and item: a repeat is dropped and reported", () => {
   assert.deepEqual(c.refused.map((r) => [r.n, r.reason]), [[2, "duplicate"], [5, "linked"]]);
 });
 
-test("a group edit keeps the owner's empty groups, drops only a group it emptied, and refuses what would not take effect", () => {
+test("a group edit keeps every empty group, including one it emptied, and refuses what would not take effect", () => {
   const file = JSON.stringify({ version: 1, groups: [{ name: "Empty", match: [] }, { name: "Old", match: ["app/a.md"] }] });
   const moved = setDocGroup(file, { project: "app", path: "a.md", group: "New" });
-  assert.deepEqual(JSON.parse((moved as { text: string }).text).groups, [{ name: "Empty", match: [] }, { name: "New", match: ["app/a.md"] }]);
+  assert.deepEqual(JSON.parse((moved as { text: string }).text).groups, [{ name: "Empty", match: [] }, { name: "Old", match: [] }, { name: "New", match: ["app/a.md"] }]);
   const shadow = JSON.stringify({ version: 1, groups: [{ name: "Broad", match: ["app/*.md"] }] });
   assert.deepEqual(setDocGroup(shadow, { project: "app", path: "a.md", group: "Mine" }), { ok: false, reason: "shadowed" });
-  assert.equal(setDocGroup(shadow, { project: "app", path: "a.md", group: "Broad" }).ok, true);
+  // Already in Broad by its pattern: nothing to change.
+  assert.deepEqual(setDocGroup(shadow, { project: "app", path: "a.md", group: "Broad" }), { ok: false, reason: "none" });
   assert.deepEqual(setDocGroup(shadow, { project: "app", path: "a.md", group: "broad" }), { ok: false, reason: "lookalike" });
 });
 
