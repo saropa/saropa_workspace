@@ -3,6 +3,7 @@ import * as path from "path";
 import { Shortcut, shortcutKind } from "../model/shortcut";
 import { ShortcutStore } from "../model/shortcutStore";
 import { l10n } from "../i18n/l10n";
+import { isLink } from "./boardRuleText";
 
 // "Copy-Paste Template Shortcuts" (roadmap WOW #27). Duplicate a file shortcut's target into a
 // new file, renaming the file's base identifier in every case style at once — so
@@ -102,6 +103,13 @@ async function writeTemplateCopy(
     return undefined;
   } catch {
     // Does not exist — the expected path for a fresh copy.
+  }
+
+  // A link as the source folder would send the copy to wherever the link points, possibly outside the
+  // project; the copy is refused and the folder is named so the cause is visible.
+  if (await isLink(dir)) {
+    vscode.window.showWarningMessage(l10n("template.symlink", { name: newName }));
+    return undefined;
   }
 
   // Read as UTF-8 text and rewrite identifiers. A template is by definition a source

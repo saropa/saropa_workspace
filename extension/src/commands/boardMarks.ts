@@ -2,6 +2,8 @@ import * as vscode from "vscode";
 import { MAX_READ, MarksFile, emptyMarks, fitMarks, markKey, mergeMarks, parseMarks, setMark } from "../board/marks";
 import { BoardConfig } from "../board/types";
 import { l10n } from "../i18n/l10n";
+import { hasUnsavedCopy, isLink, plainWriteError } from "./boardRuleText";
+import { withWriteLock, writeFileSafe } from "./boardWrite";
 
 // Hand marks for the Release Board, VS Code layer. The local marks live in the board's own
 // storage (per workspace); a shared copy in the repository, `.saropa/release-board-marks.json`,
@@ -129,9 +131,48 @@ export async function exportMarksCommand(context: vscode.ExtensionContext): Prom
   const merged = await readMarks(context);
   // Entries that switch a mark off are not worth sharing.
   merged.marks = Object.fromEntries(Object.entries(merged.marks).filter(([, v]) => v.inProgress || v.pinned));
-  await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, ".saropa"));
-  await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(folder.uri, SHARED_FILE), Buffer.from(JSON.stringify(merged, null, 2) + "\n", "utf8"));
-  void vscode.window.showInformationMessage(l10n("releaseBoard.marksExported", { file: SHARED_FILE }));
+  const text = JSON.stringify(merged, null, 2) + "\n";
+  const uri = vscode.Uri.joinPath(folder.uri, SHARED_FILE);
+  // The shared file belongs to the whole team: it goes through the same guarded write as every other board file,
+  // and a file that differs from what is about to be written is only replaced after the user said yes.
+  const outcome = await withWriteLock(uri, async () => {
+    const refused = await sharedWriteRefusal(folder, uri);
+    if (refused) {
+      return refused;
+    }
+    const existing = await readText(uri);
+    if (existing !== undefined && existing !== text) {
+      const button = l10n("releaseBoard.marksExportOverwriteButton");
+      if ((await vscode.window.showWarningMessage(l10n("releaseBoard.marksExportOverwrite", { file: SHARED_FILE }), { modal: true }, button)) !== button) {
+        return "declined";
+      }
+    }
+    try {
+      await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, ".saropa"));
+      await writeFileSafe(uri, Buffer.from(text, "utf8"));
+    } catch (e) {
+      void vscode.window.showErrorMessage(plainWriteError(e, SHARED_FILE));
+      return "failed";
+    }
+    return "written";
+  });
+  if (outcome === "written") {
+    void vscode.window.showInformationMessage(l10n("releaseBoard.marksExported", { file: SHARED_FILE }));
+  }
+}
+
+// Why the shared file must not be written now (a symbolic link, or unsaved edits open in the editor), already
+// shown to the user; undefined when the write may go ahead.
+async function sharedWriteRefusal(folder: vscode.WorkspaceFolder, uri: vscode.Uri): Promise<"refused" | undefined> {
+  if ((await isLink(vscode.Uri.joinPath(folder.uri, ".saropa"))) || (await isLink(uri))) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.symlink", { file: SHARED_FILE }));
+    return "refused";
+  }
+  if (await hasUnsavedCopy(uri)) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.noRule.unsaved", { file: SHARED_FILE }));
+    return "refused";
+  }
+  return undefined;
 }
 
 // Empties the rejected list of the shared file in the repository (the only place the board edits it), after the caller confirmed.
@@ -141,15 +182,21 @@ export async function clearSharedRejected(): Promise<void> {
     return;
   }
   const uri = vscode.Uri.joinPath(folder.uri, SHARED_FILE);
-  try {
-    const data = JSON.parse((await readText(uri)) ?? "") as Record<string, unknown>;
-    if (!data || typeof data !== "object" || Array.isArray(data)) {
-      throw new Error("not an object");
+  // Read and write happen under the file's write lock, so an export or a second clear cannot slip in between.
+  await withWriteLock(uri, async () => {
+    if (await sharedWriteRefusal(folder, uri)) {
+      return;
     }
-    data.rejected = [];
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(JSON.stringify(data, null, 2) + "\n", "utf8"));
-    changed.fire();
-  } catch {
-    void vscode.window.showWarningMessage(l10n("releaseBoard.sharedRejectedFailed", { file: SHARED_FILE }));
-  }
+    try {
+      const data = JSON.parse((await readText(uri)) ?? "") as Record<string, unknown>;
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new Error("not an object");
+      }
+      data.rejected = [];
+      await writeFileSafe(uri, Buffer.from(JSON.stringify(data, null, 2) + "\n", "utf8"));
+      changed.fire();
+    } catch {
+      void vscode.window.showWarningMessage(l10n("releaseBoard.sharedRejectedFailed", { file: SHARED_FILE }));
+    }
+  });
 }

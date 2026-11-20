@@ -58,6 +58,22 @@ test("a move is refused, with the changed warning, when the file changed since t
   assert.ok(fs.existsSync(p.file));
 });
 
+test("a move is refused when the archive folder is a symbolic link, and nothing is moved into it", async (t) => {
+  const p = project();
+  const outside = tmpDir();
+  try {
+    // A junction needs no privilege on Windows and reports as a link like a symlink does elsewhere.
+    fs.symlinkSync(outside, path.join(p.root.fsPath, "docs", "archive"), "junction");
+  } catch {
+    t.skip("cannot create a link on this machine");
+    return;
+  }
+  assert.equal(await moveToArchive(p.root, candidate(p.mtime)), false);
+  assert.deepEqual(stub.__warningMessages(), [tidy("releaseBoard.tidy.symlink", { path: "docs/old.md" })]);
+  assert.ok(fs.existsSync(p.file));
+  assert.deepEqual(fs.readdirSync(outside), []);
+});
+
 test("a move is refused, with the gone warning, when the file is missing", async () => {
   const p = project();
   assert.equal(await moveToArchive(p.root, candidate(p.mtime, { path: "docs/none.md" })), false);

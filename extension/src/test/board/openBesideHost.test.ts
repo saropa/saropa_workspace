@@ -6,6 +6,9 @@ import * as vscode from "vscode";
 import { documentColumn, openDocument, setBoardColumnSource } from "../../views/boardPanelActions";
 import { openRulesFile } from "../../commands/boardRules";
 import { startBugDocument } from "../../commands/boardLive";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { l10n } from "../../i18n/l10n";
 import { stub, tmpDir } from "./hostHelpers";
 
 const vs = vscode as unknown as {
@@ -81,4 +84,20 @@ test("a new bug document opens in the given group", async () => {
   const ok = await startBugDocument(vscode.Uri.file(dir), u as never, 7, 1);
   assert.equal(ok, true);
   assert.equal(vs.__shownEditors().at(-1)?.viewColumn, 1);
+});
+
+test("a new bug document is refused, naming the folder, when the bugs folder is a link out of the project", async (t) => {
+  const dir = tmpDir();
+  const outside = tmpDir();
+  try {
+    // A junction needs no privilege on Windows and reports as a link like a symlink does elsewhere.
+    fs.symlinkSync(outside, path.join(dir, "bugs"), "junction");
+  } catch {
+    t.skip("cannot create a link on this machine");
+    return;
+  }
+  const u = { project: "app", projectName: "app", file: "lib/a.dart", logs: { crashes: 1 }, folder: "bugs" };
+  assert.equal(await startBugDocument(vscode.Uri.file(dir), u as never, 7, 1), false);
+  assert.ok(stub.__warningMessages().includes(l10n("releaseBoard.live.symlink", { path: "bugs" })));
+  assert.deepEqual(fs.readdirSync(outside), []);
 });

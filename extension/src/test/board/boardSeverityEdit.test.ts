@@ -199,6 +199,20 @@ test("restoring asks first, says the light can change either way, and removes on
   assert.ok(vs.__infoMessages()[0].includes("restored"));
 });
 
+// Restore replaces the whole keyword dictionary, so a caller that asks for the snapshot gets one it can undo
+// with, and the plain "restored" notice is left to that caller.
+test("restoring hands back a snapshot holding the old text when the caller asks for one", async () => {
+  const { file } = setup();
+  const original = '{"version":1,"severity":{"threshold":9}}';
+  put(file, original);
+  confirm("Restore defaults");
+  let snapshot: { before?: string; after: string } | undefined;
+  assert.equal(await saveSeverity({ kind: "restore" }, { onSnapshot: (x) => (snapshot = x) }), "saved");
+  assert.equal(snapshot?.before, original);
+  assert.deepEqual(JSON.parse(snapshot?.after ?? "{}"), { version: 1 });
+  assert.equal(vs.__infoMessages().length, 0);
+});
+
 test("restoring a file that has no severity key changes nothing", async () => {
   const { file } = setup();
   put(file, '{"version":1}');

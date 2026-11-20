@@ -171,7 +171,9 @@ async function writeSeverity(change: SeverityChange, opts: SaveOptions, root: vs
     void vscode.window.showErrorMessage(plainWriteError(e, RULES_FILE));
     return "refused";
   }
-  if (opts.onSnapshot && change.kind === "draft") {
+  // Both the editor save and Restore defaults hand back a snapshot, so each can offer Undo. Restore wipes the
+  // user's whole keyword dictionary, which made it the one write here with no way back.
+  if (opts.onSnapshot) {
     opts.onSnapshot({ before: text, after: newText, ...(madeDir ? { madeDir } : {}), folder: root.uri.toString() });
   } else {
     void vscode.window.showInformationMessage(l10n(change.kind === "draft" ? "releaseBoard.keywords.msg.saved" : "releaseBoard.keywords.msg.restored", { file: RULES_FILE }));

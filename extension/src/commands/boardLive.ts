@@ -8,6 +8,7 @@ import { withTimeout } from "../board/timeout";
 import { l10n } from "../i18n/l10n";
 import { BoardRun } from "./boardScanStore";
 import { pathExists } from "./boardFileSource";
+import { isLink } from "./boardRuleText";
 
 // Release Board, live evidence, VS Code layer. Three sources, all local and all optional:
 // the Problems panel (VS Code diagnostics), the Saropa Lints violations file the board
@@ -261,6 +262,17 @@ export async function startBugDocument(projectRoot: vscode.Uri, u: LiveUnnamed, 
   const dir = vscode.Uri.joinPath(projectRoot, u.folder);
   if (relativeTo(projectRoot.path, dir.path, FOLD) === undefined) {
     return false;
+  }
+  // The textual check above cannot see a junction or symlink inside the folder chain: createDirectory
+  // and the write would follow it out of the project. Every segment from the project root is tested
+  // (a missing segment is not a link), and a hit is refused with a named warning, never silently.
+  let step = projectRoot;
+  for (const seg of u.folder.split("/").filter(Boolean)) {
+    step = vscode.Uri.joinPath(step, seg);
+    if (await isLink(step)) {
+      void vscode.window.showWarningMessage(l10n("releaseBoard.live.symlink", { path: u.folder }));
+      return false;
+    }
   }
   await vscode.workspace.fs.createDirectory(dir);
   for (let n = 1; n < 20; n++) {

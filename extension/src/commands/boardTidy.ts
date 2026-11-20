@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import { pathExists } from "./boardFileSource";
+import { isLink } from "./boardRuleText";
 import { DEFAULT_AFTER_DAYS, DEFAULT_ARCHIVE_FOLDER, TidyCandidate, TidyOptions, cleanArchiveFolder, clampAfterDays } from "../board/tidy";
 
 // Release Board, Tidy sweep: the settings and the one move. The sweep lists candidates;
@@ -57,7 +58,17 @@ async function mayAsk(from: vscode.Uri, to: vscode.Uri, c: TidyCandidate): Promi
     void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.dirty", { path: c.path }));
     return false;
   }
+  if (await touchesLink(from, to)) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.symlink", { path: c.path }));
+    return false;
+  }
   return true;
+}
+
+// True when the document or the archive folder it moves into is a symbolic link: a rename through a link
+// would move or create files outside the project.
+async function touchesLink(from: vscode.Uri, to: vscode.Uri): Promise<boolean> {
+  return (await isLink(from)) || (await isLink(vscode.Uri.joinPath(to, "..")));
 }
 
 // Moves one listed document into the archive folder. Returns true when it moved.
@@ -82,6 +93,10 @@ export async function moveToArchive(projectRoot: vscode.Uri, c: TidyCandidate): 
   }
   if (isDirty(from) || (await pathExists(to))) {
     warnSource("changed", c.path);
+    return false;
+  }
+  if (await touchesLink(from, to)) {
+    void vscode.window.showWarningMessage(l10n("releaseBoard.tidy.symlink", { path: c.path }));
     return false;
   }
   try {

@@ -121,3 +121,23 @@ test("an empty name creates nothing, and the input box rejects a blank name as t
   assert.equal(validate?.("   "), "Enter a name.");
   assert.equal(validate?.("order"), undefined);
 });
+
+test("a copy is refused, naming the new file, when the source folder is a link", async (t) => {
+  const outside = nodeFs.mkdtempSync(nodePath.join(os.tmpdir(), "tpl-out-"));
+  try {
+    nodeFs.writeFileSync(`${outside}/user_card.py`, "x");
+    // A junction needs no privilege on Windows and reports as a link like a symlink does elsewhere.
+    nodeFs.symlinkSync(outside, `${dir}/linked`, "junction");
+  } catch {
+    t.skip("cannot create a link on this machine");
+    return;
+  }
+  const shortcut = { id: "t", path: "linked/user_card.py", scope: "project" } as Shortcut;
+  const store = { resolveUri: () => Uri.file(`${dir}/linked/user_card.py`) } as unknown as ShortcutStore;
+  __setInputHandler(async () => "order");
+  await useAsTemplate(store, shortcut);
+  assert.match(warn[0], /order\.py/);
+  assert.match(warn[0], /symbolic link/);
+  assert.deepEqual(nodeFs.readdirSync(outside), ["user_card.py"]);
+  nodeFs.rmSync(outside, { recursive: true, force: true });
+});

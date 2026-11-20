@@ -61,6 +61,25 @@ test("the local mark wins over the shared one for the same document", async () =
   }
 });
 
+test("export asks before replacing a shared file that holds different marks, and keeps it when declined", async () => {
+  const dir = tmpDir();
+  const ctx = contextIn(tmpDir());
+  const file = path.join(dir, SHARED_FILE);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const theirs = '{"version":1,"marks":{"app/z.md":{"pinned":true}}}';
+  fs.writeFileSync(file, theirs);
+  stub.__setWorkspaceFolders([{ uri: vscode.Uri.file(dir), name: "app", index: 0 }]);
+  stub.__setWarningAnswer(() => undefined);
+  try {
+    await updateLocalMarks(ctx, (f) => setMark(f, markKey("app", "a.md"), { pinned: true }));
+    await exportMarksCommand(ctx);
+    assert.equal(fs.readFileSync(file, "utf8"), theirs);
+    assert.ok(stub.__warningMessages()[0].includes(SHARED_FILE));
+  } finally {
+    stub.__setWorkspaceFolders(undefined);
+  }
+});
+
 test("export writes only marks that are switched on", async () => {
   const dir = tmpDir();
   const ctx = contextIn(tmpDir());

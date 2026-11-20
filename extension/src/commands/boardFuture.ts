@@ -7,6 +7,7 @@ import { FutureFolders, FutureInput, FutureItem, FutureOutside, FutureSort, MAX_
 import { asResearchParallel } from "../board/futureResearch";
 import { BoardRun } from "./boardScanStore";
 import { pathExists } from "./boardFileSource";
+import { isLink } from "./boardRuleText";
 
 // Release Board, Future tab: the settings, the reads and the one write. The tab lists
 // deferred and blocked documents; a write touches only the header block at the top of one
@@ -113,6 +114,11 @@ export async function writeBlock(uri: vscode.Uri, path: string, changes: BlockCh
     warn("releaseBoard.future.dirty", path);
     return "refused";
   }
+  // A write over a symbolic link would change a file outside the project (or replace the link itself).
+  if (await isLink(uri)) {
+    warn("releaseBoard.future.symlink", path);
+    return "refused";
+  }
   try {
     const bytes = await vscode.workspace.fs.readFile(uri);
     const text = Buffer.from(bytes).toString("utf8");
@@ -201,6 +207,11 @@ async function offerMove(root: vscode.Uri, from: string, to: string): Promise<bo
   }
   if (await pathExists(dst)) {
     warn("releaseBoard.future.targetExists", to);
+    return false;
+  }
+  // Same reason as in writeBlock: the document or its destination folder may be a link out of the project.
+  if ((await isLink(src)) || (await isLink(vscode.Uri.joinPath(dst, "..")))) {
+    warn("releaseBoard.future.symlink", from);
     return false;
   }
   try {

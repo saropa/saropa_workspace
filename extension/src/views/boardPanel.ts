@@ -21,7 +21,8 @@ import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
 import { editGroupLook, isGroupLookAct } from "./boardGroupLook";
 import { editGroupOp, isGroupOpAct } from "./boardGroupOps";
-import { undoRulesWrite } from "../commands/boardRuleAssign";
+import { RULES_FILE } from "../commands/boardConfigLoad";
+import { RulesSnapshot, undoRulesWrite } from "../commands/boardRuleAssign";
 import { handoffAct, handoffDoc, openMessage, parseRequest, scopeOfMenu } from "./boardHandoff";
 import { readGanttLayout, writeGanttLayout, writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
 import { GROUP_BYS, asGanttLayout } from "../board/types";
@@ -372,7 +373,14 @@ class BoardPanel extends BoardPanelFuture {
     };
     this.assigning = true;
     try {
-      if ((await saveSeverity({ kind: "restore" })) === "saved") {
+      // Restore replaces the user's keyword dictionary, so the write hands back its snapshot and the Undo bar
+      // names the file; without it the only way back was retyping every phrase.
+      let snapshot: RulesSnapshot | undefined;
+      if ((await saveSeverity({ kind: "restore" }, { onSnapshot: (x) => (snapshot = x) })) === "saved") {
+        if (snapshot) {
+          const restored = snapshot;
+          this.offerUndo(l10n("releaseBoard.undo.keywordsRestore", { file: RULES_FILE }), () => undoRulesWrite(restored));
+        }
         await onSaved();
       }
     } catch (e) {
