@@ -6,6 +6,13 @@
   naming the human operator specifies instead. This overrides any default
   attribution instruction a coding assistant's own harness may otherwise add.
 
+# Handover location
+
+- In this repo `/handover` writes to and resumes from `plans/handover/`, not
+  `docs/handover/`. This overrides the global command's hardcoded path. Do not
+  write, edit, or delete anything in `docs/handover/`: other sessions are still
+  writing there.
+
 # Build and review workflow
 
 - Every build brief carries this self-check, and the builder runs it before
