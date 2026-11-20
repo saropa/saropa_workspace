@@ -37,9 +37,7 @@ Bug reports are tracked separately in `bugs/` and are not duplicated here.
 
 ### 2.1 Lazy activation
 
-- **What:** Extension activates on `onStartupFinished` (every VS Code launch). Users with no shortcuts configured still pay activation cost.
-- **Fix:** Switch to `onView:saropaWorkspace.pins` + command-based activation events. Requires verifying no side-effects depend on eager activation (boot sequence, scheduler, branch tracker).
-- **Status:** Not started. `onStartupFinished` still present in `activationEvents`.
+- **Status:** Not started. Tracked in [PLAN_HOUSEKEEPING_robustness_and_polish.md](PLAN_HOUSEKEEPING_robustness_and_polish.md) (H1). `onStartupFinished` is still in `activationEvents`.
 
 ### 2.2 Cap background output accumulation ✅
 
@@ -57,35 +55,9 @@ Bug reports are tracked separately in `bugs/` and are not duplicated here.
 
 ## Phase 3 — Code quality and polish (P3)
 
-### 3.1 Unify "pin" vs "shortcut" terminology — partially done
+### 3.1–3.5 Code quality items
 
-- **What:** Internal code uses "pin" (command IDs, model types) while user-facing strings say "Shortcut." Launcher webview still shows "Pin" as a button label.
-- **Fix:** Audit all user-facing surfaces for "pin" leakage. Update launcher button labels and any remaining NLS strings. Command IDs are a breaking change — defer to a major version.
-- **Status:** Partially done. Bulk of NLS strings migrated to "Shortcut." Remaining leaks: `launcher.pin: "Pin"` button label on recipe cards (`en.json:18`), `"auto-pins"` in ecosystem toast (`en.json:135`). Command IDs unchanged (breaking change, deferred).
-
-### 3.2 Dead imports cleanup
-
-- **What:** `shortcutStore.ts`, `shortcutStoreBase.ts`, `shortcutStoreRecipes.ts`, `shortcutStoreRefresh.ts`, `shortcutStoreSets.ts` have large unused import blocks (leftover from file splits).
-- **Fix:** Run `npx tsc -p ./ --noEmit` to confirm TS6133 warnings, then remove unused imports.
-- **Status:** Not started. No lint pass run; overlapping import sets across the chain suggest some may be unused but requires compiler check.
-
-### 3.3 Heartbeat CSV rotation
-
-- **What:** `process-trend.csv` grows indefinitely with no rotation. After months of use, `parseTrendSeries` full-file parse becomes slow.
-- **Fix:** Rotate or truncate to last N days/samples (e.g. 90 days). Archive older data or discard.
-- **Status:** Not started. `heartbeat.ts` `appendCsv` appends indefinitely; `parseTrendSeries` reads entire file into memory.
-
-### 3.4 Report file accumulation
-
-- **What:** `runShellToReport` writes dated Markdown reports with no cleanup. The `reports/` directory accumulates stale files indefinitely.
-- **Fix:** Add a pruning pass on startup (keep last N reports per shortcut, or last 30 days).
-- **Status:** Not started. No pruning or retention logic exists.
-
-### 3.5 Async Python install scan
-
-- **What:** `interpreterDetect.ts` `scanPythonInstalls` uses synchronous `fs.readdirSync`/`fs.statSync` on `C:\` on the extension host's main thread. Can cause a perceptible hitch.
-- **Fix:** Convert to `fs/promises` for consistency with the rest of the codebase's IO conventions.
-- **Status:** Not started. `scanPythonInstalls` uses `readdirSync`/`statSync` throughout.
+- **Status:** Not started (3.1 partial). Tracked in [PLAN_HOUSEKEEPING_robustness_and_polish.md](PLAN_HOUSEKEEPING_robustness_and_polish.md): H2 (terminology leaks), H3 (dead imports), H4 (heartbeat CSV rotation), H5 (report retention), H6 (async Python scan).
 
 ---
 
@@ -166,28 +138,9 @@ actionable items from each folded/archived file are now tracked in
 - **How:** Register a `TreeDragAndDropController` on the Shortcuts view that accepts `text/uri-list` from the Explorer.
 - **Status:** Done. `TreeDragAndDropController` registered in the shortcuts view.
 
-### 5.2 Onboarding wizard for first install
+### 5.2–5.6 Onboarding and quick access
 
-- **What:** New users see 6 sidebar views, a panel, and 37 settings with no guidance. The welcome view text is too long for its rendering area.
-- **How:** A single-page walkthrough webview on first activation: "Pin your first file" → "Run a script" → "Explore recipes." Set `hasCompletedOnboarding` in globalState to suppress after first run.
-
-### 5.3 Quick-add command with recent files
-
-- **What:** A QuickPick showing recently opened files (from VS Code's MRU) with a one-key "pin it" action. Faster than right-click → menu for rapid shortcut setup.
-
-### 5.4 Status bar quick-run
-
-- **What:** A persistent status bar item showing the top-pinned shortcut name. Click to run, right-click for the run palette. Provides always-visible, zero-navigation access to the most-used shortcut.
-
-### 5.5 Shortcut usage analytics in the sidebar
-
-- **What:** Show run count and last-run-time in the shortcut tooltip or description. Help users identify which shortcuts they actually use vs. which are dead weight.
-- **Note:** Telemetry data already exists (`telemetry.ts`). This is a presentation-layer change.
-
-### 5.6 Linux terminal emulator preference
-
-- **What:** `externalLauncher.ts` hardcodes a probe order (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xterm`) with no way for the user to set a preferred emulator.
-- **How:** Add a `saropaWorkspace.externalTerminal` setting. Fall back to the probe order when unset.
+- **Status:** Not started. Tracked in [PLAN_ONBOARDING_AND_QUICK_ACCESS.md](PLAN_ONBOARDING_AND_QUICK_ACCESS.md): Q1 onboarding wizard, Q2 recent-files quick-add, Q3 status bar quick-run, Q4 usage analytics, Q5 Linux terminal emulator setting.
 
 ---
 
