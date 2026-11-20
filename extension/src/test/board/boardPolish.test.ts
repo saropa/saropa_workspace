@@ -349,6 +349,15 @@ test("the row menu and the group menu both offer Edit tags", () => {
   assert.ok(scopeMenu(t).includes('data-act="tags"'));
 });
 
+test("the heading menu offers the group look entries, and the page shows them for a group heading only", () => {
+  const menu = scopeMenu(t);
+  for (const act of ["gRename", "gEmoji", "gColour", "gAuto"]) {
+    assert.ok(menu.includes(`data-act="${act}"`), `${act} is in the heading menu`);
+  }
+  // A project heading has no group to restyle: the page script hides the entries unless the id starts with "group:".
+  assert.ok(script(0, "", "deliberate").includes("[data-act=gRename]"), "the page hides the group entries for a project heading");
+});
+
 test("a hover is never shortened: titleAttr and a row's hover keep a 250-character line whole", () => {
   const long = "w".repeat(250);
   assert.equal(titleAttr(`a\n${long}`), `title="a\n${long}"`);

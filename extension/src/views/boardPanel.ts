@@ -19,6 +19,8 @@ import { openTagsEditor } from "./tagsEditorPanel";
 import { readKeywordSettings } from "../commands/boardKeywordSettings";
 import { saveSeverity } from "../commands/boardSeverityEdit";
 import { setStartup } from "./boardStartup";
+import { editGroupLook, isGroupLookAct } from "./boardGroupLook";
+import { undoRulesWrite } from "../commands/boardRuleAssign";
 import { handoffAct, handoffDoc, openMessage, parseRequest, scopeOfMenu } from "./boardHandoff";
 import { readGanttLayout, writeGanttLayout, writeGroupBy, writeProjectScope } from "../commands/boardExtraProjects";
 import { GROUP_BYS, asGanttLayout } from "../board/types";
@@ -79,9 +81,13 @@ class BoardPanel extends BoardPanelFuture {
       } else if (req) {
         await handoffAct(this.post, this.model, this.run, req, (message as { act?: unknown }).act);
       }
-    } else if (msg.type === "scopeMenu" && ["hand", "tags", "ask", "order"].includes((message as { act?: unknown }).act as string) && typeof (message as { id?: unknown }).id === "string") {
+    } else if (msg.type === "scopeMenu" && (["hand", "tags", "ask", "order"].includes((message as { act?: unknown }).act as string) || isGroupLookAct((message as { act?: unknown }).act)) && typeof (message as { id?: unknown }).id === "string") {
       const at = scopeOfMenu((message as { id: string }).id);
-      if (at && ((message as { act?: unknown }).act === "ask" || (message as { act?: unknown }).act === "order")) {
+      const lookAct = (message as { act?: unknown }).act;
+      if (at && isGroupLookAct(lookAct)) {
+        // Only a group heading edits a group's look; the group is the one the host painted for that heading.
+        await this.groupLook(at, lookAct);
+      } else if (at && ((message as { act?: unknown }).act === "ask" || (message as { act?: unknown }).act === "order")) {
         // Only a project menu asks; a group heading has no such entry.
         if (at.scope === "project") {
           await ((message as { act?: unknown }).act === "ask" ? this.askBlockers(at.i, true) : this.askOrder(at.i, "again"));
@@ -288,6 +294,25 @@ class BoardPanel extends BoardPanelFuture {
   }
 
   // The Tags and rules editor. It gets the model this panel painted; nothing the page names is trusted.
+  // Rename, emoji, color or back to automatic for the group of a heading. Saved at once with Undo; a canceled
+  // box or a refused write changes nothing (the write already said why).
+  private async groupLook(at: { scope: string; i: number }, act: Parameters<typeof editGroupLook>[0]): Promise<void> {
+    const group = at.scope === "group" ? this.model?.items[at.i]?.group : undefined;
+    if (!group) {
+      return;
+    }
+    try {
+      const done = await editGroupLook(act, group);
+      if (done) {
+        this.offerUndo(done.label, () => undoRulesWrite(done.snapshot));
+        this.dirty = true;
+        await this.refresh();
+      }
+    } catch (e) {
+      void vscode.window.showErrorMessage(l10n("releaseBoard.failed", { error: e instanceof Error ? e.message : String(e) }));
+    }
+  }
+
   // The documents of a project or group heading ("group": the group the item at `i` is in).
   private scopeItems(scope: string, i: number): BoardItem[] {
     const items = this.model?.items ?? [];
