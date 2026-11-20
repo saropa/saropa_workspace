@@ -56,6 +56,13 @@ Folder-watch alerts can now be dismissed without muting or disabling the watch. 
 
 ### Fixed
 - Release Board: a few tooltips and labels now use the American spelling "color".
+- Release Board: a document's Needs lines inside a `~~~` fenced block are now skipped the same way as inside a backtick fence, so the reader, the editor and the patch writer agree on which lines count. An unclosed fence now hides the rest of the document from the reader.
+- Release Board: Restore defaults for the severity keywords now offers Undo, so a restore that wiped a customized keyword list can be reverted from the board's Undo bar.
+- Release Board: Export marks now asks before replacing a shared marks file that holds different marks, refuses a symbolic link or a file open with unsaved edits, and writes the file whole or not at all. Clearing the shared rejected links uses the same guarded write.
+- Release Board: the Future tab and the Tidy sweep now refuse to change or move a document that is a symbolic link, or whose destination folder is one, and say so by name.
+- Release Board: a new bug document is no longer written when the project's bugs folder is, or sits inside, a symbolic link; the folder is named in the warning.
+- Use as Template now refuses to create the copy when the file's folder is a symbolic link, and names the new file in the warning.
+- Release Board: moving a document to another group through a patch now behaves like dragging it on the board. Emptied groups stay, an `ungrouped` entry is removed, and a move into the same group is reported as no change.
 
 ## [2.8.0]
 
@@ -63,7 +70,7 @@ Release Board redesign: resizable Gantt columns, a new Local layout, smarter sev
 
 ### Added
 - Release Board: the menu on a group heading now has Rename group…, Group emoji…, Group color… and Back to automatic. Each saves at once under `organize.groups` in the rules file with Undo, and Back to automatic removes the name, emoji and color you set so the board chooses them again.
-- Release Board: the menu on a group heading also has Merge with… and New tag from this group…. Merge with… moves every document of the group into another group of the same project and removes the emptied group, saved at once with Undo. New tag from this group… suggests the words its documents share, lets you edit them, and saves a tag of your own to the rules file with Undo.
+- Release Board: the menu on a group heading also has Merge with… and New tag from this group…. Merge with… moves every document of the group into another group of the same project and removes the emptied group, saved at once with Undo. New tag from this group… suggests the words its documents share, lets you edit them, and saves a tag of your own to the rules file with Undo. The new tag takes the group's emoji and color.
 - Saropa HubGrid: a table of the open issues and pull requests from every watched GitHub repo, newest first, with a filter per repo, a Refresh button, and j/k or arrow-key navigation. Open it from the new table button on the Watches view title bar or the `Show HubGrid` command. It reads the data the repo watches already poll, so opening it makes no extra GitHub requests.
 - HubGrid rows: Enter or a click opens the item in your browser and marks only that item as seen; Copy link copies its URL. Items new since you last looked carry a dot. A banner names any repo that GitHub is rate limiting or that failed to poll, while the last good rows stay on screen.
 - Release Board: right-click a document row, in the Gantt or the Board tab, to open its row menu at the pointer (the kebab button still works). The menu has a new Hide from the board entry that lists the document's path under `hiddenDocs` in the project's `.saropa/release-board.json` with Undo; the next scan drops it, and the file itself is not touched.
