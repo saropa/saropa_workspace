@@ -7,13 +7,15 @@ Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 
 ### 1.1 Phase 1 residuals (three files missed their size targets)
 
+<!-- quality-table:start -->
 | File | Now | Target | Plan |
 |---|---|---|---|
-| commands/boardRuleAssign.ts | 361 | under 330 | trim by moving the remaining helpers next to `boardRuleText.ts` / `boardRuleUndo.ts`; split `applyTextChangeNow` into check-unsaved and write-and-verify |
+| commands/boardRuleAssign.ts | 369 | under 330 | trim by moving the remaining helpers next to `boardRuleText.ts` / `boardRuleUndo.ts`; split `applyTextChangeNow` into check-unsaved and write-and-verify |
 | views/boardPanelCore.ts | 432 | under 390 | move `refreshEdited` / `scheduleEdited` / `refreshOutside` to a helper class, or leave (decision D3) |
-| board/boardModel.ts | 426 | under 390 | create `boardModelLinks.ts` for the `attach*` / `build*` helpers and split `buildBoard` into `makeContext` and the assembly; widest fan-in (35 importers), do last |
+| board/boardModel.ts | 431 | under 390 | create `boardModelLinks.ts` for the `attach*` / `build*` helpers and split `buildBoard` into `makeContext` and the assembly; widest fan-in (35 importers), do last |
+<!-- quality-table:end -->
 
-- Re-run `python3 scripts/audit.py --quality --strict` first; line ranges and function lengths in the archived plan are pre-extraction and no longer match.
+- Refresh the Now column with `python3 scripts/plan_quality_table.py --write`, then re-run `python3 scripts/audit.py --quality --strict`; line ranges and function lengths in the archived plan are pre-extraction and no longer match.
 - Functions over 50 code lines at the time of the original plan were not re-measured after Phase 1; the gate output is the source of truth.
 
 ### 1.2 Phase 0 smoke checklist (never run in a development host)
