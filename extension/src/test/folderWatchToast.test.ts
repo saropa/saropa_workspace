@@ -46,7 +46,19 @@ const watch = (extra: Partial<FolderWatch> = {}): FolderWatch =>
 
 test("new files are listed by base name with a count and the label", async () => {
   await toastFolderDelta(watch(), { added: ["a/x.txt", "y.txt"], changed: [] }, false, "dir");
-  assert.deepEqual(shown, [{ message: "2 new in dir: x.txt, y.txt", actions: ["Open"] }]);
+  assert.deepEqual(shown, [{ message: "2 new in dir: x.txt, y.txt", actions: ["Open", "Dismiss"] }]);
+});
+
+test("Dismiss resolves true and opens nothing; other outcomes resolve false", async () => {
+  answer = "Dismiss";
+  const dismissed = await toastFolderDelta(watch(), { added: ["x.txt"], changed: [] }, false, "dir");
+  assert.equal(dismissed, true);
+  assert.deepEqual(opened, []);
+  assert.deepEqual(__recordedCommands(), []);
+  answer = undefined;
+  assert.equal(await toastFolderDelta(watch(), { added: ["x.txt"], changed: [] }, false, "dir"), false);
+  answer = "Open";
+  assert.equal(await toastFolderDelta(watch(), { added: ["x.txt"], changed: [] }, false, "dir"), false);
 });
 
 test("a startup scan says the files arrived while the user was away", async () => {

@@ -46,6 +46,13 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+Folder-watch alerts can now be dismissed without muting or disabling the watch. [log](https://github.com/saropa/saropa_workspace/blob/vX.Y.Z/CHANGELOG.md)
+
+### Added
+- Folder watches: the new/changed-files alert now has a Dismiss button next to Open. Dismiss clears those files from the unseen count and the activity-bar badge and leaves the watch running, so the next new file still alerts.
+
 ## [2.8.0]
 
 Release Board redesign: resizable Gantt columns, a new Local layout, smarter severity rules, and security hardening flagged by CodeQL. [log](https://github.com/saropa/saropa_workspace/blob/v2.8.0/CHANGELOG.md)
@@ -60,6 +67,8 @@ Release Board redesign: resizable Gantt columns, a new Local layout, smarter sev
 - Release Board: documents that git ignores are now hidden by default. A new setting, `releaseBoard.includeGitIgnored`, brings them back. A folder that is not a git repository hides nothing.
 
 ### Fixed
+- Release Board: a `Needs:` line inside a `~~~` code block is now ignored everywhere. The reader and the Needs editor used to skip only triple-backtick blocks while an applied reply patch skipped both kinds, so the same line could count as a link in one place and not in another.
+- Release Board: applying a reply patch that moves a document to a group now edits the rules file exactly as dragging the document does. A group the move empties stays instead of being deleted, a document listed under `ungrouped` is taken off that list, and a move into the group the document is already in reports nothing to change.
 - Release Board: a document in `plans/` with no work-item prefix (a generated review queue, a checklist, notes) is now a reference note instead of open work, so its wording can no longer score as severe and turn the project NO-GO.
 - Release Board: a `PLAN_` document is now blue (deferred on purpose), because a plan is future work and cannot stop a release. It stays amber (open work) inside the `bugs/` folder, and a Status line (`Status: WIP`, `Status: Done`) still moves it to purple or green. New rule-assign menu entries: `plan (Deferred on purpose)` and `plan note (Reference)`.
 - Release Board: a `PLAN_` document you pin as blocking the next release now blocks it. A blue (deferred) plan was skipped before the pin was checked, so a pinned plan was listed nowhere and never stopped the release; it now shows as open and the project is NO-GO until it is unpinned or done.

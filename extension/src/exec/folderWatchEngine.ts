@@ -398,7 +398,14 @@ export class FolderWatchEngine implements vscode.Disposable {
       await toastRepoItems(delta, this.repoItemsCache.get(watch.id) ?? [], this.nameOf(watch));
       return;
     }
-    await toastFolderDelta(watch, delta, isStartup, this.nameOf(watch));
+    const dismissed = await toastFolderDelta(watch, delta, isStartup, this.nameOf(watch));
+    if (dismissed) {
+      // Mark only the files this toast named as seen (not clearUnseen for the whole
+      // watch), so files detected by a later scan while the toast was open stay counted.
+      for (const file of [...delta.added, ...delta.changed]) {
+        await this.store.markSeen(watch.id, file);
+      }
+    }
   }
 
   private nameOf(watch: FolderWatch): string {

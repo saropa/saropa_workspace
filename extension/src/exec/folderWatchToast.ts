@@ -33,13 +33,16 @@ function formatFiles(files: string[]): string {
     : shown.join(", ");
 }
 
-/** Shows one toast for the new and changed files of a folder watch, worded for a startup scan or a live change. */
+/**
+ * Shows one toast for the new and changed files of a folder watch, worded for a startup scan or a live change.
+ * Resolves true when the user pressed Dismiss, so the caller can clear the unseen tally for these files.
+ */
 export async function toastFolderDelta(
   watch: FolderWatch,
   delta: FolderWatchDelta,
   isStartup: boolean,
   label: string
-): Promise<void> {
+): Promise<boolean> {
   // Ordered new-then-changed so the listed filenames line up with the split
   // counts the message states.
   const files = [...delta.added, ...delta.changed];
@@ -77,9 +80,16 @@ export async function toastFolderDelta(
   }
 
   const open = l10n("folderWatch.open");
-  const choice = await vscode.window.showInformationMessage(message, open);
+  // Dismiss is the middle ground between ignoring the toast (the badge keeps
+  // counting) and muting/disabling the whole watch: the user has seen these files
+  // and wants them off the badge, but the watch must keep alerting for the next one.
+  const dismiss = l10n("folderWatch.dismiss");
+  const choice = await vscode.window.showInformationMessage(message, open, dismiss);
+  if (choice === dismiss) {
+    return true;
+  }
   if (choice !== open) {
-    return;
+    return false;
   }
   // Open the first changed/new file (folder watch) or the target itself (file
   // watch), so the action lands the user on the thing the toast named.
@@ -93,6 +103,7 @@ export async function toastFolderDelta(
     // A binary or unopenable file: reveal it in the Explorer instead of failing.
     await vscode.commands.executeCommand("revealInExplorer", toOpen);
   }
+  return false;
 }
 
 // Toast for a repo watch: names the new issues/PRs by title (not just a count,
