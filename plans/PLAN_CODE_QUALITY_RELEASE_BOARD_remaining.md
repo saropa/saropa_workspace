@@ -29,7 +29,7 @@ Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 
 ## 2. Phase 2: documentation
 
-Metric today: exports documented 2527 of 2603 (97.1%); 76 undocumented (about 60 are test fixtures, see D4).
+Metric today: exports documented 2348 of 2355 (99.7%); 7 undocumented, all in files with in-flight edits.
 
 ### What a good doc comment looks like here (house style)
 
@@ -133,11 +133,11 @@ Checklist (per step):
 
 ## 6. Owner decisions needed
 
-D1 and D2 are closed (Phase 0 only before release, extractions A and B as two commits; both landed). D3 and D6-D9 are closed too. D4 and D5 are open: both change the quality gate and need the owner's yes.
+D1 and D2 are closed (Phase 0 only before release, extractions A and B as two commits; both landed). D3-D9 are closed.
 
 - D3. Closed: keep thresholds 400 and 50; leave `views/boardPanelCore.ts` unless touched for another reason; the `boardModel.ts` residual is closed (301 lines).
-- D4. Exclude test fixtures (`src/test/**/*Fixture.ts`, `src/test/_stub`, `orgFixtures.ts`) from the doc-comment and sparse-comment metrics, or document them. Recommended: exclude them in `_source_files()`/the metric (they are 60 of 281 undocumented exports and 3 of 5 low-comment files); this changes what the gate counts, so it needs your yes and goes in its own commit with the numbers before and after.
-- D5. Exclude type-only modules from the "untested" metric, or give them a test. Recommended: exclude; an empty test only satisfies the name match.
+- D4. Closed: test helpers under `src/test` are excluded from the doc-comment and sparse-comment metrics.
+- D5. Closed: type-only modules are excluded from the untested metric.
 - D6. Closed: panel tests after Phase 0, before Phase 1 touches the board model.
 - D7. Closed: the four checks are `check-types`, `lint`, `build`, `test`; the owner runs `test`.
 - D8. Closed: order by risk, lowest first.
