@@ -1,6 +1,6 @@
 # Plan: code quality after the Release Board redesign
 
-Status: owner decided D1 option 1 (Phase 0 only) and D2 (extractions A and B as two commits). Phase 0 implemented on branch worktree-agent-a9f56a040ca52c643: A = 0bfd071 (boardPanelEdits.ts), B = b297dab (boardPanelFuture.ts); boardPanel.ts is now 479 lines. Phases 1-3 remain undecided drafts. Smoke checklist not yet run in a development host.
+Status: Phase 0 complete (boardPanel.ts 477 lines). Phase 1 complete — 20 of 21 extraction files created; boardModelLinks.ts not created. Three files missed their Phase 1 targets: boardRuleAssign.ts (361, target was <330), boardPanelCore.ts (432, target was <390), boardModel.ts (426, target was <390). Phases 2-3 not started. Smoke checklist not yet run in a development host.
 Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 
 `bugs/` holds only `ISSUE_REPORT_GUIDE.md` (no plan-file convention), so this uses the fallback name.
@@ -31,27 +31,27 @@ Scope: `extension/src/**` and the quality gate in `scripts/modules/_quality.py`.
 
 ## 2. Summary table
 
-Current size from the gate output. Targets are for the main file after extraction.
+Pre-extraction sizes from the gate, with current sizes after Phases 0-1.
 
-| File | Lines now | Target | Extract to | Phase |
+| File | Was | Target | Now | Result |
 |---|---|---|---|---|
-| views/boardPanel.ts | 946 | under 560 | boardPanelEdits.ts, boardPanelFuture.ts | 0 |
-| board/org/organizeEdit.ts | 656 | under 350 | organizeLoad, organizeOverrides, organizePreview | 1 |
-| board/docFacts.ts | 596 | under 340 | docNeeds, docSteps | 1 |
-| views/boardStrings.ts | 538 | under 300 | boardStringsPolish, boardStringsFuture | 1 |
-| board/org/autoGroup.ts | 515 | under 280 | autoGroupName, autoGroupTypes | 1 |
-| board/severityEdit.ts | 506 | under 320 | severityText, severityPreview | 1 |
-| exec/scheduler.ts | 475 | under 300 | schedulerCatchUp, schedulerFire | 1 |
-| commands/boardRuleAssign.ts | 473 | under 330 | boardRuleUndo, boardRuleText | 1 |
-| board/ruleAssign.ts | 455 | under 330 | ruleSeverity | 1 |
-| board/org/linksSignals.ts | 443 | under 330 | linksPhrase | 1 |
-| board/scanner.ts | 424 | under 390 | scanFacts | 1 |
-| recipes/scheduledRecipes.ts | 418 | under 330 | scheduledGitRituals | 1 |
-| board/handoff.ts | 412 | under 330 | handoffMarkdown | 1 |
-| views/boardPanelCore.ts | 408 | under 390 | one hook method | 1 |
-| board/boardModel.ts | 402 | under 390 | boardModelLinks | 1 |
+| views/boardPanel.ts | 946 | under 560 | 477 | met |
+| board/org/organizeEdit.ts | 656 | under 350 | 113 | met |
+| board/docFacts.ts | 596 | under 340 | 308 | met |
+| views/boardStrings.ts | 538 | under 300 | 201 | met |
+| board/org/autoGroup.ts | 515 | under 280 | 269 | met |
+| board/severityEdit.ts | 506 | under 320 | 97 | met |
+| exec/scheduler.ts | 475 | under 300 | 249 | met |
+| commands/boardRuleAssign.ts | 473 | under 330 | 361 | **missed** |
+| board/ruleAssign.ts | 455 | under 330 | 209 | met |
+| board/org/linksSignals.ts | 443 | under 330 | 249 | met |
+| board/scanner.ts | 424 | under 390 | 372 | met |
+| recipes/scheduledRecipes.ts | 418 | under 330 | 249 | met |
+| board/handoff.ts | 412 | under 330 | 318 | met |
+| views/boardPanelCore.ts | 408 | under 390 | 432 | **missed** (grew) |
+| board/boardModel.ts | 402 | under 390 | 426 | **missed** (boardModelLinks.ts never created) |
 
-Functions over 50 code lines (18 found by the gate; the 3 not in the pasted output are `parseCompound` 51 in `src/test/_stub/fakeDomSelect.ts`, `applyRows` 51 in `commands/boardPatch.ts`, `cardsFor` 51 in `board/boardHtmlGroups.ts`):
+Functions over 50 code lines at plan time (18 found by the gate; re-run the gate for current counts, as many were split during Phase 1):
 
 | Function (file) | Now | Target |
 |---|---|---|
@@ -74,11 +74,11 @@ Functions over 50 code lines (18 found by the gate; the 3 not in the pasted outp
 | applyRows (commands/boardPatch.ts) | 51 | 50 or less |
 | cardsFor (board/boardHtmlGroups.ts) | 51 | 50 or less |
 
-Evidence level: `boardPanel.ts` was read in full. For the other files, seams come from the declaration map (every top-level declaration with line numbers) and the importer grep; builders must read each function body before cutting and adjust the line ranges below.
+Evidence level: pre-extraction. Line ranges in sections 3-4 are from the original files and no longer match current code. Re-read each file before any further extraction.
 
-## 3. Phase 0: release unblock (boardPanel.ts only)
+## 3. Phase 0: release unblock (boardPanel.ts only) — COMPLETE
 
-Smallest change that turns the gate green: bring `boardPanel.ts` under 700. Nothing else is required to publish.
+Smallest change that turns the gate green: bring `boardPanel.ts` under 700. Nothing else is required to publish. Done: boardPanel.ts is now 477 lines. Extraction A created boardPanelEdits.ts (480 lines), extraction B created boardPanelFuture.ts (99 lines). Class chain Core -> Wiring -> Edits -> Future -> BoardPanel confirmed.
 
 ### Structure today
 
@@ -130,9 +130,9 @@ Smallest change that turns the gate green: bring `boardPanel.ts` under 700. Noth
 - `python3 scripts/audit.py --quality --strict` exits 0 ("Quality gate clean").
 - The four checks pass; the smoke checklist passes in a development host.
 
-## 4. Phase 1: other files over 400 lines and functions over 50
+## 4. Phase 1: other files over 400 lines and functions over 50 — MOSTLY COMPLETE
 
-Rules: behavior-preserving; keep the old module's public names via `export { ... } from "./newModule"` so importers and tests need no change; migrate importers in a later, separate commit only if wanted. Re-exports do not count in the doc metric. Order is by risk, lowest first, within what the gate flags.
+20 of 21 planned extraction files created. Three residual misses: boardRuleAssign.ts (361, target <330), boardPanelCore.ts (432, target <390, grew since plan), boardModel.ts (426, target <390, boardModelLinks.ts never created). Rules used: behavior-preserving; keep the old module's public names via `export { ... } from "./newModule"` so importers and tests need no change; migrate importers in a later, separate commit only if wanted. Re-exports do not count in the doc metric. Order is by risk, lowest first, within what the gate flags.
 
 ### 4.1 Pure data and text modules (lowest risk)
 
@@ -247,7 +247,7 @@ Metric today: exports documented 2158 of 2439 (88.5%); 281 undocumented; comment
 - `board/ganttModel.ts`: row ordering, date-span and clamping on empty and single-item input; same input gives same output.
 - `board/boardProposals.ts`: which proposals are offered, rejected keys are excluded, ordering is stable.
 - `board/org/layout.ts`: band and MAX stability against `OrgPrevious` (layouts stay stable between runs; a changed group count moves bands as designed).
-- `board/org/appearance.ts`: every `OrgColour` has a hex; unknown names fall back; emoji/colour resolution order.
+- `board/org/appearance.ts`: every org color constant has a hex; unknown names fall back; emoji and color resolution order.
 - `board/org/autoGroup.ts`: characterization test through `organize()` on a small fixed document set: group names, nesting, `loose` documents, split of an over-size group. Write before the 4.2 split.
 - `board/org/frontMatter.ts`: parse valid, missing, malformed and oversized front matter; unknown keys are preserved; limits enforced.
 - `board/org/linksInfer.ts`: inferred links for sequence, stem, phrase and mention signals; confidence levels; the per-document cap.
@@ -311,13 +311,10 @@ Checklist (per step):
 
 ## 9. Owner decisions needed
 
-Nothing below is decided.
+D1 and D2 are decided; the rest are open.
 
-- D1. Scope before release.
-  - Option 1: Phase 0 only (A, or A and B), release, schedule the rest. Recommended: it is the only blocker, and extra refactors delay the release and add regression risk.
-  - Option 2: Phase 0 plus the function-length fixes in `boardPanel.ts` before release.
-  - Option 3: all of Phase 1 before release.
-- D2. Phase 0 size: A alone (about 590 lines, margin 110) or A and B (about 470). Recommended: A and B, as two commits; B is small and adds headroom.
+- D1. Scope before release — **decided: option 1** (Phase 0 only, then release). Phase 0 is complete; Phase 1 also done since then.
+- D2. Phase 0 size — **decided: A and B** as two commits. Both landed.
 - D3. Soft threshold: keep 400 and 50, or raise any. Recommended: keep both. Never raise to pass. `boardPanelCore.ts` (408) and `boardModel.ts` (402), `scanner.ts` (424) are marginal: recommended to leave `boardPanelCore.ts` and `boardModel.ts` alone unless touched for another reason.
 - D4. Exclude test fixtures (`src/test/**/*Fixture.ts`, `src/test/_stub`, `orgFixtures.ts`) from the doc-comment and sparse-comment metrics, or document them. Recommended: exclude them in `_source_files()`/the metric (they are 60 of 281 undocumented exports and 3 of 5 low-comment files); this changes what the gate counts, so it needs your yes and goes in its own commit with the numbers before and after.
 - D5. Exclude type-only modules from the "untested" metric, or give them a test. Recommended: exclude; an empty test only satisfies the name match.
