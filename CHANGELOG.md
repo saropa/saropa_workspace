@@ -46,6 +46,15 @@ cspell:disable
 
 ---
 
+## [2.10.0]
+
+A friendly nudge to rate Saropa Workspace on the Marketplace after you have used it for a while. [log](https://github.com/saropa/saropa_workspace/blob/v2.10.0/CHANGELOG.md)
+
+### Added
+- A gentle Marketplace rating prompt now appears after the extension has been activated several times, with options to rate, defer, or permanently dismiss.
+
+---
+
 ## [2.9.0]
 
 A simpler Severity tab in the keyword editor, editable keyword settings, and folder-watch alerts you can dismiss or mute for an hour. [log](https://github.com/saropa/saropa_workspace/blob/v2.9.0/CHANGELOG.md)

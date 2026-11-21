@@ -3119,5 +3119,9 @@
   "releaseBoard.tags.msg.exportTitle": "Export tags and rules",
   "releaseBoard.tags.msg.exported": "Release Board: tags and rules exported.",
   "releaseBoard.projects.label.tagsRules": "Tags and rules...",
-  "releaseBoard.projects.label.tagsRulesTip": "Open the editor for tags, link words, naming and severity keywords, with a preview against your open documents."
+  "releaseBoard.projects.label.tagsRulesTip": "Open the editor for tags, link words, naming and severity keywords, with a preview against your open documents.",
+  "ratePrompt.message": "Enjoying Saropa Workspace? A rating on the Marketplace helps other developers find it.",
+  "ratePrompt.rate": "Rate It",
+  "ratePrompt.remindLater": "Remind Later",
+  "ratePrompt.noThanks": "No Thanks"
 }

@@ -790,6 +790,19 @@ of thumb: a notification with an action button stays; a pure acknowledgment goes
 The folder-watch confirmations use the auto-dismiss helper; the engine's "files
 changed — Open" alert keeps the persistent action form.
 
+### 4.1b Activation-gated engagement prompts
+
+A prompt that is not triggered by a user action but by an accumulated threshold (e.g. activation count) follows these rules:
+
+- **Three-way choice**: the toast carries an affirmative action, a deferral ("Remind Later"), and a permanent opt-out ("No Thanks"). Dismissing the toast without choosing is treated as deferral, not opt-out.
+- **Pure decision logic lives in a separate file** with no `vscode` import, so the threshold, interval, and state shape are unit-testable headlessly.
+- **Every activation is logged** with the counter, the threshold, the decision, and the reason, so "why did / didn't the prompt show?" is answered from the Output channel.
+- **The activation counter increments unconditionally** — even after permanent dismissal — so a "Remind Later" always has a rising baseline to compare against.
+- **All strings are externalized** through `l10n()` in `en.json`.
+- **No first-person voice** in the prompt copy; second or third person only.
+
+The Marketplace rating prompt (`ratePrompt.ts` / `activationOffers.ts`) is the first instance.
+
 ### 4.2 Name the item acted on, carry the concrete value
 
 A confirmation the user cannot tie to a specific item is noise. Surfaces name the
@@ -1131,7 +1144,7 @@ A webview editor that holds a draft (the Release Board keyword editor on the Sev
 
 ### 4.18 An editor with long lists collapses them and keeps the result and Save in view
 
-A webview editor whose lists run past about 10 chips each (the Release Board Severity tab is the model) shows each list as a collapsed accordion card: the name, the count, the edited mark and a one-line meaning in a header button, a read-only peek of the first 5 chips plus "+N more", and the full list with its add row in a region that opens on demand. One card is open at a time, none on load, and Escape closes the open card and returns focus to its header. The header is a `button` with `aria-expanded` and `aria-controls`; the body is a `role="region"` labelled by the header and `hidden` while closed; a header button never contains another control, so the per-list Restore defaults is a small link beside it. The numbers go in one compact grid with the long help behind an info icon (a focusable `role="note"` with an `aria-label`, plus a hidden description the input points at). The result of the edit and the single Save stay in a sticky strip at the top, and the page bar's own Save is hidden on that tab so there is never a second one. Short related lists (negation and audience words) share one always-open card.
+A webview editor whose lists run past about 10 chips each (the Release Board Severity tab is the model) shows each list as a collapsed accordion card: the name, the count, the edited mark and a one-line meaning in a header button, a read-only peek of the first 5 chips plus "+N more", and the full list with its add row in a region that opens on demand. One card is open at a time, none on load, and Escape closes the open card and returns focus to its header. The header is a `button` with `aria-expanded` and `aria-controls`; the body is a `role="region"` labeled by the header and `hidden` while closed; a header button never contains another control, so the per-list Restore defaults is a small link beside it. The numbers go in one compact grid with the long help behind an info icon (a focusable `role="note"` with an `aria-label`, plus a hidden description the input points at). The result of the edit and the single Save stay in a sticky strip at the top, and the page bar's own Save is hidden on that tab so there is never a second one. Short related lists (negation and audience words) share one always-open card.
 
 ---
 

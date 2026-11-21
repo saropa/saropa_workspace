@@ -1,6 +1,6 @@
-// One-time activation notices: the gated-notice helper, the favorites-import offer
-// (with its source watchers) and the notice about the AI context default. Split out of
-// activationHelpers.ts, which re-exports all of it.
+// Activation notices: the gated-notice helper, the favorites-import offer (with its
+// source watchers), the AI context default notice, and the Marketplace rating prompt.
+// Split out of activationHelpers.ts, which re-exports all of it.
 
 import * as vscode from "vscode";
 import { ShortcutStore } from "../model/shortcutStore";
@@ -12,6 +12,16 @@ import {
 } from "../import/favoritesImport";
 
 import { l10n } from "../i18n/l10n";
+import {
+  shouldPromptForRating,
+  describeRatePromptReason,
+  RATING_ACTIVATION_THRESHOLD,
+  RATING_REMIND_INTERVAL,
+  ACTIVATION_COUNT_KEY,
+  NEXT_PROMPT_AT_KEY,
+  RATE_DISMISSED_KEY,
+  type RatePromptState,
+} from "./ratePrompt";
 
 // Gate flag so the one-time "import existing favorites" prompt does not reappear
 // once the user has answered (imported or dismissed) for this workspace.
@@ -184,4 +194,86 @@ export function registerFavoritesImportWatchers(
       }
     })
   );
+}
+
+// Marketplace review URL for saropa.saropa-workspace. The #review-details
+// fragment opens the reviews tab directly so the user lands on the rating form.
+const MARKETPLACE_REVIEW_URL =
+  "https://marketplace.visualstudio.com/items?itemName=saropa.saropa-workspace&ssr=false#review-details";
+
+/**
+ * Increments the activation counter, then shows a rating prompt when the
+ * counter reaches the threshold. Unlike the one-shot gatedNotice, this
+ * supports three outcomes:
+ *
+ *  - **Rate It** — opens the Marketplace review page and permanently latches
+ *    (same as "No Thanks" from the gate's perspective: the user acted, do not
+ *    ask again).
+ *  - **Remind Later** — bumps the threshold by RATING_REMIND_INTERVAL so the
+ *    prompt reappears after more use, without nagging every session.
+ *  - **No Thanks** — permanently latches the dismissed flag.
+ *  - **Dismiss (X)** — treated as "Remind Later" (the user closed the toast
+ *    without choosing, so we try once more after the interval).
+ *
+ * Called once at activation, fire-and-forget. The activation count MUST be
+ * incremented before the threshold check (a session that shows the prompt has
+ * already counted), and the increment must happen unconditionally — even when
+ * dismissed — so "Remind Later" can compare against a continuously rising
+ * count.
+ */
+export function maybePromptForRating(context: vscode.ExtensionContext): void {
+  const gs = context.globalState;
+
+  // Increment the activation counter unconditionally (even if dismissed) so
+  // "Remind Later" always has a rising baseline to compare against.
+  const activationCount = (gs.get<number>(ACTIVATION_COUNT_KEY) ?? 0) + 1;
+  void gs.update(ACTIVATION_COUNT_KEY, activationCount);
+
+  // Read the remaining state and decide.
+  const state: RatePromptState = {
+    dismissed: gs.get<boolean>(RATE_DISMISSED_KEY, false),
+    activationCount,
+    nextPromptAt: gs.get<number>(NEXT_PROMPT_AT_KEY) ?? RATING_ACTIVATION_THRESHOLD,
+  };
+  const show = shouldPromptForRating(state);
+
+  // Log every activation so "why did / didn't the prompt show?" is answered
+  // from the Output channel, not by trial and error (same principle as the
+  // upgrade-notice log in saropa_lints).
+  const channel = vscode.window.createOutputChannel("Saropa Workspace");
+  channel.appendLine(
+    `[ratePrompt] activationCount=${activationCount} nextPromptAt=${state.nextPromptAt} ` +
+      `dismissed=${state.dismissed} prompt=${show ? "SHOWN" : "hidden"} ` +
+      `reason=${describeRatePromptReason(state, show)}`
+  );
+
+  if (!show) {
+    return;
+  }
+
+  // Show the toast with three explicit actions. A dismiss (X) without choosing
+  // resolves as undefined and is treated like "Remind Later".
+  const rateLabel = l10n("ratePrompt.rate");
+  const remindLabel = l10n("ratePrompt.remindLater");
+  const noThanksLabel = l10n("ratePrompt.noThanks");
+
+  void vscode.window
+    .showInformationMessage(l10n("ratePrompt.message"), rateLabel, remindLabel, noThanksLabel)
+    .then((choice) => {
+      if (choice === rateLabel) {
+        // Open the Marketplace review page and permanently dismiss.
+        void vscode.env.openExternal(vscode.Uri.parse(MARKETPLACE_REVIEW_URL));
+        void gs.update(RATE_DISMISSED_KEY, true);
+      } else if (choice === noThanksLabel) {
+        // Permanent dismissal — never ask again.
+        void gs.update(RATE_DISMISSED_KEY, true);
+      } else {
+        // "Remind Later" or toast dismissed without choosing: bump the
+        // threshold so the prompt comes back after more use. Using the
+        // CURRENT activationCount (not nextPromptAt) as the base so a user
+        // who postponed once at activation 10 and is now at activation 40
+        // waits 15 more from HERE, not 15 from the old threshold.
+        void gs.update(NEXT_PROMPT_AT_KEY, activationCount + RATING_REMIND_INTERVAL);
+      }
+    });
 }

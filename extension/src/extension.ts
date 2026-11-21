@@ -43,6 +43,7 @@ import { l10n } from "./i18n/l10n";
 import {
   maybeOfferFavoritesImport,
   maybeNotifyAiContextDefaultChange,
+  maybePromptForRating,
   registerFavoritesImportWatchers,
   syncShortcutPathContext,
   wireRecentEditorTracking,
@@ -296,6 +297,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<Worksp
   // synchronous and config/globalState-only (no store or workspace data needed), so
   // it runs here rather than in the post-load tail — it must not wait on store.init().
   maybeNotifyAiContextDefaultChange(context);
+
+  // Marketplace rating prompt: increments the activation counter every session
+  // and shows a toast once the threshold is reached. Fire-and-forget, globalState
+  // only — no store or workspace data needed. Runs after the AI-context notice so
+  // it does not compete for the user's attention on the same activation.
+  maybePromptForRating(context);
 
   wireShortcutRemovalCleanup(context, store);
 

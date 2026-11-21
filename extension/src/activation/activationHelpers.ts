@@ -18,6 +18,7 @@ export {
   gatedNotice,
   maybeOfferFavoritesImport,
   maybeNotifyAiContextDefaultChange,
+  maybePromptForRating,
   registerFavoritesImportWatchers,
 } from "./activationOffers";
 
