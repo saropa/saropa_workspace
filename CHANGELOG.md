@@ -53,6 +53,12 @@ A friendly nudge to rate Saropa Workspace on the Marketplace after you have used
 ### Added
 - A gentle Marketplace rating prompt now appears after the extension has been activated several times, with options to rate, defer, or permanently dismiss.
 
+### Fixed
+- Publish pipeline no longer crashes when syncing read-only extension docs on Windows; failures now route through the retry/ignore/abort prompt.
+
+### Fixed
+- Quality audit no longer hangs on large source files due to catastrophic regex backtracking in function-length detection.
+
 ---
 
 ## [2.9.0]

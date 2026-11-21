@@ -328,11 +328,13 @@ class FileQuality:
 
 
 # Function-like headers ending in `{`, evaluated against the code-only view.
-_FUNCTION_DECL_RE = re.compile(r"\bfunction\b\s*\*?\s*([A-Za-z0-9_$]*)\s*\([^;{]*\)\s*(?::[^={;]+)?\{")
-_ARROW_RE = re.compile(r"([A-Za-z0-9_$]+)?\s*=\s*(?:async\s*)?\([^;{]*\)\s*(?::[^={;]+)?=>\s*\{")
+# Param-list matchers use [^);{] to stop at the closing paren and avoid
+# catastrophic backtracking on large files.
+_FUNCTION_DECL_RE = re.compile(r"\bfunction\b\s*\*?\s*([A-Za-z0-9_$]*)\s*\([^);{]*\)\s*(?::[^={;]+)?\{")
+_ARROW_RE = re.compile(r"([A-Za-z0-9_$]+)?\s*=\s*(?:async\s*)?\([^);{]*\)\s*(?::[^={;]+)?=>\s*\{")
 _METHOD_RE = re.compile(
     r"(?:^|\n)[ \t]*(?:(?:public|private|protected|static|async|readonly|get|set|abstract)\s+)*"
-    r"([A-Za-z_$][\w$]*)\s*\([^;{]*\)\s*(?::[^={;]+)?\{"
+    r"([A-Za-z_$][\w$]*)\s*\([^);{]*\)\s*(?::[^={;]+)?\{"
 )
 
 
