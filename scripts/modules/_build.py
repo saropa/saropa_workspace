@@ -21,6 +21,7 @@ from modules._utils import (
     EXTENSION_DIR,
     GENERATED_DOC_PAIRS,
     REPO_ROOT,
+    error,
     fail,
     detail,
     header,
@@ -47,7 +48,9 @@ def sync_extension_docs() -> None:
     """
     header("SYNC DOCS")
     for src, dst in GENERATED_DOC_PAIRS:
-        # Unlink first: a read-only stale copy makes copyfile raise PermissionError.
+        # Clear read-only before unlink: Windows blocks unlink on read-only files.
+        if dst.exists():
+            dst.chmod(0o666)
         dst.unlink(missing_ok=True)
         shutil.copyfile(src, dst)
         dst.chmod(0o444)  # read-only so nothing hand-edits the generated copy
@@ -129,7 +132,13 @@ def run_unit_tests() -> int:
 
 
 def build() -> int:
-    sync_extension_docs()
+    # sync_extension_docs can hit OS permission errors (e.g. read-only files on
+    # Windows); surface them as a non-zero return so _attempt offers retry/ignore/abort.
+    try:
+        sync_extension_docs()
+    except OSError as exc:
+        error(f"Doc sync failed: {exc}")
+        return fail("Could not sync extension docs (see error above).", 4)
     header("BUILD")
     code = ensure_dependencies()
     if code:
