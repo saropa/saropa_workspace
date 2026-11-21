@@ -208,9 +208,11 @@ test("buildGantt builds one group per project with the open rows in work order",
   assert.deepEqual(g.rows[1].waits, ["T1"]);
 });
 
-test("buildGantt omits a project with no open item and no finished document", () => {
+test("buildGantt keeps a project with no open item so its release light stays visible", () => {
   const groups = buildGantt(modelOf([project("empty", []), project("app", [item(1)])]));
-  assert.deepEqual(groups.map((g) => g.id), ["app"]);
+  assert.deepEqual(groups.map((g) => g.id), ["empty", "app"]);
+  assert.equal(groups[0].open, 0, "the empty project has zero open rows");
+  assert.equal(groups[0].rows.length, 0, "the empty project has no rows");
 });
 
 test("buildGantt row status: blockers are red, a red-folder non-blocker is amber and serious, purple stays purple", () => {

@@ -79,9 +79,12 @@ test("a row changed since the last look gets the static marker class", () => {
   assert.ok(!ganttPanel(model, t).includes(" chg"));
 });
 
-test("no items shows the empty line, and the script draws arrows only for the hovered or selected row", () => {
+test("no items still shows the project group with its light, and the script draws arrows only for the hovered or selected row", () => {
   const empty = buildBoard(cfg, [], undefined, true);
-  assert.ok(ganttPanel(empty, t).includes("ganttEmpty"));
+  const html = ganttPanel(empty, t);
+  // The project group renders so its release light stays visible even with zero open items.
+  assert.ok(!html.includes("ganttEmpty"), "a project with no items shows its header, not the empty message");
+  assert.ok(html.includes("App &#60;b&#62;"), "the project name appears in the group header");
   assert.ok(GANTT_SCRIPT.includes("[hov,sel]"));
   assert.ok(!GANTT_SCRIPT.includes("postMessage"), "the view is read-only");
 });

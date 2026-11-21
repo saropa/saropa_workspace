@@ -281,11 +281,10 @@ function buildSplit(model: BoardModel, since: SinceView | undefined, perProject:
           ...(i.group && !i.group.flat ? { sub: { id: i.group.id, name: i.group.name } } : {}),
         };
       });
-    if (allDone.length + open.length > 0) {
-      const ordered = gathered(open, p.folderRank);
-      placeQueue(ordered);
-      groups.push({ id: p.id, name: p.name, light: p.light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: allDone.length - done.length, rows: [...done, ...ordered] });
-    }
+    // Always include the project so the Gantt shows its header and release light even when no items are open.
+    const ordered = gathered(open, p.folderRank);
+    placeQueue(ordered);
+    groups.push({ id: p.id, name: p.name, light: p.light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: allDone.length - done.length, rows: [...done, ...ordered] });
   }
   return groups;
 }

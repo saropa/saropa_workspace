@@ -54,9 +54,8 @@ A friendly nudge to rate Saropa Workspace on the Marketplace after you have used
 - A gentle Marketplace rating prompt now appears after the extension has been activated several times, with options to rate, defer, or permanently dismiss.
 
 ### Fixed
+- Release Board: the Gantt tab no longer shows only "No items to show." when a project has no open items. The project's header and its GO, NO-GO or UNVERIFIED light now stay visible.
 - Publish pipeline no longer crashes when syncing read-only extension docs on Windows; failures now route through the retry/ignore/abort prompt.
-
-### Fixed
 - Quality audit no longer hangs on large source files due to catastrophic regex backtracking in function-length detection.
 
 ---
