@@ -12,7 +12,7 @@ import { ASK_OVER, applyAnswer, candidatesOf, restoreSnapshot } from "../../boar
 import { emptyMarks, parseMarks } from "../../board/marks";
 import { BoardConfig, BoardStatus, Classified } from "../../board/types";
 import { openBoard } from "../../views/boardPanel";
-import { __lastWebviewPanel, __resetWebviewPanels, __infoMessages, __setPickHandler, __resetHandlers } from "../_stub/vscode";
+import { __lastWebviewPanel, __resetWebviewPanels, __infoMessages, __resetHandlers } from "../_stub/vscode";
 import { flushEvents, settle } from "../settle";
 import { contextIn, stub, tmpDir } from "./hostHelpers";
 
@@ -84,6 +84,11 @@ function boardDir(count: number): string {
 
 const revOf = (html: string): number => Number(/const REV=(\d+)/.exec(html)?.[1]);
 
+type Panel = NonNullable<ReturnType<typeof __lastWebviewPanel>>;
+type Choose = { type: string; project: string; candidates: Array<{ id: number; pinned: boolean; title: string }>; fixed: number[] };
+// The inline picker's question: what the host posted to the page, in order.
+const chooses = (panel: Panel): Choose[] => (panel.webview.postedMessages as Choose[]).filter((m) => m.type === "blockersChoose");
+
 test("page messages are rev-checked and validated; an answer is saved with zero picks and undone", async () => {
   const dir = boardDir(7);
   const ctx = contextIn(dir);
@@ -91,28 +96,26 @@ test("page messages are rev-checked and validated; an answer is saved with zero 
   const panel = __lastWebviewPanel();
   assert.ok(panel);
   await settle(() => panel.webview.html.includes('data-ask="0"'));
-  let asked = 0;
-  let offered: unknown[] = [];
-  let options: { canPickMany?: boolean } | undefined;
-  __setPickHandler(async (items, opts) => {
-    asked += 1;
-    offered = [...items];
-    options = opts as { canPickMany?: boolean };
-    return [];
-  });
   const rev = revOf(panel.webview.html);
   // Refused: wrong rev, non-integer, out of range, negative.
   for (const m of [{ type: "blockersAsk", p: 0, rev: rev + 1 }, { type: "blockersAsk", p: "0", rev }, { type: "blockersAsk", p: 0.5, rev }, { type: "blockersAsk", p: 99, rev }, { type: "blockersAsk", p: -1, rev }]) {
     panel.webview.__receiveFromClient(m);
   }
   await flushEvents(50);
-  assert.equal(asked, 0, "no picker for a refused message");
+  assert.equal(chooses(panel).length, 0, "no picker for a refused message");
   panel.webview.__receiveFromClient({ type: "blockersAsk", p: 0, rev });
-  await settle(() => panel.webview.html.includes('id="undo"'));
-  assert.equal(asked, 1);
-  assert.equal(options?.canPickMany, true);
-  assert.equal(offered.length, 7, "every red item is offered");
+  await settle(() => chooses(panel).length === 1);
+  assert.equal(chooses(panel)[0].project, "app");
+  assert.equal(chooses(panel)[0].candidates.length, 7, "every red item is offered");
+  // A save that is refused changes nothing: wrong rev, project not text, picked not a list.
+  for (const m of [{ type: "blockersPick", project: "app", picked: [], rev: rev + 1 }, { type: "blockersPick", project: 7, picked: [], rev }, { type: "blockersPick", project: "app", picked: "0", rev }]) {
+    panel.webview.__receiveFromClient(m);
+  }
+  await flushEvents(50);
   const file = path.join(dir, "release-board-marks.json");
+  assert.equal(fs.existsSync(file), false, "a refused save writes nothing");
+  panel.webview.__receiveFromClient({ type: "blockersPick", project: "app", picked: [], rev });
+  await settle(() => panel.webview.html.includes('id="undo"'));
   assert.deepEqual(Object.keys(parseMarks(fs.readFileSync(file, "utf8")).answered), ["app"], "zero picks still answers");
   assert.ok(!panel.webview.html.includes('data-ask="0"'), "answered with nothing new: no strip");
   panel.webview.__receiveFromClient({ type: "undo", rev: revOf(panel.webview.html) });
@@ -131,8 +134,9 @@ test("a failed write changes nothing and offers no Undo", async () => {
   const panel = __lastWebviewPanel();
   assert.ok(panel);
   await settle(() => panel.webview.html.includes('data-ask="0"'));
-  __setPickHandler(async (items) => [items[0]]);
   panel.webview.__receiveFromClient({ type: "blockersAsk", p: 0, rev: revOf(panel.webview.html) });
+  await settle(() => chooses(panel).length === 1);
+  panel.webview.__receiveFromClient({ type: "blockersPick", project: "app", picked: [chooses(panel)[0].candidates[0].id], rev: revOf(panel.webview.html) });
   await settle(() => stub.__warningMessages().length > 0);
   assert.equal(fs.readFileSync(file, "utf8"), before);
   assert.ok(!panel.webview.html.includes('id="undo"'));
@@ -157,16 +161,11 @@ test("the row menu checkbox pins one document and the project menu asks again", 
   await settle(() => fs.existsSync(file));
   assert.equal(Object.values(parseMarks(fs.readFileSync(file, "utf8")).marks).filter((m) => m.pinned).length, 1);
   // A group heading has no "ask": only project menus are accepted.
-  let asked = 0;
-  __setPickHandler(async () => {
-    asked += 1;
-    return undefined;
-  });
   panel.webview.__receiveFromClient({ type: "scopeMenu", act: "ask", id: "group:0", rev: revOf(panel.webview.html) });
   await flushEvents(50);
-  assert.equal(asked, 0);
+  assert.equal(chooses(panel).length, 0);
   panel.webview.__receiveFromClient({ type: "scopeMenu", act: "ask", id: "project:0", rev: revOf(panel.webview.html) });
-  await settle(() => asked === 1);
+  await settle(() => chooses(panel).length === 1);
 });
 
 test("1000 projects with five candidates each build within a generous budget", () => {

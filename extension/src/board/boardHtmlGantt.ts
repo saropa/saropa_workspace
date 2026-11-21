@@ -14,11 +14,11 @@ import { GANTT_LAYOUTS, GanttLayout } from "./types";
 // dragged (see boardHtmlDrag.ts) and has the row menu.
 
 export const GANTT_STYLE = `
-.gtop{position:relative;display:flex;align-items:center;gap:8px;margin:0 0 8px}.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}.glay{display:inline-flex}.glay button{border-radius:0}.glay button:first-child{border-radius:4px 0 0 4px}.glay button:last-child{border-radius:0 4px 4px 0;margin-left:-1px}.glay button[aria-pressed=true]{background:var(--blue);color:var(--bg)}.gpn{color:var(--mute);font-size:11px;white-space:nowrap;flex:0 1 auto;min-width:0;max-width:30%;overflow:hidden;text-overflow:ellipsis}
+.gq{min-width:24px;padding:0 6px;font-weight:700;cursor:help}.glay{display:inline-flex}.glay button{border-radius:0}.glay button:first-child{border-radius:4px 0 0 4px}.glay button:last-child{border-radius:0 4px 4px 0;margin-left:-1px}.glay button[aria-pressed=true]{background:var(--blue);color:var(--bg)}.gpn{color:var(--mute);font-size:11px;white-space:nowrap;flex:0 1 auto;min-width:0;max-width:30%;overflow:hidden;text-overflow:ellipsis}
 .gantt{position:relative;border:1px solid var(--line);border-radius:6px}
 #gSvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:5}#gSvg path{fill:none;stroke:var(--amber);stroke-width:1.5;marker-end:url(#gAr)}#gAr path{fill:var(--amber)}
 .gsplit{position:absolute;top:0;bottom:0;left:0;width:9px;margin-left:-4px;z-index:6;cursor:col-resize;touch-action:none}.gsplit::after{content:"";position:absolute;top:0;bottom:0;left:4px;width:1px;background:var(--line)}.gsplit:hover::after,.gsplit:focus-visible::after,.gsplit.on::after{width:3px;left:3px;background:var(--blue)}
-.gaxis{display:grid;grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}
+.gaxis{position:relative;display:grid;grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr;font-size:11px;color:var(--mute);border-bottom:1px solid var(--line);padding:4px 0}.gtools{display:flex;align-items:center;gap:6px;padding:0 10px}
 .gaxis .ticks{display:flex;justify-content:space-between;margin:0 10px}
 .gh{display:flex;align-items:center;gap:8px;margin:0;padding:0;background:var(--panel);border-top:1px solid var(--line);font-size:inherit;font-weight:600}.gg:first-of-type .gh{border-top:0}
 .gtog{display:flex;align-items:center;gap:8px;flex:1;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:5px 10px}
@@ -27,13 +27,14 @@ export const GANTT_STYLE = `
 .gsub{list-style:none;padding:0 10px 0 22px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);background:color-mix(in srgb,var(--panel) 60%,transparent)}
 .gsb{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:4px 0}.gsb::before{content:"\\25B8";color:var(--mute)}.gsb[aria-expanded=true]::before{content:"\\25BE"}
 .upn{flex:none;font-size:10px;line-height:14px;padding:0 5px;border:1px solid var(--line);border-radius:8px;color:var(--mute)}
-.gun{margin:0 0 10px;padding:6px 10px;border:1px solid var(--line);border-radius:6px}.gun h2{display:flex;align-items:center;gap:8px;margin:0 0 4px}.gunl{list-style:none;margin:0;padding:0}.gu{display:flex;align-items:center;gap:6px;padding:3px 0;min-width:0}.gu .tt{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.gun{margin:0 0 10px;padding:6px 10px;border:1px solid var(--line);border-radius:6px}.gun>summary.sh{margin:0}.gun>summary.sh h2{display:flex;align-items:center;gap:8px;margin:0}.gun:not([open])>summary.sh{margin:0}.gun[open]>summary.sh{margin-bottom:4px}.gunl{list-style:none;margin:0;padding:0}.gu{display:flex;align-items:center;gap:6px;padding:3px 0;min-width:0}.gu .tt{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .gwip{font-size:11px;font-weight:400;padding:0 6px;border:1px solid var(--line);border-radius:8px;color:var(--mute)}.gwip.over{color:var(--amber);border-color:var(--amber)}
 .gkey{position:absolute;top:100%;left:0;z-index:20;max-width:min(560px,100%);margin-top:4px;padding:8px 12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.4);font-size:12px}.gkey[hidden]{display:none}.gkey p{margin:2px 0}.gkey .kh{font-weight:600}.gkey table{border-collapse:collapse;margin:4px 0}.gkey td{padding:2px 12px 2px 0}.gkey td.sg{font-size:14px;text-align:center}
 .grows{list-style:none;margin:0;padding:0}
 .gr{display:grid;grid-template-columns:var(--gcol,minmax(200px,45%)) 1fr;align-items:center;min-height:30px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
 .gr:hover,.gr[aria-current=true]{background:rgba(128,128,128,.15)}
-.gr.done{opacity:.5}.gr.chg{outline:1px dotted var(--blue);outline-offset:-1px}
+.gr.done{opacity:.5}.gr.chg{border-left:3px solid var(--blue)}
+.gr .kb{visibility:hidden}.gr:hover .kb,.gr:focus-within .kb,.gr[aria-current=true] .kb{visibility:visible}
 .gl{display:flex;align-items:center;gap:6px;padding:3px 10px;min-width:0}.gl .tt{flex:1 1 auto;min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .sg.red{color:var(--red)}.sg.blue{color:var(--blue)}.sg.reference{color:var(--mute)}.sg.amber{color:var(--amber)}.sg.purple{color:var(--purple)}.sg.green{color:var(--green)}
 .gt{position:relative;height:26px;margin:0 10px}
@@ -76,7 +77,7 @@ const sync=()=>{g.querySelectorAll('.gr[data-sk]').forEach(r=>{r.hidden=!OPN.has
 g.querySelectorAll('.gg').forEach(s=>{if(COL.has(s.dataset.gk)){fold(s,true);}else if(OPN.has(s.dataset.gk)){fold(s,false);}});sync();
 g.addEventListener('mouseover',e=>{const r=e.target.closest('.gr');const id=r?r.dataset.gid:null;if(id!==hov){hov=id;draw();}});
 g.addEventListener('mouseleave',()=>{if(hov!==null){hov=null;draw();}});
-g.addEventListener('click',e=>{const t=e.target.closest('.gtog');if(t){const s=t.closest('.gg');const k=s.dataset.gk;const on=!s.classList.contains('col');fold(s,on);if(on){COL.add(k);OPN.delete(k);}else{COL.delete(k);OPN.add(k);}save();hov=null;draw();return;}const u=e.target.closest('.gsb');if(u){const k=u.dataset.sk;if(OPN.has(k)){OPN.delete(k);}else{OPN.add(k);}save();sync();hov=null;draw();return;}const r=e.target.closest('.gr');if(r&&!e.target.closest('a,button')){select(r);}});
+g.addEventListener('click',e=>{const t=e.target.closest('.gtog');if(t){const s=t.closest('.gg');const k=s.dataset.gk;const on=!s.classList.contains('col');fold(s,on);if(on){COL.add(k);OPN.delete(k);}else{COL.delete(k);OPN.add(k);}save();hov=null;draw();return;}const u=e.target.closest('.gsb');if(u){const k=u.dataset.sk;if(OPN.has(k)){OPN.delete(k);}else{OPN.add(k);}save();sync();hov=null;draw();return;}const r=e.target.closest('.gr');if(r&&!e.target.closest('a,button,input')){select(r);}});
 // A row dragged over a closed section or group header opens it (not remembered), so every row stays a drop target.
 let pend=null;g.addEventListener('dragover',e=>{if(!document.body.classList.contains('dragging')){return;}const h=e.target.closest&&e.target.closest('.gtog,.gsb');if(!h||h===pend){return;}const shut=h.classList.contains('gtog')?h.closest('.gg').classList.contains('col'):h.getAttribute('aria-expanded')==='false';if(!shut){return;}pend=h;setTimeout(()=>{if(pend!==h||!document.body.classList.contains('dragging')){return;}pend=null;if(h.classList.contains('gtog')){fold(h.closest('.gg'),false);}else{g.querySelectorAll('.gr[data-sk]').forEach(r=>{if(r.dataset.sk===h.dataset.sk){r.hidden=false;}});h.setAttribute('aria-expanded','true');}draw();},350);});
 document.addEventListener('drop',()=>{pend=null;},true);document.addEventListener('dragend',()=>{pend=null;},true);
@@ -234,7 +235,7 @@ function upNextBox(model: BoardModel, t: BoardStrings): string {
     const proj = several ? `<span class="gpn" ${titleAttr(names.get(i.project) ?? i.project)}>${escapeHtml(names.get(i.project) ?? i.project)}</span>` : "";
     return `<li class="gu" ${titleAttr(pl(t, "upNextWhy", { reasons: why }))}><span class="sg ${k}" aria-hidden="true" ${titleAttr(pl(t, "st." + k))}>${SHAPE[k]}</span><span class="tt">${docLink(i.title, i.path, `data-id="${i.id}"`)}</span>${proj}</li>`;
   }).join("");
-  return `<div class="gun" id="gUpNext" role="region" aria-labelledby="gunh" ${tip(t, "upNextTip")}><h2 id="gunh" ${tip(t, "upNextTip")}>${escapeHtml(pl(t, "upNext"))} ${wip}</h2><ul class="gunl" role="list" ${tip(t, "upNextTip")}>${lis}</ul></div>`;
+  return `<details class="gun" id="gUpNext" data-sec="upNext" open><summary class="sh" ${tip(t, "upNextTip")}><h2 id="gunh" ${tip(t, "upNextTip")}>${escapeHtml(pl(t, "upNext"))} ${wip}</h2></summary><ul class="gunl" role="list" ${tip(t, "upNextTip")}>${lis}</ul></details>`;
 }
 
 // The key as a floating panel under the "?" button, hidden until it is pressed. The status symbols
@@ -275,6 +276,6 @@ export function ganttPanel(model: BoardModel, t: BoardStrings, since?: SinceView
   const open = openGroups(layout0, groups.map((g) => ({ id: g.id, blockers: g.blocks })));
   const body = groups.length === 0
     ? `<p class="note">${escapeHtml(pl(t, "ganttEmpty"))}</p>`
-    : `${upNextBox(shownModel(model, layout), t)}<div class="gantt" id="gantt"><div class="gsplit" id="gSplit" role="separator" aria-orientation="vertical" tabindex="0" aria-valuemin="200" aria-valuemax="600" aria-valuenow="200" aria-label="${escapeHtml(pl(t, "ganttResizeLabel"))}" ${tip(t, "ganttResizeTip")}></div><div class="gaxis" aria-hidden="true" ${tip(t, "ganttAxis")}><span></span><span class="ticks"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model, groups, open.has(g.id), layout0.rowLimit)).join("")}</div>`;
-  return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}"><div class="gtop"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button>${several ? layoutToggle(t, layout) : ""}${keyPanel(t)}</div>${body}</section>`;
+    : `${upNextBox(shownModel(model, layout), t)}<div class="gantt" id="gantt"><div class="gsplit" id="gSplit" role="separator" aria-orientation="vertical" tabindex="0" aria-valuemin="200" aria-valuemax="600" aria-valuenow="200" aria-label="${escapeHtml(pl(t, "ganttResizeLabel"))}" ${tip(t, "ganttResizeTip")}></div><div class="gaxis" ${tip(t, "ganttAxis")}><span class="gtools"><button type="button" class="sec gq" id="gKeyBtn" aria-expanded="false" aria-controls="gKey" aria-label="${escapeHtml(pl(t, "ganttKeyLabel"))}" ${tip(t, "ganttKey")}>?</button>${several ? layoutToggle(t, layout) : ""}${keyPanel(t)}</span><span class="ticks" aria-hidden="true"><span>${escapeHtml(pl(t, "ganttAxisStart"))}</span><span>${escapeHtml(pl(t, "ganttAxisEnd"))}</span></span></div>${groups.map((g, n) => group(g, n, t, model, groups, open.has(g.id), layout0.rowLimit)).join("")}</div>`;
+  return `<section id="tab-gantt" role="tabpanel" aria-labelledby="tb-gantt" aria-label="${escapeHtml(pl(t, "ganttTabName"))}">${body}</section>`;
 }

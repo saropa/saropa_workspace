@@ -46,6 +46,23 @@ cspell:disable
 
 ---
 
+## [2.11.0]
+
+A cleaner, calmer Release Board: inline blocker checkboxes replace the old modal, the Gantt layout sheds clutter, and menus stay out of the way until you need them. [log](https://github.com/saropa/saropa_workspace/blob/v2.11.0/CHANGELOG.md)
+
+### Added
+- Release Board: choosing which items block the next release now uses inline checkboxes on the board rows with a floating save bar, replacing the VS Code QuickPick modal that was unworkable at scale.
+
+### Changed
+- Release Board: the Gantt key button ("?") and layout toggle now sit in the axis row instead of a standalone toolbar, removing the empty row above the chart.
+- Release Board: the Up next section on the Gantt tab is now collapsible, matching the project sections below it.
+- Release Board: changed rows on the Gantt tab now show a subtle left border instead of a dotted outline around the entire row, reducing visual noise.
+- Release Board: the kebab menu button on Gantt rows is now hidden until hover, focus, or selection, keeping the name column cleaner.
+- Release Board: the row context menu now groups its items under Release, Dependencies and Organize headers, with separators between groups.
+- Release Board: the chat poll pause/resume button is now smaller and muted so it does not compete with the view tabs.
+
+---
+
 ## [2.10.0]
 
 A friendly nudge to rate Saropa Workspace on the Marketplace after you have used it for a while. [log](https://github.com/saropa/saropa_workspace/blob/v2.10.0/CHANGELOG.md)

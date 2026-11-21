@@ -5,6 +5,7 @@ import { BoardStrings, escapeHtml, pl, tip } from "./boardHtmlUtil";
 
 export const CHATS_STYLE = `
 .go.active{color:var(--green);border:1px solid var(--green);font-size:11px;padding:0 6px}
+.cpoll{color:var(--mute);font-size:11px;padding:0 4px;min-width:0}
 .notice{margin:0 0 8px;padding:4px 10px;border:1px solid var(--line);border-radius:4px;font-size:12px;color:var(--mute)}`;
 
 // The page script for these controls, appended to the main page script: the pause and play pill
@@ -24,7 +25,8 @@ export function pollPill(paused: boolean | undefined, t: BoardStrings): string {
     return "";
   }
   const key = paused ? "chatResume" : "chatPause";
-  return `<button class="sec" data-chat-poll ${tip(t, key)} aria-label="${escapeHtml(pl(t, key))}">${paused ? "▶" : "⏸︎"}</button>`;
+  // Muted and small so the uncommon pause/resume control does not compete with the view tabs.
+  return `<button class="sec cpoll" data-chat-poll ${tip(t, key)} aria-label="${escapeHtml(pl(t, key))}">${paused ? "▶" : "⏸︎"}</button>`;
 }
 
 // A brief notice at the top of the page; the page script removes it.

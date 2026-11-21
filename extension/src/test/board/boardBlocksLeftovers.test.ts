@@ -16,7 +16,7 @@ import { emptyMarks, parseMarks } from "../../board/marks";
 import { sinceKey, SinceView } from "../../board/sinceLast";
 import { BoardConfig, BoardStatus, Classified } from "../../board/types";
 import { openBoard } from "../../views/boardPanel";
-import { __lastWebviewPanel, __resetWebviewPanels, __setPickHandler, __resetHandlers } from "../_stub/vscode";
+import { __lastWebviewPanel, __resetWebviewPanels, __resetHandlers } from "../_stub/vscode";
 import { settle } from "../settle";
 import { contextIn, stub, tmpDir } from "./hostHelpers";
 
@@ -75,16 +75,19 @@ test("the picker shows a rules-file pin with its reason and never writes it", as
   const panel = __lastWebviewPanel();
   assert.ok(panel);
   await settle(() => panel.webview.html.includes('data-ask="0"'));
-  let offered: Array<{ description?: string; detail?: string; picked?: boolean }> = [];
-  __setPickHandler(async (items) => {
-    offered = [...items] as typeof offered;
-    return [...items];
-  });
-  panel.webview.__receiveFromClient({ type: "blockersAsk", p: 0, rev: Number(/const REV=(\d+)/.exec(panel.webview.html)?.[1]) });
+  const rev = Number(/const REV=(\d+)/.exec(panel.webview.html)?.[1]);
+  type Choose = { type: string; candidates: Array<{ id: number; pinned: boolean }>; fixed: number[] };
+  const chooses = (): Choose[] => (panel.webview.postedMessages as Choose[]).filter((m) => m.type === "blockersChoose");
+  panel.webview.__receiveFromClient({ type: "blockersAsk", p: 0, rev });
+  await settle(() => chooses().length === 1);
+  // The page ticks and disables the pattern pin, so the one pin the pattern gives is the one fixed row.
+  const [question] = chooses();
+  assert.equal(question.fixed.length, 1);
+  assert.ok(question.candidates.find((c) => c.id === question.fixed[0])?.pinned, "the fixed row is drawn ticked");
+  // A disabled checkbox is never sent: the page posts only the rows the reader can change.
+  const picked = question.candidates.map((c) => c.id).filter((id) => !question.fixed.includes(id));
+  panel.webview.__receiveFromClient({ type: "blockersPick", project: "app", picked, rev });
   await settle(() => panel.webview.html.includes('id="undo"'));
-  const fixed = offered.filter((o) => o.description?.includes("rules file"));
-  assert.equal(fixed.length, 1);
-  assert.ok(fixed[0].picked && fixed[0].detail?.endsWith("BUG_0.md"));
   const marks = parseMarks(fs.readFileSync(path.join(dir, "release-board-marks.json"), "utf8")).marks;
   assert.equal(Object.keys(marks).length, 6, "the six hand-pickable items are written, the pattern pin is not");
   assert.ok(!Object.keys(marks).some((k) => k.endsWith("BUG_0.md")));

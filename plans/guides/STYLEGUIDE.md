@@ -1146,6 +1146,18 @@ A webview editor that holds a draft (the Release Board keyword editor on the Sev
 
 A webview editor whose lists run past about 10 chips each (the Release Board Severity tab is the model) shows each list as a collapsed accordion card: the name, the count, the edited mark and a one-line meaning in a header button, a read-only peek of the first 5 chips plus "+N more", and the full list with its add row in a region that opens on demand. One card is open at a time, none on load, and Escape closes the open card and returns focus to its header. The header is a `button` with `aria-expanded` and `aria-controls`; the body is a `role="region"` labeled by the header and `hidden` while closed; a header button never contains another control, so the per-list Restore defaults is a small link beside it. The numbers go in one compact grid with the long help behind an info icon (a focusable `role="note"` with an `aria-label`, plus a hidden description the input points at). The result of the edit and the single Save stay in a sticky strip at the top, and the page bar's own Save is hidden on that tab so there is never a second one. Short related lists (negation and audience words) share one always-open card.
 
+### 4.19 A webview row menu groups related actions under labeled headers
+
+A webview pop-up menu (the Release Board row menu is the model) that grows past roughly a dozen items groups them under `.mh` headers using the existing `group()` helper. The first few entries and the last few (terminal actions such as Hide) stay flat; the middle entries are wrapped in named groups (Release, Dependencies, Organize). The `.mi + .mh` CSS rule automatically inserts separators. Group header labels are externalized i18n keys with tooltips (`menuRelease`, `menuReleaseTip`, etc.). No new CSS classes are needed; the existing `.mh` and `group()` patterns handle layout and ARIA (`role="group"`, `aria-labelledby`).
+
+### 4.20 A webview kebab button hides until the row is hovered, focused or selected
+
+The kebab (⋮) on a Gantt row uses `visibility: hidden` (not `display: none`) so it occupies its space and causes no layout shift. It becomes visible on `.gr:hover`, `.gr:focus-within` and `.gr[aria-current=true]`. Right-click still works because the contextmenu handler on the row opens the same menu. Board-tab rows already use a similar pattern for hand-off checkboxes (opacity-based); the Gantt uses visibility because its kebab sits inline in the label area and a width change would shift surrounding text.
+
+### 4.21 An inline picker replaces a modal when the choices live on visible rows
+
+When a selection dialog would show the same items already visible on the page (the blocker picker is the model), the picker runs inline: the host sends a message with candidate IDs to the page, the page inserts checkboxes on matching rows and shows a floating save bar (`position: fixed; bottom: 16px; left: 50%`), and Save posts the picked IDs back to the host. Cancel or Escape removes the checkboxes and bar. The save bar's i18n labels are passed in the host message so the page script carries no catalog. Only one inline picker session is active at a time; starting a new one tears down the old.
+
 ---
 
 ## Maintaining this guide

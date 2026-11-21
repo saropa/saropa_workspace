@@ -4,7 +4,7 @@ import { PathToGo } from "./pathToGo";
 import { Train } from "./train";
 import { SinceView } from "./sinceLast";
 import { BoardStrings, escapeHtml, glyphTip, pillify, pl, tip } from "./boardHtmlUtil";
-import { STYLE, script } from "./boardHtmlAssets";
+import { BLOCKERS_PICK_SCRIPT, STYLE, script } from "./boardHtmlAssets";
 import { list, projectBlock, projectCard } from "./boardHtmlRows";
 import { CARD_GROUP_BYS, groupCards } from "./boardHtmlGroups";
 import type { GanttLayout, GroupBy } from "./types";
@@ -183,5 +183,6 @@ ${CHATS_SCRIPT}
 ${KEYWORD_LINE_SCRIPT}
 ${HANDOFF_SCRIPT}
 ${GANTT_SCRIPT}
-${DRAG_SCRIPT}</script></body></html>`;
+${DRAG_SCRIPT}
+${BLOCKERS_PICK_SCRIPT}</script></body></html>`;
 }

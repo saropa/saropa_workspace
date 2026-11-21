@@ -158,6 +158,9 @@ class BoardPanel extends BoardPanelFuture {
     } else if ((message.type === "blockersAsk" || message.type === "orderAsk") && Number.isInteger(message.p)) {
       // The batch asks of a project card; the index is resolved against the model this panel rendered.
       await (message.type === "blockersAsk" ? this.askBlockers(message.p as number, false) : this.askOrder(message.p as number, "batch"));
+    } else if (message.type === "blockersPick" && typeof message.project === "string" && Array.isArray(message.picked)) {
+      // The inline blocker picker's Save: apply the picked item IDs.
+      await this.applyBlockersPick(message.project, message.picked as number[]);
     } else if (message.type === "rowMenu" && typeof message.id === "number" && typeof message.act === "string") {
       await this.rowMenu(message.act, message.id);
     } else if (message.type === "optsMenu" && typeof message.act === "string") {

@@ -75,7 +75,7 @@ test("the arrow click sends the keyboard's move message, ids only, with the page
 
 test("a click on an arrow does not also open the document", () => {
   const page = script(1, "x", "p");
-  assert.ok(page.includes("closest('[data-mv],[data-ch]')){return;}vscode.postMessage({type:'open'"));
+  assert.ok(page.includes("closest('[data-mv],[data-ch],[data-bp]')){return;}vscode.postMessage({type:'open'"));
 });
 
 test("a stored order wins over work order in the Gantt, and the arrows follow the drawn rows", () => {
@@ -109,5 +109,5 @@ test("the chain click and Alt+Left/Right send ids only, with the revision, and a
   assert.equal(sent.length, 2);
   assert.ok(sent.every((m) => /id:Number\(r\.dataset\.drag\),to:[^,]*,ctl:[^}]*rev:REV/.test(m)));
   assert.ok(DRAG_SCRIPT.includes("e.key!=='ArrowLeft'&&e.key!=='ArrowRight'"));
-  assert.ok(script(1, "x", "p").includes("closest('[data-mv],[data-ch]')"));
+  assert.ok(script(1, "x", "p").includes("closest('[data-mv],[data-ch],[data-bp]')"));
 });

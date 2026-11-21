@@ -62,7 +62,20 @@ export function rowMenu(t: BoardStrings, profile = "deliberate", projects: Board
   const effect = { stops: pl(t, "effStops"), clears: pl(t, "effClears"), fixed: pl(t, "effFixed"), others: pl(t, "effOthers"), none: pl(t, "effNone"), marked: pl(t, "effMarked"), sOn: pl(t, "effStatusOn"), sOff: pl(t, "effStatusOff"), sSame: pl(t, "effStatusSame"), lGo: pl(t, "effLightGo"), lNoGo: pl(t, "effLightNoGo") };
   const lists = ` data-stops="${escapeHtml(JSON.stringify(SEVERITY_LEVELS.filter((l) => stops(asProfile(profile), l))))}" data-pname="${escapeHtml(profile === "rush" ? t.profileRush : profile === "zero" ? t.profileZero : t.profileDeliberate)}" data-eff="${escapeHtml(JSON.stringify(effect))}" data-proj="${escapeHtml(JSON.stringify(Object.fromEntries(projects.map((p) => [p.id, [p.name, p.items.filter(blocksNow).length + p.blockedStopping]]))))}"`;
   const live = `<div role="group" aria-label="${escapeHtml(pl(t, "effLabel"))}" ${tip(t, "effLabel")}><div class="eff" id="eff" aria-live="polite" ${tip(t, "effLabel")}></div></div>`;
-  return `<div class="menu" id="menu-row" role="menu" hidden${lists} aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${status}${severity}${live}${item("block", pl(t, "menuBlock"), pl(t, "menuBlockTip"), ' aria-checked="false"', "menuitemcheckbox")}${item("order", pl(t, "menuOrderRow"), pl(t, "menuOrderRowTip"))}${item("forgetOrder", pl(t, "menuForget"), pl(t, "menuForgetTip"))}${item("makeDep", pl(t, "menuMakeDep"), pl(t, "menuMakeDepTip"))}${item("waits", pl(t, "menuWaits"), pl(t, "menuWaitsTip"))}${item("blocks", pl(t, "menuBlocks"), pl(t, "menuBlocksTip"))}${item("group", pl(t, "menuGroup"), pl(t, "menuGroupTip"))}${item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip"))}${item("tags", pl(t, "menuTags"), pl(t, "menuTagsTip"))}${hand}${item("hide", pl(t, "menuHide"), pl(t, "menuHideTip"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;
+  // Three labeled groups after Status/Severity/Effect: Release (blocking, order), Dependencies (needs/blocks links), Organize (group, assign, tags). "Open" stays flat at top; "Hand off" and "Hide" stay flat at bottom.
+  const release = group("menuRelease",
+    item("block", pl(t, "menuBlock"), pl(t, "menuBlockTip"), ' aria-checked="false"', "menuitemcheckbox") +
+    item("order", pl(t, "menuOrderRow"), pl(t, "menuOrderRowTip")) +
+    item("forgetOrder", pl(t, "menuForget"), pl(t, "menuForgetTip")));
+  const deps = group("menuDependencies",
+    item("makeDep", pl(t, "menuMakeDep"), pl(t, "menuMakeDepTip")) +
+    item("waits", pl(t, "menuWaits"), pl(t, "menuWaitsTip")) +
+    item("blocks", pl(t, "menuBlocks"), pl(t, "menuBlocksTip")));
+  const organize = group("menuOrganize",
+    item("group", pl(t, "menuGroup"), pl(t, "menuGroupTip")) +
+    item("assign", pl(t, "menuAssign"), pl(t, "menuAssignTip")) +
+    item("tags", pl(t, "menuTags"), pl(t, "menuTagsTip")));
+  return `<div class="menu" id="menu-row" role="menu" hidden${lists} aria-label="${escapeHtml(pl(t, "rowMenuList"))}" title="${escapeHtml(pl(t, "rowMenuList"))}">${item("open", pl(t, "menuOpen"), pl(t, "menuOpenTip"))}${status}${severity}${live}${release}${deps}${organize}${hand}${item("hide", pl(t, "menuHide"), pl(t, "menuHideTip"))}${item("rules", t.ptgOpenRules, pl(t, "menuRulesTip"))}</div>`;
 }
 
 // True when an open document blocks the next release: marked by the owner in an answered project,

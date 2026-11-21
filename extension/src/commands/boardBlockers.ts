@@ -1,10 +1,8 @@
 import * as vscode from "vscode";
 import { l10n } from "../i18n/l10n";
 import type { BoardItem, BoardProject } from "../board/boardModel";
-import { pl } from "../board/boardHtmlUtil";
-import { Snapshot, applyAnswer, applyBlock, candidatesOf, restoreSnapshot } from "../board/blockersAsk";
+import { Snapshot, applyAnswer, applyBlock, restoreSnapshot } from "../board/blockersAsk";
 import { MarksFile, markKey } from "../board/marks";
-import { strings } from "../views/boardStrings";
 import { readLocalMarks, readMarks, readSharedMarks, updateLocalMarks } from "./boardMarks";
 
 // "Which items block the next release?", VS Code layer. The list is the host's own multi-select
@@ -17,21 +15,6 @@ export interface BlockersUndo {
   restore: () => Promise<boolean>;
 }
 
-interface Pick extends vscode.QuickPickItem {
-  path: string;
-}
-
-// The picker: every offered item with its current mark ticked. Undefined when dismissed; an empty
-// set when confirmed with nothing ticked (a valid answer).
-async function pickBlockers(items: readonly BoardItem[], fresh: boolean, fixed: ReadonlySet<string>): Promise<Set<string> | undefined> {
-  const t = strings();
-  // A pin from the rules file's globs is ticked and says why it cannot be changed here (the list cannot disable a row;
-  // a path in `fixed` is never written, whatever the tick).
-  const picks: Pick[] = items.map((i) => ({ label: i.title, description: [i.severity ? pl(t, "sev." + i.severity) : "", fixed.has(i.path) ? l10n("releaseBoard.blockers.fixed") : ""].filter(Boolean).join(" · "), detail: i.path, picked: i.pinned, path: i.path }));
-  const chosen = await vscode.window.showQuickPick(picks, { canPickMany: true, matchOnDetail: true, title: l10n(fresh ? "releaseBoard.blockers.titleFresh" : "releaseBoard.blockers.title") });
-  return chosen ? new Set(chosen.map((c) => c.path)) : undefined;
-}
-
 // Puts the marks back as the snapshot holds them, in one write.
 function undoOf(context: vscode.ExtensionContext, project: string, snap: Snapshot): () => Promise<boolean> {
   return async () => {
@@ -40,22 +23,11 @@ function undoOf(context: vscode.ExtensionContext, project: string, snap: Snapsho
   };
 }
 
-// Asks which of a project's items block the next release and saves the answer. `fresh` offers only the
-// new extreme and critical items of an answered project. Undefined when dismissed, empty or not written.
-export async function chooseBlockers(context: vscode.ExtensionContext, project: BoardProject, marks: MarksFile, fresh: boolean): Promise<BlockersUndo | undefined> {
-  const items = candidatesOf(project.items, fresh, marks.answered[project.id]?.seen);
-  if (items.length === 0) {
-    void vscode.window.showInformationMessage(l10n("releaseBoard.blockers.none"));
-    return undefined;
-  }
-  const merged = (await readMarks(context)).marks;
-  const fixed = new Set(items.filter((i) => i.pinned && merged[markKey(project.id, i.path)]?.pinned !== true).map((i) => i.path));
-  const chosen = await pickBlockers(items, fresh, fixed);
-  if (!chosen) {
-    return undefined;
-  }
-  const offer = items.filter((i) => !fixed.has(i.path));
-  const picked = new Set([...chosen].filter((p) => !fixed.has(p)));
+// Saves a blocker answer from the paths the inline picker returned. Paths the rules file pins are never
+// written, whatever the page sent. Undefined when the write was refused (file too big), so no Undo is offered.
+export async function applyBlockersAnswer(context: vscode.ExtensionContext, project: BoardProject, items: readonly BoardItem[], fixedPaths: ReadonlySet<string>, pickedPaths: ReadonlySet<string>, fresh: boolean): Promise<BlockersUndo | undefined> {
+  const offer = items.filter((i) => !fixedPaths.has(i.path));
+  const picked = new Set([...pickedPaths].filter((p) => !fixedPaths.has(p)));
   const shared = await readSharedMarks();
   const now = Date.now();
   let before: Snapshot | undefined;

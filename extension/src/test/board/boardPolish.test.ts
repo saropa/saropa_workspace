@@ -235,10 +235,11 @@ test("the row menu has Open, the status radios, Raise, Lower, the five levels, B
   assert.ok(html.includes('data-stops="[&#34;extreme&#34;,&#34;critical&#34;,&#34;high&#34;]"'), "the levels that stop under the profile");
 });
 
-test("every radio of the row menu sits in a labelled group and carries aria-checked", () => {
+test("every radio of the row menu sits in a labeled group and carries aria-checked", () => {
   const html = rowMenu(t, "zero", [], [{ label: "Done", status: "green" }]);
   assert.equal([...html.matchAll(/role="menuitemradio"[^>]*aria-checked="false"/g)].length, 6);
-  assert.equal([...html.matchAll(/<div role="group" aria-labelledby="(mh-\w+)"/g)].length, 2);
+  // Status and Severity hold the radios; Release, Dependencies and Organize group the other entries.
+  assert.deepEqual([...html.matchAll(/<div role="group" aria-labelledby="(mh-\w+)"/g)].map((m) => m[1]), ["mh-menuStatus", "mh-menuSeverity", "mh-menuRelease", "mh-menuDependencies", "mh-menuOrganize"]);
   assert.ok(html.includes('id="mh-menuStatus"') && html.includes('id="mh-menuSeverity"'));
   assert.ok(html.includes('id="eff" aria-live="polite"'));
   assert.ok(html.includes('data-stops="[&#34;extreme&#34;,&#34;critical&#34;,&#34;high&#34;,&#34;medium&#34;]"'));

@@ -56,6 +56,8 @@ select{background:var(--vscode-dropdown-background,var(--bg));color:var(--vscode
 .facts>*{align-self:center;margin:0;vertical-align:middle;line-height:1.5}.row .f{align-self:center}.row .stat{box-sizing:border-box;width:13em;text-align:center;overflow:hidden;text-overflow:ellipsis}.stat[role=button]{cursor:pointer}.stat:focus-visible{outline:1px solid var(--vscode-focusBorder,#fff)}.row.pend .stat,.gr.pend .tt{opacity:.5;font-style:italic}.mi[role=menuitemradio]::before,.mi[role=menuitemcheckbox]::before{content:"";display:inline-block;width:1.4em}.mi[aria-checked=true]::before{content:"\\2713"}.mi:disabled{opacity:.5}.eff{padding:4px 14px;font-size:11px;color:var(--mute);max-width:24em}.eff:empty{display:none}
 .ginf{opacity:.7;font-size:11px;border-bottom:1px dotted currentColor;cursor:help}.ask{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0;padding:6px 10px;border:1px solid var(--amber);border-radius:6px;font-size:12px}.ask[hidden]{display:none}
 #undo{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:30;display:flex;gap:12px;align-items:center;padding:6px 12px;border:1px solid var(--vscode-menu-border,var(--line));border-radius:6px;background:var(--vscode-menu-background,var(--panel));color:var(--vscode-menu-foreground,var(--fg));box-shadow:0 4px 18px rgba(0,0,0,.45);font-size:12px}
+#bpBar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:31;display:flex;gap:12px;align-items:center;padding:6px 12px;border:1px solid var(--blue);border-radius:6px;background:var(--vscode-menu-background,var(--panel));color:var(--vscode-menu-foreground,var(--fg));box-shadow:0 4px 18px rgba(0,0,0,.45);font-size:12px}#bpBar[hidden]{display:none}
+.bpick{flex:none;margin:0;cursor:pointer;accent-color:var(--blue)}.bpick:disabled{cursor:default}
 .mh{padding:6px 14px 2px;font-size:11px;color:var(--mute)}.mi+.mh{margin-top:4px;border-top:1px solid var(--line)}.mi{background:transparent;color:inherit;border:0;border-radius:0;text-align:left;padding:5px 14px;min-height:28px;white-space:normal}.mi:hover:not(:disabled),.mi:focus-visible{background:var(--vscode-menu-selectionBackground,rgba(128,128,128,.25));color:var(--vscode-menu-selectionForeground,inherit);outline:0}body{overflow-wrap:break-word}.tabs{flex-wrap:wrap}
 @media (max-width:560px){.pn{width:auto}.k{display:none}.filter .k{display:inline}.top{gap:8px}}
 @media (max-width:480px){.row .tag,.facts .mk:not(.top),.marks .mk:not(.top){display:none}.kb,.mi{min-height:32px;min-width:32px}body{padding:8px}.box{padding:8px 10px;margin:8px 0}.ptg{padding-left:26px}.row.in{margin-left:6px}
@@ -154,4 +156,35 @@ wired('[data-glayout]',b=>b.addEventListener('click',()=>{if(b.getAttribute('ari
 wired('[data-rowsmore]',b=>b.addEventListener('click',()=>{if(b.disabled){return;}b.disabled=true;b.setAttribute('aria-busy','true');ask(b.dataset.lid,b.dataset.by,Number(b.dataset.from));}));
 window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='rows'||d.rev!==REV||typeof d.html!=='string'||typeof d.id!=='string'){return;}const kind=d.from===0?'lazy':'more';const c=holder(d.id,d.by,d.from);if(!c){settle(d.id,d.by,d.from,false);return;}c.innerHTML=d.html;c.removeAttribute('aria-busy');c.dataset.loaded='1';wireIn(c);window.dispatchEvent(new Event('ganttrows'));if(kind==='more'){const b=c.previousElementSibling;if(b&&b.hasAttribute('data-rowsmore')){b.setAttribute('aria-expanded','true');b.hidden=true;}}const lv=document.getElementById('live');if(lv&&typeof d.label==='string'&&d.label){lv.textContent=d.label;}settle(d.id,d.by,d.from,false);});
 wired('[data-show-more]',b=>b.addEventListener('click',()=>{const r=b.nextElementSibling;if(r){r.hidden=false;}b.remove();}));
-wired('.row[data-id]',r=>r.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('[data-mv],[data-ch]')){return;}vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});}));`;
+wired('.row[data-id]',r=>r.addEventListener('click',e=>{if(e.target.closest&&e.target.closest('[data-mv],[data-ch],[data-bp]')){return;}vscode.postMessage({type:'open',id:Number(r.dataset.id),rev:REV});}));`;
+
+// Inline blocker picker: the host sends blockersChoose with candidate IDs, the page shows
+// checkboxes on matching rows and a floating save bar. Save posts blockersPick with picked IDs;
+// Cancel removes everything. Only one choose session runs at a time.
+export const BLOCKERS_PICK_SCRIPT = `
+(()=>{let BP=null;
+// Find all DOM rows for a given item model index (Board and Gantt tabs may both show it).
+const bpRows=id=>[...document.querySelectorAll('.row[data-id="'+id+'"],.gr[data-drag="'+id+'"]')];
+// Tear down an active blocker-pick session and restore normal row behavior.
+let bpEsc=null;
+const bpEnd=()=>{if(!BP){return;}document.querySelectorAll('.bpick').forEach(c=>c.remove());const bar=document.getElementById('bpBar');if(bar){bar.remove();}if(bpEsc){document.removeEventListener('keydown',bpEsc);bpEsc=null;}BP=null;};
+// Update the save bar's count label.
+const bpCount=()=>{if(!BP){return;}const n=document.querySelectorAll('.bpick:checked:not(:disabled)').length;const sp=document.getElementById('bpCount');if(sp){sp.textContent=BP.tmpl.replace('{count}',String(n));}const sv=document.getElementById('bpSave');if(sv){sv.disabled=n===0;}};
+window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='blockersChoose'){return;}
+bpEnd();
+const cands=d.candidates||[];const fixSet=new Set(d.fixed||[]);
+BP={project:d.project,tmpl:d.countTmpl||'{count} selected'};
+// Insert a checkbox at the start of each candidate's row label area.
+cands.forEach(c=>{bpRows(c.id).forEach(r=>{const cb=document.createElement('input');cb.type='checkbox';cb.className='bpick';cb.dataset.bp=String(c.id);cb.checked=!!c.pinned;cb.disabled=fixSet.has(c.id);cb.title=c.title;cb.setAttribute('aria-label',c.title);const gl=r.querySelector('.gl')||r;gl.insertBefore(cb,gl.firstChild);cb.addEventListener('change',bpCount);});});
+// Build the floating save bar.
+const bar=document.createElement('div');bar.id='bpBar';bar.setAttribute('role','status');
+bar.innerHTML='<span id="bpCount"></span>'+
+'<button type="button" id="bpSave" title="'+(d.saveTip||'')+'">'+((d.saveLabel||'Save'))+'</button>'+
+'<button type="button" class="sec" id="bpCancel" title="'+(d.cancelTip||'')+'">'+((d.cancelLabel||'Cancel'))+'</button>';
+document.body.appendChild(bar);bpCount();
+document.getElementById('bpSave').addEventListener('click',()=>{const picked=[...document.querySelectorAll('.bpick:checked:not(:disabled)')].map(c=>Number(c.dataset.bp));vscode.postMessage({type:'blockersPick',project:BP.project,picked,rev:REV});bpEnd();});
+document.getElementById('bpCancel').addEventListener('click',()=>{bpEnd();});
+// Escape also cancels; the handler is removed by bpEnd so Save/Cancel clean it up too.
+bpEsc=e=>{if(BP&&e.key==='Escape'){e.preventDefault();bpEnd();}};document.addEventListener('keydown',bpEsc);
+});})();`;
+

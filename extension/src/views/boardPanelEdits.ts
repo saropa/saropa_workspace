@@ -17,9 +17,11 @@ import { TagsEditorInput, openTagsEditor } from "./tagsEditorPanel";
 import { matchedTagIds, settingsOf } from "../board/org/settings";
 import { openMessage } from "./boardHandoff";
 import { BoardPanelWiring } from "./boardPanelWiring";
-import { BlockersUndo, chooseBlockers, toggleBlock } from "../commands/boardBlockers";
+import { BlockersUndo, applyBlockersAnswer, toggleBlock } from "../commands/boardBlockers";
 import { orderBlockers, forgetOrder } from "../commands/boardOrder";
 import { readMarks } from "../commands/boardMarks";
+import { candidatesOf } from "../board/blockersAsk";
+import { markKey } from "../board/marks";
 import { rebaseProject } from "./boardSinceLast";
 
 // How long Undo stays offered after a change.
@@ -102,7 +104,7 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     } else if (act === "group") {
       // The picker is the host's own dialog: nothing but the entry name comes from the page.
       const picked = await pickGroup(await readGroupNames(), item);
-      if (!picked.cancelled) {
+      if (!picked.canceled) {
         await this.inlineChange(run, item, { kind: "group", name: picked.name }, id);
       }
     } else if (act === "tags") {
@@ -314,14 +316,54 @@ export abstract class BoardPanelEdits extends BoardPanelWiring {
     }
   }
 
-  // Asks which items of a project (by its index in the model this panel painted) block the next release.
-  // `all` offers every candidate; otherwise an answered project is asked only about its new critical items.
+  // Sends the candidates for a project's blocker question to the page as inline checkboxes.
+  // The page shows them on matching rows with a save bar; Save posts blockersPick back.
   protected async askBlockers(index: number, all: boolean): Promise<void> {
     const project = Number.isInteger(index) ? this.model?.projects[index] : undefined;
     const run = this.run;
-    if (project && run) {
-      await this.blockers(() => chooseBlockers(this.context, project, run.marks, !all && project.ask?.fresh === true), project.id);
+    if (!project || !run) {
+      return;
     }
+    const fresh = !all && project.ask?.fresh === true;
+    const items = candidatesOf(project.items, fresh, run.marks.answered[project.id]?.seen);
+    if (items.length === 0) {
+      void vscode.window.showInformationMessage(l10n("releaseBoard.blockers.none"));
+      return;
+    }
+    const merged = (await readMarks(this.context)).marks;
+    // A pin from the rules file's globs cannot be toggled in the picker; it is ticked and disabled.
+    const fixedIds = items.filter((i) => i.pinned && merged[markKey(project.id, i.path)]?.pinned !== true).map((i) => i.id);
+    // Send the candidate list to the page, which shows inline checkboxes and a save bar.
+    this.post({
+      type: "blockersChoose",
+      project: project.id,
+      fresh,
+      candidates: items.map((i) => ({ id: i.id, pinned: i.pinned, title: i.title })),
+      fixed: fixedIds,
+      countTmpl: l10n("releaseBoard.blockers.pickCount", { count: "{count}" }),
+      saveLabel: l10n("releaseBoard.blockers.pickSave"),
+      saveTip: l10n("releaseBoard.blockers.pickSaveTip"),
+      cancelLabel: l10n("releaseBoard.blockers.pickCancel"),
+      cancelTip: l10n("releaseBoard.blockers.pickCancelTip"),
+    });
+  }
+
+  // Applies the answer from the inline blocker picker: the page sent the picked item IDs.
+  protected async applyBlockersPick(projectId: string, pickedIds: readonly number[]): Promise<void> {
+    const project = this.model?.projects.find((p) => p.id === projectId);
+    const run = this.run;
+    if (!project || !run) {
+      return;
+    }
+    // Resolve the fresh flag from the project's ask state to match what askBlockers sent.
+    const fresh = project.ask?.fresh === true;
+    const items = candidatesOf(project.items, fresh, run.marks.answered[project.id]?.seen);
+    const merged = (await readMarks(this.context)).marks;
+    const fixedPaths = new Set(items.filter((i) => i.pinned && merged[markKey(project.id, i.path)]?.pinned !== true).map((i) => i.path));
+    // Map picked item IDs back to paths.
+    const idToPath = new Map(items.map((i) => [i.id, i.path]));
+    const pickedPaths = new Set(pickedIds.map((id) => idToPath.get(id)).filter((p): p is string => p !== undefined));
+    await this.blockers(() => applyBlockersAnswer(this.context, project, items, fixedPaths, pickedPaths, fresh), project.id);
   }
 
   // Asks which of a project's blockers (by its index in the model this panel painted) comes first: a batch of up to five
