@@ -63,10 +63,43 @@ async function main() {
 
   // Run the exact bundles we built (explicit file list, not a glob), so the run is
   // deterministic across Node versions and platforms.
-  const result = spawnSync(process.execPath, ["--test", ...outFiles], {
-    stdio: "inherit",
-  });
-  process.exit(result.status ?? 1);
+  // Windows caps a command line at 32,767 characters. The full bundle list passed 38,000, so one
+  // spawn failed with ENAMETOOLONG and the harness exited 1 without running a single test. The
+  // list is split into batches under a margin below that cap and the batches run one after another.
+  const MAX_ARG_CHARS = 24000;
+  const batches = [];
+  let current = [];
+  let size = 0;
+  for (const file of outFiles) {
+    if (current.length > 0 && size + file.length + 1 > MAX_ARG_CHARS) {
+      batches.push(current);
+      current = [];
+      size = 0;
+    }
+    current.push(file);
+    size += file.length + 1;
+  }
+  if (current.length > 0) {
+    batches.push(current);
+  }
+
+  // Every batch runs even after a failure so one run reports all failing files; the exit code is
+  // non-zero when any batch failed.
+  let exitCode = 0;
+  for (const batch of batches) {
+    const result = spawnSync(process.execPath, ["--test", ...batch], {
+      stdio: "inherit",
+    });
+    // A launch failure comes back through result.error with a null status. Printing it keeps a
+    // failed spawn from exiting 1 with no output, which left the publish gate with nothing to read.
+    if (result.error) {
+      console.error(`Could not launch the test runner: ${result.error.message} (${batch.length} bundles).`);
+    }
+    if ((result.status ?? 1) !== 0) {
+      exitCode = result.status ?? 1;
+    }
+  }
+  process.exit(exitCode);
 }
 
 main().catch((err) => {

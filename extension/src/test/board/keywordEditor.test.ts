@@ -335,7 +335,8 @@ test("opening a level card shows its list and hides its peek, and opening anothe
   const acc = (k: string) => page.byId(`acc-${k}`);
   for (const k of ["extreme", "critical", "high", "low"]) {
     assert.equal(acc(k).getAttribute("aria-expanded"), "false", `${k} starts open`);
-    assert.equal(hidden(page.byId(`body-${k}`)), true);
+    // The fake DOM does not turn the markup's hidden attribute into a property, so the initial state is read from the attribute.
+    assert.equal(page.byId(`body-${k}`).hasAttribute("hidden"), true);
   }
   page.click(acc("high"));
   assert.equal(acc("high").getAttribute("aria-expanded"), "true");

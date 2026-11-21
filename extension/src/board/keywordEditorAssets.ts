@@ -98,7 +98,8 @@ function renderPeek(k,items){
   const pk=$('[data-peek="'+k+'"]');if(!pk){return;}
   pk.textContent='';
   items.slice(0,PEEK).forEach(p=>{
-    const s=document.createElement('span');s.className='chip';
+    // The same tooltip as the markup the host renders, so a redrawn peek chip is never untitled.
+    const s=document.createElement('span');s.className='chip';s.setAttribute('title',fill(T.chipTip,{phrase:p,level:nameOf(k)}));
     const t=document.createElement('span');t.className='ct';t.textContent=p;s.appendChild(t);pk.appendChild(s);
   });
   if(items.length>PEEK){const m=document.createElement('span');m.className='more';m.textContent=fill(T.moreChips,{count:items.length-PEEK});pk.appendChild(m);}

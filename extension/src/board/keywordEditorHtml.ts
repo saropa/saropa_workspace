@@ -75,12 +75,13 @@ function listParts(t: KeywordLabelTable, kind: ListKind, items: readonly string[
 function levelCard(t: KeywordLabelTable, kind: EditLevel, items: readonly string[], edited: boolean): string {
   const p = listParts(t, kind, items, edited);
   // The peek chips carry no remove button, so a closed card cannot be edited by accident and the tab order stays short.
-  const peek = items.slice(0, PEEK_COUNT).map((w) => `<span class="chip"><span class="ct">${e(w)}</span></span>`).join("");
+  // Each peek chip still carries the same tooltip as its editable twin: the tooltip audit requires a title on every chip.
+  const peek = items.slice(0, PEEK_COUNT).map((w) => `<span class="chip" title="${e(fillText(t.chipTip, { phrase: w, level: p.name }))}"><span class="ct">${e(w)}</span></span>`).join("");
   const more = items.length > PEEK_COUNT ? `<span class="more">${e(fillText(t.moreChips, { count: items.length - PEEK_COUNT }))}</span>` : "";
   const open = e(fillText(t.expandTip, { level: p.name, count: items.length }));
   return `<div class="card" data-sec="${kind}" data-open="false"><div class="hd"><button type="button" class="acc" id="acc-${kind}" data-acc="${kind}" aria-expanded="false" aria-controls="body-${kind}" title="${open}"><span class="nm">${e(p.name)}</span> ${p.count}${p.mark}<span class="meaning">${e(firstSentence(p.help))}</span></button>${p.restore}</div>
 <div class="peek" data-peek="${kind}">${peek}${more}</div>
-<div class="body" id="body-${kind}" role="region" aria-labelledby="acc-${kind}" hidden><p class="help" id="h-${kind}">${e(p.help)}</p>${p.chips}${p.add}</div></div>`;
+<div class="body" id="body-${kind}" role="region" aria-labelledby="acc-${kind}" title="${e(fillText(t.levelTip, { level: p.name, count: items.length }))}" hidden><p class="help" id="h-${kind}">${e(p.help)}</p>${p.chips}${p.add}</div></div>`;
 }
 
 // One sub-list of the Phrase rules card (negation or audience words). Always open: the two lists are short.

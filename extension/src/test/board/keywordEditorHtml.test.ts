@@ -149,7 +149,8 @@ test("every level is a collapsed accordion card: a header button wired to a hidd
   for (const level of EDIT_LEVELS) {
     const card = sectionOf(html, level);
     assert.ok(card.includes(`id="acc-${level}"`) && card.includes('aria-expanded="false"') && card.includes(`aria-controls="body-${level}"`), level);
-    assert.ok(card.includes(`id="body-${level}" role="region" aria-labelledby="acc-${level}" hidden`), `${level} region is not hidden and labelled`);
+    // The region carries a title for the tooltip audit, so the hidden attribute is matched at the end of its own tag, not after aria-labelledby.
+    assert.ok(new RegExp(`id="body-${level}" role="region" aria-labelledby="acc-${level}"[^>]* hidden>`).test(card), `${level} region is not hidden and labeled`);
     const header = card.slice(card.indexOf("<button"), card.indexOf("</button>"));
     assert.equal(header.split("<button").length - 1, 1, `${level} header holds another control`);
     assert.ok(!card.includes('aria-expanded="true"'), `${level} starts open`);
