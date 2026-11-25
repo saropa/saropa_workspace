@@ -23,7 +23,7 @@ export const GANTT_STYLE = `
 .gaxis .ticks{display:flex;justify-content:space-between;margin:0 10px}
 .gh{display:flex;align-items:center;gap:8px;margin:0;padding:0;background:var(--panel);border-top:1px solid var(--line);font-size:inherit;font-weight:600}.gg:first-of-type .gh{border-top:0}
 .gtog{display:flex;align-items:center;gap:8px;flex:1;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:5px 10px}
-.gh .go{flex:none}.gcn{color:var(--mute);font-weight:400;white-space:nowrap}.gcn .gred{color:var(--red);font-weight:600}
+.gh .go{flex:none}.gh .cause{flex:0 1 auto;min-width:0;max-width:45%;margin:0 10px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gcn{color:var(--mute);font-weight:400;white-space:nowrap}.gcn .gred{color:var(--red);font-weight:600}
 .gg.col .grows,.gg.col [data-rowsmore],.gg.col .gf{display:none}.gr[hidden]{display:none}
 .gsub{list-style:none;padding:0 10px 0 22px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);background:color-mix(in srgb,var(--panel) 60%,transparent)}
 .gsb{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:4px 0}.gsb::before{content:"\\25B8";color:var(--mute)}.gsb[aria-expanded=true]::before{content:"\\25BE"}
@@ -208,7 +208,7 @@ function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel, all
   const lightTip = tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light));
   const gtip = tip(t, "ganttGroup", { name: g.name, count: g.open });
   const foot = g.finishedCut > 0 ? `<div class="gf">${escapeHtml(pl(t, "ganttFinishedCut", { count: g.finishedCut }))}</div>` : "";
-  return `<section class="gg${isOpen ? "" : " col"}" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${gtip}><button type="button" class="gtog" aria-expanded="${isOpen}" aria-controls="gr${n}"${g.cause ? ` aria-describedby="gc${n}"` : ""} ${gtip}>${escapeHtml(g.name)} <span class="go gtl ${g.light}" ${lightTip}>${escapeHtml(light)}</span>${causeHtml(g.cause, t, "gc" + n)} <span class="gcn">${counts(t, g.open, g.blocks)}${changedNote(t, g)}</span></button></h2>${ganttStrips(g.id, model.projects, t)}<ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}${foot}</section>`;
+  return `<section class="gg${isOpen ? "" : " col"}" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${gtip}><button type="button" class="gtog" aria-expanded="${isOpen}" aria-controls="gr${n}" ${gtip}>${escapeHtml(g.name)} <span class="go gtl ${g.light}" ${lightTip}>${escapeHtml(light)}</span> <span class="gcn">${counts(t, g.open, g.blocks)}${changedNote(t, g)}</span></button>${causeHtml(g.cause, t, g.id)}</h2>${ganttStrips(g.id, model.projects, t)}<ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}${foot}</section>`;
 }
 
 // Up next: at most five items to work on first, with the reason in each tooltip, and the in-progress pill

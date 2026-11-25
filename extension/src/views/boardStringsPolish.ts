@@ -47,6 +47,7 @@ export const POLISH_KEYS = [
   "cause.red.one",
   "cause.unread.one",
   "causeTip",
+  "causeGoTip",
   "ganttCountBlock",
   "ganttSub",
   "ganttFinishedCut",

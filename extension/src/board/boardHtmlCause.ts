@@ -1,4 +1,4 @@
-import { LightCause } from "./lightCause";
+import { LightCause, stepKeyFor } from "./lightCause";
 import { BoardStrings, escapeHtml, pillify, pl, titleAttr } from "./boardHtmlUtil";
 
 // The cause kinds whose text carries a document count and so has a singular string.
@@ -6,9 +6,10 @@ const COUNTED: ReadonlySet<string> = new Set(["blocked", "items", "red", "unread
 
 // The NO-GO (red) or UNVERIFIED (amber) cause as a small phrase beside the light, shared by the project row and the
 // Gantt header so both name the same reason. Empty when there is no cause. Every value is escaped.
-// `describes` is the id of the control the phrase describes: the span is then hidden from the accessibility
-// tree (so it is not read as part of that control's name) and the control points at it with aria-describedby.
-export function causeHtml(cause: LightCause | undefined, t: BoardStrings, describes?: string): string {
+// `projectId` makes the phrase a button that jumps to that project's matching Path to GO step (the page script
+// reads data-cause, data-pid and data-k). It is left out where the phrase sits inside another control (the board
+// row is itself a button that opens the Path to GO), because a button inside a button is invalid and unreachable.
+export function causeHtml(cause: LightCause | undefined, t: BoardStrings, projectId?: string): string {
   if (!cause) {
     return "";
   }
@@ -20,6 +21,11 @@ export function causeHtml(cause: LightCause | undefined, t: BoardStrings, descri
   const tipText = cause.detail ? pl(t, "causeTip", { cause: text, detail: cause.detail }) : text;
   // Amber for the two UNVERIFIED causes so the phrase matches its light; everything else is a NO-GO cause.
   const warn = cause.kind === "baseline" || cause.kind === "unread" ? " warn" : "";
-  const hidden = describes ? ` id="${escapeHtml(describes)}" aria-hidden="true"` : "";
-  return `<span class="cause${warn}"${hidden} ${titleAttr(tipText)}>${pillify(t, escapeHtml(text))}</span>`;
+  const label = pillify(t, escapeHtml(text));
+  if (projectId === undefined) {
+    return `<span class="cause${warn}" ${titleAttr(tipText)}>${label}</span>`;
+  }
+  // The full text always stays in the tooltip because the header may cut a long cause with an ellipsis.
+  const goTip = pl(t, "causeGoTip", { cause: tipText });
+  return `<button type="button" class="cause${warn}" data-cause data-pid="${escapeHtml(projectId)}" data-k="${escapeHtml(stepKeyFor(cause.kind))}" ${titleAttr(goTip)}>${label}</button>`;
 }

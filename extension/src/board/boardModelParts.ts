@@ -120,6 +120,9 @@ export interface BoardProject {
   blocked: number;
   // How many of those collapsed documents would stop a release under the profile.
   blockedStopping: number;
+  // The current scan is held (not accepted) while the last accepted scan had red work in this project, so the
+  // light stays NO-GO. Kept on the project so lightCause can name this cause without the scan snapshots.
+  heldScanRed?: true;
   // The owner answered which items block the next release: only pinned items are red here.
   answered?: true;
   // The strip asking which items block the next release (absent when nothing is to be asked).

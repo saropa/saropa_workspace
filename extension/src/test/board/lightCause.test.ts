@@ -4,7 +4,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { BoardProject } from "../../board/boardModelParts";
-import { lightCause } from "../../board/lightCause";
+import { lightCause, stepKeyFor } from "../../board/lightCause";
+import { buildBoard } from "../../board/boardModel";
+import { GANTT_STYLE, ganttPanel } from "../../board/boardHtmlGantt";
+import { verdict } from "../../board/boardHtmlRows";
+import type { ProjectHealth } from "../../board/health";
+import type { BoardConfig, BoardStatus, Classified } from "../../board/types";
 import { emptyCounts } from "../../board/types";
 import { causeHtml } from "../../board/boardHtmlCause";
 import type { BoardStrings } from "../../board/boardHtmlUtil";
@@ -63,10 +68,29 @@ test("a count of 1 uses the singular string, other counts the plural", () => {
   assert.ok(causeHtml({ kind: "red", count: 4 }, t).includes(">4 red documents<"));
 });
 
-test("a described cause is hidden from the accessibility tree and carries the id", () => {
+test("a linked cause is a keyboard-reachable button carrying its project and step key, escaped", () => {
+  const t = { polish: { "cause.lint": "Lint failing", causeGoTip: "{cause}. Click" } } as unknown as BoardStrings;
+  const html = causeHtml({ kind: "lint" }, t, 'a"b<');
+  assert.ok(html.startsWith('<button type="button" class="cause"') && html.includes("data-cause"));
+  assert.ok(html.includes('data-pid="a&quot;b&lt;"') && html.includes('data-k="lint"'));
+  assert.ok(!html.includes('a"b<'), "the project id is never written raw");
+  assert.ok(html.includes('title="Lint failing. Click"'));
+});
+
+test("without a project id the cause stays a plain span, for a row that is itself a button", () => {
   const t = { polish: { "cause.lint": "Lint failing" } } as unknown as BoardStrings;
-  const html = causeHtml({ kind: "lint" }, t, "gc1");
-  assert.ok(html.includes('id="gc1"') && html.includes('aria-hidden="true"'));
+  const html = causeHtml({ kind: "lint" }, t);
+  assert.ok(html.startsWith('<span class="cause"') && !html.includes("<button"));
+});
+
+test("each cause kind maps to the Path to GO step that explains it", () => {
+  assert.equal(stepKeyFor("build"), "build");
+  assert.equal(stepKeyFor("blocked"), "blocked");
+  assert.equal(stepKeyFor("unread"), "unread");
+  assert.equal(stepKeyFor("items"), "item:");
+  assert.equal(stepKeyFor("red"), "item:");
+  assert.equal(stepKeyFor("baseline"), "accept");
+  assert.equal(stepKeyFor("baselineRed"), "accept");
 });
 
 test("the phrase escapes the detail and marks UNVERIFIED causes amber", () => {
@@ -75,4 +99,62 @@ test("the phrase escapes the detail and marks UNVERIFIED causes amber", () => {
   assert.ok(red.includes('class="cause"') && !red.includes("<b>x</b>"));
   assert.ok(causeHtml({ kind: "baseline" }, t).includes('class="cause warn"'));
   assert.equal(causeHtml(undefined, t), "");
+});
+
+// The light and its cause go through one blocker test, so for every project a built board produces,
+// NO-GO and a NO-GO cause appear together, and UNVERIFIED and GO never carry a NO-GO cause.
+const cfg: BoardConfig = { version: 1, ignore: [], ruleSets: {}, projects: [{ id: "app", name: "App", path: "app", roots: [], ruleSets: [] }] };
+const row = (path: string, status: BoardStatus, note = ""): Classified => ({ project: "app", path, status, kind: "", note });
+const failing = (over: Partial<ProjectHealth>): Record<string, ProjectHealth> => ({ app: { lint: "passing", tests: "passing", clean: false, ...over } as ProjectHealth });
+
+const CASES: { name: string; rows: Classified[]; accepted: boolean; health?: Record<string, ProjectHealth>; light: string; kind?: string }[] = [
+  { name: "red folder", rows: [row("bugs/a.md", "red")], accepted: true, light: "no-go", kind: "items" },
+  { name: "failing lint with nothing open", rows: [], accepted: true, health: failing({ lint: "failing" }), light: "no-go", kind: "lint" },
+  { name: "failing build", rows: [], accepted: true, health: failing({ build: "failing" }), light: "no-go", kind: "build" },
+  { name: "unread open document", rows: [row("docs/a.md", "amber")], accepted: true, light: "unverified", kind: "unread" },
+  { name: "unaccepted scan", rows: [], accepted: false, light: "unverified", kind: "baseline" },
+  { name: "nothing wrong", rows: [], accepted: true, health: failing({}), light: "go" },
+];
+
+for (const c of CASES) {
+  test(`the light and the cause agree: ${c.name}`, () => {
+    const p = buildBoard(cfg, c.rows, undefined, c.accepted, undefined, undefined, c.health).projects[0];
+    assert.equal(p.light, c.light);
+    assert.equal(lightCause(p)?.kind, c.kind);
+  });
+}
+
+test("the light and the cause agree: a held scan that had red work", () => {
+  const prev = { version: 1, takenAt: 1, projects: { app: { counts: { ...emptyCounts(), red: 2 }, folders: {}, ruleCounts: {}, greyFolders: {}, files: {}, facts: {} } } };
+  const p = buildBoard(cfg, [], undefined, false, undefined, prev as never, failing({})).projects[0];
+  assert.equal(p.light, "no-go");
+  assert.equal(lightCause(p)?.kind, "baselineRed");
+});
+
+test("the light and the cause agree: an answered project is NO-GO only for a pinned blocker", () => {
+  const p = buildBoard(cfg, [row("bugs/a.md", "red")], undefined, true, undefined, undefined, failing({}), { answered: ["app"] } as never).projects[0];
+  // The owner answered and pinned nothing, so the red document does not block: not NO-GO, and no blocker is named.
+  assert.notEqual(p.light, "no-go");
+  assert.notEqual(lightCause(p)?.kind, "items");
+  const pinned = buildBoard(cfg, [row("bugs/a.md", "red")], undefined, true, undefined, undefined, failing({}), { answered: ["app"], pins: ["app/bugs/a.md"] } as never).projects[0];
+  assert.equal(pinned.light, "no-go");
+  assert.deepEqual(lightCause(pinned), { kind: "items", count: 1 });
+});
+
+test("the Gantt header keeps the cause outside the toggle button and may cut a long one with an ellipsis", () => {
+  const t = new Proxy({} as BoardStrings, { get: (_o, k: string) => `[${k}]` });
+  const m = buildBoard(cfg, [], undefined, true, undefined, undefined, failing({ lint: "failing" }));
+  const html = ganttPanel(m, t);
+  const toggle = /<button type="button" class="gtog"[\s\S]*?<\/button>/.exec(html)?.[0] ?? "";
+  assert.ok(toggle && !toggle.includes("cause"), "a button inside the toggle button would be invalid and unreachable");
+  assert.ok(html.includes('class="cause"') && html.includes('data-pid="app"') && html.includes("title="), "the full text stays in the title");
+  assert.ok(/\.gh \.cause\{[^}]*text-overflow:ellipsis/.test(GANTT_STYLE));
+});
+
+test("a toggling project row keeps the cause a span; a plain row makes it a button", () => {
+  const t = new Proxy({} as BoardStrings, { get: (_o, k: string) => `[${k}]` });
+  const m = buildBoard(cfg, [], undefined, true, undefined, undefined, failing({ lint: "failing" }));
+  const lights = new Map([["app", "no-go"]]);
+  assert.ok(verdict(m.projects[0], t, lights, true).includes('<span class="cause"'));
+  assert.ok(verdict(m.projects[0], t, lights, false).includes('<button type="button" class="cause"'));
 });

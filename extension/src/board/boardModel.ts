@@ -17,6 +17,7 @@ import { pickInProgress } from "./inProgress";
 import { attachChats, attachLinks, attachLive, buildChainSteps, buildSuggestions, buildTidyView, collectNeeds, linkFlags, needsRuleFolders } from "./boardModelLinks";
 import { BoardConfig, Classified, ProjectDef, emptyCounts } from "./types";
 import { BoardExtra, BoardItem, BoardModel, BoardProject, UnverifiedReason } from "./boardModelParts";
+import { noGoCause } from "./lightCause";
 import { OPEN, effectiveSeverity, factsFor, itemKey, revFor, marksOf, sittingsView, statusChosen, titleFromPath, userSeverities, userStatuses } from "./boardModelParts";
 
 // The board's view model: what the first screen shows, built from classified rows.
@@ -166,18 +167,18 @@ function buildProject(def: ProjectDef, ctx: BuildContext, all: BoardItem[]): Boa
   // A scan held by the safety check must never hide red work the accepted scan had.
   const answered = ctx.answered.has(def.id);
   const ask = askOf(items, answered, ctx.seen[def.id]);
+  // The held-scan rule only applies to an unanswered project; the flag is also stored so lightCause names it.
+  const heldScanRed = !answered && !ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0;
+  // One blocker test shared with lightCause (lightCause.ts): the light is NO-GO exactly when it yields a cause,
+  // so the red light and the reason shown beside it cannot disagree.
   const blocker =
-    (answered ? items.some((i) => i.blocks) : counts.red > 0 || items.some((i) => i.stopping) || blockedStop > 0) ||
-    (!answered && !ctx.accepted && (ctx.previous?.projects[def.id]?.counts.red ?? 0) > 0) ||
-    h?.lint === "failing" ||
-    h?.tests === "failing" ||
-    h?.build === "failing" ||
-    h?.deps === "failing";
+    noGoCause({ answered, health: h, blocking: items.filter((i) => i.blocks).length, blockedStop, red: counts.red, heldScanRed }) !== undefined;
   return {
     id: def.id,
     name: def.name ?? def.id,
     // Amber only when something could not be read (unread severity, scan not accepted). "grey" and "health" stay in `reasons` as notes.
     light: blocker ? "no-go" : reasons.includes("unread") || reasons.includes("baseline") ? "unverified" : "go",
+    ...(heldScanRed ? { heldScanRed: true as const } : {}),
     health: h,
     reasons,
     items,

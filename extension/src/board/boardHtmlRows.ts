@@ -121,6 +121,8 @@ export function itemCounts(items: readonly BoardItem[], name: string, t: BoardSt
 const cardCounts = (p: BoardProject, t: BoardStrings): string => itemCounts(p.items, p.name, t);
 
 // One project's verdict row: name, light, link mark, health marks and the count pills.
+// The cause beside the light is a button that jumps to its Path to GO step, except in a toggling row: that row is itself
+// the button that opens the Path to GO, and a button cannot sit inside a button.
 export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, string>, toggles = false, badge = "", index?: number, withCounts = true): string {
   const light = p.light === "no-go" ? t.noGo : p.light === "go" ? t.go : t.unverified;
   const why = p.reasons.map((r) => reasonText(r, p, t)).join(" · ");
@@ -131,7 +133,7 @@ export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, st
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<i class="link ${waiting ? "wait" : "ok"}" ${glyphTip(t, waiting ? "g.amberDiamond" : "g.greenDiamond", `${t.dependsOn} ${p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", ")}`)}></i>` : "";
   const rowTip = toggles ? tip(t, "projectRow", { name: p.name }) : tip(t, "projectRowPlain", { name: p.name });
-  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${titleAttr(`${pl(t, "projectName", { name: p.name })} ${pl(t, p.answered ? "ruleMarks" : "ruleAuto")}`)}>${sectionIcon(t, "project")}${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${causeHtml(lightCause(p), t)}${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}${counts}${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}${index === undefined ? "" : kebab(t, "scope", `project:${index}`, p.name)}</div>`;
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${titleAttr(`${pl(t, "projectName", { name: p.name })} ${pl(t, p.answered ? "ruleMarks" : "ruleAuto")}`)}>${sectionIcon(t, "project")}${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${causeHtml(lightCause(p), t, toggles ? undefined : p.id)}${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}${counts}${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}${index === undefined ? "" : kebab(t, "scope", `project:${index}`, p.name)}</div>`;
 }
 
 // True when an open document blocks the next release: only these are drawn red.

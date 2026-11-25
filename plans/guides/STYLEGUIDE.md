@@ -1158,6 +1158,10 @@ The kebab (⋮) on a Gantt row uses `visibility: hidden` (not `display: none`) s
 
 When a selection dialog would show the same items already visible on the page (the blocker picker is the model), the picker runs inline: the host sends a message with candidate IDs to the page, the page inserts checkboxes on matching rows and shows a floating save bar (`position: fixed; bottom: 16px; left: 50%`), and Save posts the picked IDs back to the host. Cancel or Escape removes the checkboxes and bar. The save bar's i18n labels are passed in the host message so the page script carries no catalog. Only one inline picker session is active at a time; starting a new one tears down the old.
 
+
+### 4.22 A status light states its cause, and the cause links to the step that fixes it
+
+A NO-GO or UNVERIFIED light is never shown alone: the first concrete cause sits beside it, worded with the real control to use ("Review and accept", the row menu's Severity). Where the cause is not inside another control it is a button (never a clickable span) that jumps to the matching Path to GO step and marks it, so the click has a visible outcome. A long cause is cut with an ellipsis and the full text stays in the tooltip. The light and its cause come from one shared check so they cannot disagree.
 ---
 
 ## Maintaining this guide
