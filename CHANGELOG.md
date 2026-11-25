@@ -48,23 +48,18 @@ cspell:disable
 
 ## [Unreleased]
 
-A light's reason is now a link to the step that fixes it. [log](https://github.com/saropa/saropa_workspace/blob/v2.11.2/CHANGELOG.md)
+
+## [2.12.0]
+
+The Release Board now says why a light is red or amber, and the reason links to the step that fixes it. [log](https://github.com/saropa/saropa_workspace/blob/v2.12.0/CHANGELOG.md)
 
 ### Changed
-- Release Board: the cause beside a NO-GO or UNVERIFIED light is now a button on the Gantt header and the project card. Clicking it switches to the Board tab, opens the project's Path to GO and marks the matching step. A long cause is cut with an ellipsis in the Gantt header, with the full text in its tooltip.
-- Release Board: the UNVERIFIED causes now name the real controls ("Review and accept", and the Severity item of the row menu).
+- Release Board: a project marked NO-GO or UNVERIFIED now shows its first cause beside the light, on the project row and the Gantt header, even with 0 open items. NO-GO names the failing build, dependency check, lint or tests, the waiting documents that stop the release, or the red documents; UNVERIFIED names the unaccepted scan or the open documents whose severity could not be read.
+- Release Board: the cause is a button on the Gantt header and the project card. Clicking it switches to the Board tab, opens the project's Path to GO and marks the matching step. A long cause is cut with an ellipsis in the Gantt header, with the full text in its tooltip.
+- Release Board: the UNVERIFIED causes name the real controls ("Review and accept", and the Severity item of the row menu).
 
 ### Fixed
 - Release Board: a project held NO-GO by a scan that is not accepted now names that reason only when the last accepted scan had red work. The light and its stated cause now come from one shared check, so they cannot disagree.
-
----
-
-## [2.11.1]
-
-The Release Board now says why a light is red or amber. [log](https://github.com/saropa/saropa_workspace/blob/v2.11.1/CHANGELOG.md)
-
-### Changed
-- Release Board: a project marked NO-GO or UNVERIFIED now shows its first cause beside the light, on the project row and the Gantt header, even with 0 open items. NO-GO names the failing build, dependency check, lint or tests, the waiting documents that stop the release, or the red documents; UNVERIFIED names the unaccepted scan (accept it to confirm the light) or the open documents whose severity could not be read.
 
 ---
 
