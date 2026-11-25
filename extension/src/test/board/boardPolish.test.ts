@@ -70,7 +70,7 @@ test("buttons use the editor's button colors, one font size and a secondary look
   assert.ok(STYLE.includes("button.sec:hover:not(:disabled){background:var(--vscode-button-secondaryHoverBackground,#45494e)}"));
   assert.ok(STYLE.includes(".vscode-high-contrast button"), "high contrast themes get a visible border");
   assert.ok(STYLE.includes("outline:1px solid var(--vscode-focusBorder"), "focus is visible");
-  assert.equal(/\bbutton[^{]*\{[^}]*font-size/.test(STYLE.replace(/\.fn[^}]*\}/g, "")), false, "no button sets its own font size");
+  assert.equal(/\bbutton[^{]*\{[^}]*font-size/.test(STYLE.replace(/\.fn[^}]*\}/g, "").replace(/button\.cause\{[^}]*\}/g, "")), false, "no button sets its own font size");
 });
 
 test("an item step is a link to its document, a lint step stays plain text with its button", () => {

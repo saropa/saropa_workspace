@@ -40,7 +40,9 @@ test("names red documents when none is listed as stopping", () => {
 });
 
 test("names the held scan for a NO-GO carried over from the accepted scan", () => {
-  assert.equal(lightCause(proj({ reasons: ["baseline"] }))?.kind, "baselineRed");
+  // The cause reads the heldScanRed fact that buildProject sets (accepted scan had red work, current scan held);
+  // a bare "baseline" reason is the UNVERIFIED case and names no NO-GO cause.
+  assert.equal(lightCause(proj({ heldScanRed: true }))?.kind, "baselineRed");
 });
 
 test("UNVERIFIED names the unaccepted scan first", () => {
@@ -64,15 +66,16 @@ test("an answered project with no pinned blocker has no NO-GO cause to name from
 
 test("a count of 1 uses the singular string, other counts the plural", () => {
   const t = { polish: { "cause.red": "{count} red documents", "cause.red.one": "1 red document" } } as unknown as BoardStrings;
-  assert.ok(causeHtml({ kind: "red", count: 1 }, t).includes(">1 red document<"));
-  assert.ok(causeHtml({ kind: "red", count: 4 }, t).includes(">4 red documents<"));
+  // The label goes through pillify, so the number sits in its own pill element and the noun follows it.
+  assert.ok(causeHtml({ kind: "red", count: 1 }, t).includes("1</span> red document<"));
+  assert.ok(causeHtml({ kind: "red", count: 4 }, t).includes("4</span> red documents<"));
 });
 
 test("a linked cause is a keyboard-reachable button carrying its project and step key, escaped", () => {
   const t = { polish: { "cause.lint": "Lint failing", causeGoTip: "{cause}. Click" } } as unknown as BoardStrings;
   const html = causeHtml({ kind: "lint" }, t, 'a"b<');
   assert.ok(html.startsWith('<button type="button" class="cause"') && html.includes("data-cause"));
-  assert.ok(html.includes('data-pid="a&quot;b&lt;"') && html.includes('data-k="lint"'));
+  assert.ok(html.includes('data-pid="a&#34;b&#60;"')&& html.includes('data-k="lint"'));
   assert.ok(!html.includes('a"b<'), "the project id is never written raw");
   assert.ok(html.includes('title="Lint failing. Click"'));
 });

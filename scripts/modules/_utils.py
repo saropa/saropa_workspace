@@ -15,6 +15,7 @@ Copyright: (c) 2026 Saropa
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -404,12 +405,26 @@ def run(
     return result
 
 
+# Lines that mark a real failure in test-runner output. "fail 0" in a summary must NOT match, so the
+# count pattern requires a non-zero digit.
+_FAILURE_LINE = re.compile(r"✖|\bnot ok\b|\bfail [1-9]|Could not launch|\bError\b")
+
+
 def print_failure_tail(result: subprocess.CompletedProcess, *, limit: int = 12) -> None:
-    """Print the last few lines of a captured failed command for triage."""
+    """Print the failing lines of a captured failed command, then its last few lines for triage.
+
+    The raw tail alone misleads when a runner executes in batches: the last batch can pass
+    while an earlier one failed, so the tail shows a green summary for a red run. Failure
+    lines are surfaced first (capped) so the real cause is never scrolled out of view."""
     combined = ((result.stdout or "") + (result.stderr or "")).strip()
     if not combined:
         return
     lines = combined.splitlines()
+    failures = [ln for ln in lines if _FAILURE_LINE.search(ln)]
+    if failures:
+        warn(f"Failure lines ({len(failures)}, first {min(len(failures), 40)} shown):")
+        for line in failures[:40]:
+            print(f"      {line.strip()}")
     tail = lines[-limit:]
     if len(lines) > limit:
         warn(f"... ({len(lines) - limit} earlier line(s) omitted)")

@@ -46,9 +46,6 @@ cspell:disable
 
 ---
 
-## [Unreleased]
-
-
 ## [2.12.0]
 
 The Release Board now says why a light is red or amber, and the reason links to the step that fixes it. [log](https://github.com/saropa/saropa_workspace/blob/v2.12.0/CHANGELOG.md)
