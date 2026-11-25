@@ -5,6 +5,7 @@ import { Link } from "./links";
 import { layoutFor } from "./org/layout";
 import type { GanttLayout } from "./types";
 import { SinceView, sinceKey } from "./sinceLast";
+import { LightCause, lightCause } from "./lightCause";
 
 // The Gantt view's model: the open items and the finished ones they needed, grouped by project
 // and laid out on a coarse work-order axis. The axis is dependency order, never days. Pure.
@@ -88,6 +89,8 @@ export interface GanttGroup {
   id: string;
   name: string;
   light: Light;
+  // Why the light is NO-GO. Only on a per-project section: the unified section mixes projects, so no single cause is true for it.
+  cause?: LightCause;
   open: number;
   // Open rows that block the release (the red count a closed header always shows).
   blocks: number;
@@ -284,7 +287,8 @@ function buildSplit(model: BoardModel, since: SinceView | undefined, perProject:
     // Always include the project so the Gantt shows its header and release light even when no items are open.
     const ordered = gathered(open, p.folderRank);
     placeQueue(ordered);
-    groups.push({ id: p.id, name: p.name, light: p.light, open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: allDone.length - done.length, rows: [...done, ...ordered] });
+    const cause = lightCause(p);
+    groups.push({ id: p.id, name: p.name, light: p.light, ...(cause ? { cause } : {}), open: open.length, blocks: open.filter((r) => r.status === "red").length, finishedCut: allDone.length - done.length, rows: [...done, ...ordered] });
   }
   return groups;
 }

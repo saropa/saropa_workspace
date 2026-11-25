@@ -1,6 +1,7 @@
 import type { BoardItem, BoardModel } from "./boardModelParts";
 import { dragAttrs, moveArrows } from "./boardHtmlDrag";
 import { kebab, rowData } from "./boardHtmlMenus";
+import { causeHtml } from "./boardHtmlCause";
 import { ganttStrips } from "./boardHtmlAsk";
 import type { SinceView } from "./sinceLast";
 import { BoardStrings, docLink, escapeHtml, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
@@ -207,7 +208,7 @@ function group(g: GanttGroup, n: number, t: BoardStrings, model: BoardModel, all
   const lightTip = tip(t, "light." + (g.light === "no-go" ? "noGo" : g.light));
   const gtip = tip(t, "ganttGroup", { name: g.name, count: g.open });
   const foot = g.finishedCut > 0 ? `<div class="gf">${escapeHtml(pl(t, "ganttFinishedCut", { count: g.finishedCut }))}</div>` : "";
-  return `<section class="gg${isOpen ? "" : " col"}" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${gtip}><button type="button" class="gtog" aria-expanded="${isOpen}" aria-controls="gr${n}" ${gtip}>${escapeHtml(g.name)} <span class="go gtl ${g.light}" ${lightTip}>${escapeHtml(light)}</span> <span class="gcn">${counts(t, g.open, g.blocks)}${changedNote(t, g)}</span></button></h2>${ganttStrips(g.id, model.projects, t)}<ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}${foot}</section>`;
+  return `<section class="gg${isOpen ? "" : " col"}" data-gk="${escapeHtml(g.id)}" aria-labelledby="gh${n}"><h2 class="gh" id="gh${n}" ${gtip}><button type="button" class="gtog" aria-expanded="${isOpen}" aria-controls="gr${n}"${g.cause ? ` aria-describedby="gc${n}"` : ""} ${gtip}>${escapeHtml(g.name)} <span class="go gtl ${g.light}" ${lightTip}>${escapeHtml(light)}</span>${causeHtml(g.cause, t, "gc" + n)} <span class="gcn">${counts(t, g.open, g.blocks)}${changedNote(t, g)}</span></button></h2>${ganttStrips(g.id, model.projects, t)}<ul class="grows" id="gr${n}" role="list" aria-label="${escapeHtml(g.name)}">${rows}</ul>${more}${foot}</section>`;
 }
 
 // Up next: at most five items to work on first, with the reason in each tooltip, and the in-progress pill

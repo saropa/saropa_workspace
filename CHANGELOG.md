@@ -46,6 +46,17 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+
+## [2.11.1]
+
+The Release Board now says why a light is red or amber. [log](https://github.com/saropa/saropa_workspace/blob/v2.11.1/CHANGELOG.md)
+
+### Changed
+- Release Board: a project marked NO-GO or UNVERIFIED now shows its first cause beside the light, on the project row and the Gantt header, even with 0 open items. NO-GO names the failing build, dependency check, lint or tests, the waiting documents that stop the release, or the red documents; UNVERIFIED names the unaccepted scan (accept it to confirm the light) or the open documents whose severity could not be read.
+
+
 ## [2.11.0]
 
 A cleaner, calmer Release Board: inline blocker checkboxes replace the old modal, the Gantt layout sheds clutter, and menus stay out of the way until you need them. [log](https://github.com/saropa/saropa_workspace/blob/v2.11.0/CHANGELOG.md)

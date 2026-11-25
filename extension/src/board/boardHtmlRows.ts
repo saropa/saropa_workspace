@@ -6,6 +6,8 @@ import { dragAttrs, moveArrows } from "./boardHtmlDrag";
 import { BoardStrings, fillT, collapsible, sectionIcon, docLink, escapeHtml, liveLine, glyphTip, pill, pillify, pl, tip, titleAttr } from "./boardHtmlUtil";
 import { blocksNow, kebab, rowData } from "./boardHtmlMenus";
 import { askStrip } from "./boardHtmlAsk";
+import { causeHtml } from "./boardHtmlCause";
+import { lightCause } from "./lightCause";
 import type { FeedNote } from "./recipeEvidence";
 import { Signal, showsOnRow } from "./reportSignals";
 
@@ -129,7 +131,7 @@ export function verdict(p: BoardProject, t: BoardStrings, lights: Map<string, st
   const waiting = p.dependsOn.some((d) => lights.get(d) === "no-go");
   const dep = p.dependsOn.length > 0 ? `<i class="link ${waiting ? "wait" : "ok"}" ${glyphTip(t, waiting ? "g.amberDiamond" : "g.greenDiamond", `${t.dependsOn} ${p.dependsOn.map((d) => lights.get("name:" + d) ?? d).join(", ")}`)}></i>` : "";
   const rowTip = toggles ? tip(t, "projectRow", { name: p.name }) : tip(t, "projectRowPlain", { name: p.name });
-  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${titleAttr(`${pl(t, "projectName", { name: p.name })} ${pl(t, p.answered ? "ruleMarks" : "ruleAuto")}`)}>${sectionIcon(t, "project")}${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}${counts}${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}${index === undefined ? "" : kebab(t, "scope", `project:${index}`, p.name)}</div>`;
+  return `<div class="vd${toggles ? " ptgrow" : ""}"${toggles ? ' tabindex="0" role="button" aria-expanded="false"' : ""} ${rowTip}><b class="pn" ${titleAttr(`${pl(t, "projectName", { name: p.name })} ${pl(t, p.answered ? "ruleMarks" : "ruleAuto")}`)}>${sectionIcon(t, "project")}${escapeHtml(p.name)}</b>${badge}<span class="go ${p.light}" ${titleAttr(lightTip)}>${escapeHtml(light)}</span>${causeHtml(lightCause(p), t)}${dep}${healthMarks(p, t)}${feedLine(p, t)}${signalLine(p, t)}${counts}${why ? `<i class="info" ${glyphTip(t, "g.infoIcon", why)} aria-label="${escapeHtml(why)}"></i>` : ""}${index === undefined ? "" : kebab(t, "scope", `project:${index}`, p.name)}</div>`;
 }
 
 // True when an open document blocks the next release: only these are drawn red.
@@ -262,7 +264,7 @@ export function groupLabel(g: GroupView): string {
   return (g.emoji ? `<span aria-hidden="true">${escapeHtml(g.emoji)}</span> ` : "") + escapeHtml(g.name);
 }
 
-// The colour stripe of a group heading (never on rows), as a style attribute. Escaped.
+// The color stripe of a group heading (never on rows), as a style attribute. Escaped.
 export function groupStripe(g: GroupView): string {
   return g.colour ? ` style="--g:${escapeHtml(g.colour)}"` : "";
 }
