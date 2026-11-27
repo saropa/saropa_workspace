@@ -221,3 +221,24 @@ test("the compact sizes hide text without removing it, only while collapsed", ()
   assert.match(LAUNCHER_STYLE, /body\.tiles\.tiles-small \.card\.expanded \{ grid-column: 1 \/ -1; \}/);
   assert.doesNotMatch(LAUNCHER_STYLE, /tiles-(small|medium)[^{}]*\{[^}]*display: none/);
 });
+
+test("a small tile's corner button is shown where there is no hover, and a collapsed drop target stays put", () => {
+  // A transparent button still takes a tap, so it must be visible on touch.
+  assert.match(LAUNCHER_STYLE, /@media \(hover: none\) \{\s*body\.tiles\.tiles-small \.card:not\(\.expanded\) \.run \{ opacity: 1; \}/);
+  // Only an open tile may be offset: a collapsed one has a fixed height and would move.
+  assert.match(LAUNCHER_STYLE, /body\.tiles \.card\.drop-over \{[^}]*margin-top: 0;/);
+  assert.match(LAUNCHER_STYLE, /body\.tiles \.card\.expanded\.drop-over \{ margin-top: -3px; \}/);
+});
+
+test("a view or size change keeps the open card and the focused control", () => {
+  const page = openWith([item({ id: "a", label: "A", headAction: "run" })]);
+  const run = card(page, "a").querySelector("button.run")!;
+  page.click(card(page, "a"));
+  run.focus();
+  for (const type of ["toggleTileView", "cycleTileSize", "cycleTileSize", "cycleTileSize", "toggleTileView"]) {
+    page.receive({ type });
+    assert.equal(card(page, "a").classList.contains("expanded"), true, type);
+    // Same node: the switch is classes only, so nothing is rebuilt under the focus.
+    assert.equal(page.document.activeElement, run, type);
+  }
+});

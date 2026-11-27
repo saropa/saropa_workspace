@@ -46,12 +46,21 @@ cspell:disable
 
 ---
 
+## [Unreleased]
+
+The extension's Marketplace listing now points to Saropa's developer tools. [log](https://github.com/saropa/saropa_workspace/blob/vX.Y.Z/CHANGELOG.md)
+
+### Changed
+- The extension's Marketplace listing now links to the [Saropa developers page](https://saropa.com/developers/).
+
+---
+
 ## [2.13.0]
 
 The Saropa Workspace panel can now show your shortcuts as colorful square tiles. [log](https://github.com/saropa/saropa_workspace/blob/v2.13.0/CHANGELOG.md)
 
 ### Added
-- Panel launcher: a title-bar icon switches between rows and tiles, and the choice is remembered. Each tile has an icon, a colored border on all four sides, and text cut to fit (full text on hover). While tiles show, a second title-bar icon changes their size: small (icon only, full name and subtitle on hover; Run or Open appears on hover or keyboard focus), medium (icon and name) or large (icon, name and subtitle, the default). The size is remembered. Clicking, the Run or Open button, the right-click menu and drag and drop work as they do on rows.
+- Panel launcher: a title-bar icon switches between rows and tiles, and the choice is remembered. Each tile has an icon, a colored border on all four sides, and text cut to fit (full text on hover). While tiles show, a second title-bar icon changes their size: small (icon only, full name and subtitle on hover; Run or Open appears on hover or keyboard focus, and is always shown on a device without hover), medium (icon and name) or large (icon, name and subtitle, the default). The size is remembered. Clicking, the Run or Open button, the right-click menu and drag and drop work as they do on rows.
 - Panel launcher: each card's name can take keyboard focus and tells screen readers whether the card is open. Enter or Space opens and closes it, and Shift+F10 or the Menu key opens its right-click menu.
 
 ### Fixed

@@ -58,12 +58,18 @@ body.tiles .card.expanded { grid-column: 1 / -1; }
   body.tiles .card.drop-over::before { content: none; }
 }
 /* The row view's drop indicator is a top border; thicker here so it shows over the tile's own.
-   The background is repeated because the tint rules above outrank .card.drop-over. */
+   The background is repeated because the tint rules above outrank .card.drop-over.
+   A collapsed tile's height is fixed by aspect-ratio, so the thicker border is taken from the
+   inside and the tile must not move: a negative margin would slide it out from under a pointer
+   near its bottom edge, and the indicator would flicker and the drop miss. */
 body.tiles .card.drop-over {
   border-top: 5px solid var(--vscode-focusBorder);
-  margin-top: -3px;
+  margin-top: 0;
   background: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground, transparent));
 }
+/* An open tile's height follows its content, so there the extra border is offset to keep the
+   content still. */
+body.tiles .card.expanded.drop-over { margin-top: -3px; }
 body.tiles .card-row { flex-direction: column; gap: 4px; }
 body.tiles .card-ic { font-size: 32px; color: var(--tile-tint, var(--vscode-foreground)); }
 /* Stretched to the tile's width so the name and subtitle ellipsize inside it. */
@@ -112,4 +118,9 @@ body.tiles.tiles-small .card:not(.expanded) .run {
 }
 body.tiles.tiles-small .card:not(.expanded):hover .run,
 body.tiles.tiles-small .card:not(.expanded):focus-within .run { opacity: 1; }
+/* Without hover (touch), a transparent button still takes the tap, so a tap on the corner
+   would run an item the user could not see a button for: show it all the time there. */
+@media (hover: none) {
+  body.tiles.tiles-small .card:not(.expanded) .run { opacity: 1; }
+}
 `;

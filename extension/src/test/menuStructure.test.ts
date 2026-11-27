@@ -222,6 +222,37 @@ test("showTiles/showRows view/title when-clauses are complementary and share one
   assert.equal(size?.when, rows?.when);
 });
 
+test("the Launcher's title icons keep one order, with no two visible icons in one slot", () => {
+  // Two visible items with the same navigation@ value are ordered by their titles, which
+  // would move icons around, so each state of the two context keys is checked in full.
+  const viewTitle = (readManifest().contributes?.menus?.["view/title"] ?? []).filter((item) =>
+    (item.when ?? "").includes("view == saropaWorkspace.launcher")
+  );
+  const order = (item: MenuItem): number => Number(/^navigation@([\d.]+)$/.exec(item.group ?? "")?.[1]);
+  for (const tiles of [false, true]) {
+    for (const panel of [false, true]) {
+      const keys: Record<string, boolean> = {
+        "saropaWorkspace.launcher.tileView": tiles,
+        "saropaWorkspace.launcher.rightPanelVisible": panel,
+      };
+      // These clauses are only "&&" lists of the view test and possibly negated keys.
+      const visible = viewTitle.filter((item) =>
+        item.when!.split("&&").map((c) => c.trim()).every((clause) =>
+          clause.startsWith("view ==") || (clause.startsWith("!") ? !keys[clause.slice(1)] : keys[clause])
+        )
+      ).sort((a, b) => order(a) - order(b));
+      assert.equal(new Set(visible.map(order)).size, visible.length, "no shared slot");
+      assert.deepEqual(visible.map((item) => item.command), [
+        tiles ? "saropaWorkspace.launcher.showRows" : "saropaWorkspace.launcher.showTiles",
+        ...(tiles ? ["saropaWorkspace.launcher.cycleTileSize"] : []),
+        "saropaWorkspace.launcher.cycleSort",
+        "saropaWorkspace.openSettings",
+        panel ? "saropaWorkspace.launcher.hideRightPanel" : "saropaWorkspace.launcher.showRightPanel",
+      ]);
+    }
+  }
+});
+
 test("the Launcher-only view/title commands are hidden from the Command Palette; openSettings is not", () => {
   // cycleSort/showRightPanel/hideRightPanel only make sense with the Launcher webview's own
   // client-side state in view (a selected category, current panel visibility) and would be

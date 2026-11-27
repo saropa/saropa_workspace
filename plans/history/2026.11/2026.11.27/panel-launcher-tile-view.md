@@ -53,3 +53,11 @@ The Saropa Workspace panel showed its shortcuts only as compact rows, which gave
 - `tsc --noEmit` in `extension/` after the size work: exit 0 (one later CSS-only edit inside a string).
 - Tests added to `launcherScriptTiles.test.ts`, `menuStructure.test.ts` and `wiringViews.test.ts`; none executed.
 - Unverified in a running VS Code: the three layouts, the title icon order, the corner button, the focus ring and drag starting on the small tile's overlay.
+
+### Hardening of the tile sizes (reading of the CSS and DOM)
+- Fixed: on a device without hover, the transparent corner button of a small tile still took taps. It is now always visible under `@media (hover: none)`.
+- Fixed: a collapsed tile used as a drop target moved up 3px (fixed height from `aspect-ratio` plus a negative top margin), which could flicker and miss the drop at its bottom edge. Only an open tile is offset now.
+- Sound: `100cqw` resolves against the grid's content box and `box-sizing: border-box` keeps padding and border inside it; the corner button stacks above the covering name block and stays in the Tab order; the focus ring has no clipping ancestor; a drag from the name block starts on the draggable card; the title icon order has no collision; view and size changes are class toggles that keep the open card and focus.
+- Limit: clicking a title-bar icon while a card menu is open blurs the webview, which closes the menu without returning focus to the card.
+- Tests added to `launcherScriptTiles.test.ts` and `menuStructure.test.ts`. The existing new tests were traced against the source and fake DOM with no failing assertion found. None executed.
+- Unverified in a running VS Code: all of the above, including a hybrid touch-and-mouse device, where the primary input reports hover and the corner button stays hidden until touched.
