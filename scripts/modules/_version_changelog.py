@@ -21,6 +21,12 @@ import sys
 import time
 from pathlib import Path
 
+from modules._changelog_links import (
+    OVERVIEW_LINK_RE,
+    saropa_release_url,
+    stale_site_link_problems,
+    sync_release_links,
+)
 from modules._timing import StepTimer
 from modules._utils import (
     Color,
@@ -28,7 +34,7 @@ from modules._utils import (
     PACKAGE_JSON,
     REPO_ROOT,
     ROOT_CHANGELOG,
-    SAROPA_CHANGELOG_URL,
+    ROOT_CHANGELOG_HISTORY,
     VERSION_RE,
     _c,
     detail,
@@ -192,26 +198,6 @@ def strip_unreleased_marker(changelog: Path, version: str) -> bool:
     return True
 
 
-# The two links that close an Overview line (GitHub [log], then saropa.com),
-# with the "·" between them. Removed before judging the prose, so a section that
-# holds only links is not mistaken for one that has a summary.
-_OVERVIEW_LINK_RE = (
-    rf"\s*·?\s*(?:\[log\]\([^)]*\)|\[saropa\.com\]\({re.escape(SAROPA_CHANGELOG_URL)}[^)]*\))"
-)
-
-
-def saropa_release_url(version: str, current_version: str) -> str:
-    """Return the saropa.com changelog URL for one release.
-
-    The current major lives on the main changelog page; an older major lives on
-    its own "<N>.x/" page, so the choice depends on the newest version too.
-    """
-    major = version.split(".", 1)[0]
-    folder = "" if major == current_version.split(".", 1)[0] else f"{major}.x/"
-    # The page's anchors cannot contain dots: 9.8.3 is published as #v9-8-3.
-    return f"{SAROPA_CHANGELOG_URL}{folder}#v{version.replace('.', '-')}"
-
-
 def changelog_overview_problems(changelog: Path, version: str) -> list[str]:
     """Validate the '[version]' section's Overview intro and its two links.
 
@@ -237,7 +223,7 @@ def changelog_overview_problems(changelog: Path, version: str) -> list[str]:
     intro = re.sub(r"^\s*-{3,}\s*$", "", intro, flags=re.MULTILINE).strip()
     expected = f"[log](https://github.com/{GITHUB_REPO}/blob/v{version}/CHANGELOG.md)"
     log_match = re.search(r"\[log\]\(([^)]+)\)", intro)
-    prose = re.sub(_OVERVIEW_LINK_RE, "", intro).strip()
+    prose = re.sub(OVERVIEW_LINK_RE, "", intro).strip()
     problems: list[str] = []
     if not prose:
         problems.append(f"The [{version}] section has no Overview intro paragraph.")
@@ -285,7 +271,7 @@ def changelog_overview_coverage(changelog: Path, version: str) -> str | None:
     intro = body.split("\n###", 1)[0]
     intro = re.sub(r"^\s*-{3,}\s*$", "", intro, flags=re.MULTILINE).strip()
     # Both trailing links go, so neither counts toward the summary's clauses.
-    prose = re.sub(_OVERVIEW_LINK_RE, "", intro).strip()
+    prose = re.sub(OVERVIEW_LINK_RE, "", intro).strip()
     prose = re.sub(r"^\*\*Overview\*\*\s*—?\s*", "", prose).strip()
     if not prose:
         return None
@@ -401,6 +387,25 @@ def tag_exists_on_remote(version: str) -> bool:
     return bool(result.stdout.strip())
 
 
+def finalize_release_links(version: str) -> bool:
+    """Point every changelog link at its final address, then validate them.
+
+    Runs after the version is settled, because the [Unreleased] rename and the
+    tag-clash bump change only the heading, and a new major moves every older
+    entry to another page. The audit runs before this point, so this is the
+    only check of what will ship. Returns False if a link or overview is wrong.
+    """
+    for path in (ROOT_CHANGELOG, ROOT_CHANGELOG_HISTORY):
+        if sync_release_links(path, version, released=version):
+            success(f"Updated release links in {path.name}")
+    problems = changelog_overview_problems(ROOT_CHANGELOG, version)
+    problems += stale_site_link_problems(ROOT_CHANGELOG, version, skip=version)
+    problems += stale_site_link_problems(ROOT_CHANGELOG_HISTORY, version)
+    for problem in problems:
+        error(problem)
+    return not problems
+
+
 def resolve_version(timer: StepTimer) -> str | None:
     """Drive the full version-numbering workflow for a publish.
 
@@ -412,6 +417,7 @@ def resolve_version(timer: StepTimer) -> str | None:
     4. Write package.json (reconciling it to the chosen version) and rename
        [Unreleased] -> [version].
     5. Bump past a remote tag clash so a published version can't be reused.
+    6. Rewrite the changelog links for the final version and validate them.
 
     Returns the resolved version, or None to abort the publish.
     """
@@ -485,6 +491,9 @@ def resolve_version(timer: StepTimer) -> str | None:
             ROOT_CHANGELOG.write_text(content, encoding="utf-8")
             success(f"Promoted top CHANGELOG section [{version}] -> [{bumped}]")
             version = bumped
+
+        if not finalize_release_links(version):
+            return None
 
     detail(f"  Publishing: {_c(version, Color.WHITE)}    Tag: v{version}")
     return version

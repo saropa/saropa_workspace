@@ -3,7 +3,8 @@
 Read-only pre-publish audit: the gate a full publish must pass.
 
 Checks the version/changelog agreement, the absence of empty changelog stubs,
-the Overview intro + pinned [log] link on the cut version, and i18n key coverage
+the Overview intro, pinned [log] link and saropa.com link on the cut version,
+the saropa.com links of older entries (warning only), and i18n key coverage
 for both catalogs (manifest %key% and runtime l10n('key')).
 
 Returns a count of BLOCKING failures (0 = clean). Code-quality metrics (file
@@ -23,6 +24,7 @@ from modules._utils import (
     PACKAGE_JSON,
     PACKAGE_NLS,
     ROOT_CHANGELOG,
+    ROOT_CHANGELOG_HISTORY,
     ROOT_README,
     RUNTIME_LOCALE,
     SRC_DIR,
@@ -63,6 +65,7 @@ def _banned_terms_found() -> list[str]:
         description = json.loads(PACKAGE_JSON.read_text(encoding="utf-8")).get("description", "")
         hits += _banned_terms_in_text("package.json description", description)
     return hits
+from modules._changelog_links import stale_site_link_problems
 from modules._version_changelog import (
     changelog_overview_coverage,
     changelog_overview_problems,
@@ -152,7 +155,7 @@ def run_audit(mode: str) -> int:
     else:
         success("No empty CHANGELOG sections.")
 
-    # 3) Overview intro + pinned [log] link on the cut version (strict only;
+    # 3) Overview intro + [log] and saropa.com links on the cut version (strict only;
     #    until [Unreleased] is cut the pinned tag can't be known).
     if strict and top and not has_unreleased_section(ROOT_CHANGELOG):
         problems = changelog_overview_problems(ROOT_CHANGELOG, top)
@@ -161,10 +164,19 @@ def run_audit(mode: str) -> int:
                 error(p)
             failures += len(problems)
         else:
-            success(f"[{top}] Overview intro and [log] link valid.")
+            success(f"[{top}] Overview intro, [log] link and saropa.com link valid.")
         coverage_warning = changelog_overview_coverage(ROOT_CHANGELOG, top)
         if coverage_warning:
             warn(coverage_warning)
+
+    # Older entries' saropa.com links (they move when a new major ships). A warning,
+    # not a failure: the VERSION step runs after this audit and rewrites them, so
+    # blocking here would stop a hand-cut major before it could be fixed.
+    if top:
+        stale = stale_site_link_problems(ROOT_CHANGELOG, top, skip=top)
+        stale += stale_site_link_problems(ROOT_CHANGELOG_HISTORY, top)
+        for problem in stale:
+            warn(problem)
 
     # 4) i18n manifest coverage: every %key% has a value in package.nls.json.
     missing_nls = sorted(_used_nls_keys() - _defined_nls_keys())

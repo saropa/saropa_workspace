@@ -38,6 +38,8 @@ ROOT_README = REPO_ROOT / "README.md"
 EXTENSION_README = EXTENSION_DIR / "README.md"
 ROOT_CHANGELOG = REPO_ROOT / "CHANGELOG.md"
 EXTENSION_CHANGELOG = EXTENSION_DIR / "CHANGELOG.md"
+# Older releases moved out of the root changelog; not shipped in the extension.
+ROOT_CHANGELOG_HISTORY = REPO_ROOT / "CHANGELOG_HISTORY.md"
 
 # The extension's README and CHANGELOG are generated copies of the repo-root
 # files, not authored separately. The root pair is the single source of truth;

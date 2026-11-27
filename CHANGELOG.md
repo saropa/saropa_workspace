@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
     The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-    **Overview** — Each release (and [Unreleased]) opens with one plain-language line for humans—user-facing only, casual wording—then end it with: [log](https://github.com/saropa/saropa_workspace/blob/vX.Y.Z/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#vX-Y-Z) substituting X.Y.Z (the anchor is the version with every dot replaced by a hyphen). An entry whose major is older than the current major, and every entry moved to CHANGELOG_HISTORY.md, uses https://saropa.com/developers/saropa-workspace/changelog/N.x/#vX-Y-Z instead.
+    **Overview** — Each release (and [Unreleased]) opens with one plain-language line for humans—user-facing only, casual wording—then end it with: [log](https://github.com/saropa/saropa_workspace/blob/vX.Y.Z/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#vX-Y-Z) substituting X.Y.Z (the anchor is the version with every dot replaced by a hyphen). The saropa.com address depends only on the major version, not on which file holds the entry: an entry of an older major N uses https://saropa.com/developers/saropa-workspace/changelog/N.x/#vX-Y-Z instead. The publish script rewrites these links when it settles the version.
 
     **Tagged changelog** — Published versions use git tag **`vx.y.z`**; compare to [current `main`](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md).
 
