@@ -28,6 +28,7 @@ from modules._utils import (
     PACKAGE_JSON,
     REPO_ROOT,
     ROOT_CHANGELOG,
+    SAROPA_CHANGELOG_URL,
     VERSION_RE,
     _c,
     detail,
@@ -191,13 +192,35 @@ def strip_unreleased_marker(changelog: Path, version: str) -> bool:
     return True
 
 
+# The two links that close an Overview line (GitHub [log], then saropa.com),
+# with the "·" between them. Removed before judging the prose, so a section that
+# holds only links is not mistaken for one that has a summary.
+_OVERVIEW_LINK_RE = (
+    rf"\s*·?\s*(?:\[log\]\([^)]*\)|\[saropa\.com\]\({re.escape(SAROPA_CHANGELOG_URL)}[^)]*\))"
+)
+
+
+def saropa_release_url(version: str, current_version: str) -> str:
+    """Return the saropa.com changelog URL for one release.
+
+    The current major lives on the main changelog page; an older major lives on
+    its own "<N>.x/" page, so the choice depends on the newest version too.
+    """
+    major = version.split(".", 1)[0]
+    folder = "" if major == current_version.split(".", 1)[0] else f"{major}.x/"
+    # The page's anchors cannot contain dots: 9.8.3 is published as #v9-8-3.
+    return f"{SAROPA_CHANGELOG_URL}{folder}#v{version.replace('.', '-')}"
+
+
 def changelog_overview_problems(changelog: Path, version: str) -> list[str]:
-    """Validate the '[version]' section's Overview intro and pinned [log] link.
+    """Validate the '[version]' section's Overview intro and its two links.
 
     The CHANGELOG maintenance notes require every released section to open with
     a one-line human summary that ends in a [log](.../vX.Y.Z/CHANGELOG.md) link
-    pinned to THIS version's tag. A missing intro ships a release with no
-    summary; a stale tag in the link points readers at the wrong snapshot.
+    pinned to THIS version's tag, followed by the release's saropa.com link. A
+    missing intro ships a release with no summary; a stale tag or anchor points
+    readers at the wrong release; a missing saropa.com link leaves the mirrored
+    copy with no pointer back to the original.
     """
     if not changelog.exists():
         return ["CHANGELOG.md not found."]
@@ -214,10 +237,18 @@ def changelog_overview_problems(changelog: Path, version: str) -> list[str]:
     intro = re.sub(r"^\s*-{3,}\s*$", "", intro, flags=re.MULTILINE).strip()
     expected = f"[log](https://github.com/{GITHUB_REPO}/blob/v{version}/CHANGELOG.md)"
     log_match = re.search(r"\[log\]\(([^)]+)\)", intro)
-    prose = re.sub(r"\[log\]\([^)]*\)", "", intro).strip()
+    prose = re.sub(_OVERVIEW_LINK_RE, "", intro).strip()
     problems: list[str] = []
     if not prose:
         problems.append(f"The [{version}] section has no Overview intro paragraph.")
+    # The section was found above, so a missing top version only happens for an
+    # unusual heading; treating this version as current is then the safe choice.
+    current = top_changelog_version(changelog) or version
+    site_link = f"[saropa.com]({saropa_release_url(version, current)})"
+    if site_link not in intro:
+        problems.append(
+            f"The [{version}] Overview has no matching saropa.com link. Add after [log]: · {site_link}"
+        )
     if log_match is None:
         problems.append(f"The [{version}] Overview has no [log](...) link. End it with: {expected}")
     elif f"/blob/v{version}/" not in log_match.group(1):
@@ -253,7 +284,8 @@ def changelog_overview_coverage(changelog: Path, version: str) -> str | None:
         return None
     intro = body.split("\n###", 1)[0]
     intro = re.sub(r"^\s*-{3,}\s*$", "", intro, flags=re.MULTILINE).strip()
-    prose = re.sub(r"\[log\]\([^)]*\)", "", intro).strip()
+    # Both trailing links go, so neither counts toward the summary's clauses.
+    prose = re.sub(_OVERVIEW_LINK_RE, "", intro).strip()
     prose = re.sub(r"^\*\*Overview\*\*\s*—?\s*", "", prose).strip()
     if not prose:
         return None

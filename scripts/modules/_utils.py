@@ -50,6 +50,9 @@ GENERATED_DOC_PAIRS = ((ROOT_README, EXTENSION_README), (ROOT_CHANGELOG, EXTENSI
 # extension id used in store URLs and the propagation queries.
 GITHUB_REPO = "saropa/saropa_workspace"
 MARKETPLACE_MANAGE_URL = "https://marketplace.visualstudio.com/manage/publishers/saropa"
+# The original of the changelog, which the mirrored copies (GitHub, Marketplace)
+# link back to. Older majors live under "<N>.x/" beneath this address.
+SAROPA_CHANGELOG_URL = "https://saropa.com/developers/saropa-workspace/changelog/"
 
 # Semantic version with optional pre-release suffix (1.0.1, 1.0.1-beta.2).
 VERSION_RE = r"\d+\.\d+\.\d+(?:-[\w]+(?:\.[\w]+)*)?"

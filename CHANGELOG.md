@@ -29,11 +29,13 @@ All notable changes to Saropa Workspace are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> Full release history: <https://saropa.com/developers/saropa-workspace/changelog/>
+
 <!-- MAINTENANCE NOTES -- IMPORTANT --
 
     The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-    **Overview** — Each release (and [Unreleased]) opens with one plain-language line for humans—user-facing only, casual wording—then end it with: [log](https://github.com/saropa/saropa_workspace/blob/vX.Y.Z/CHANGELOG.md) substituting X.Y.Z.
+    **Overview** — Each release (and [Unreleased]) opens with one plain-language line for humans—user-facing only, casual wording—then end it with: [log](https://github.com/saropa/saropa_workspace/blob/vX.Y.Z/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#vX-Y-Z) substituting X.Y.Z (the anchor is the version with every dot replaced by a hyphen). An entry whose major is older than the current major, and every entry moved to CHANGELOG_HISTORY.md, uses https://saropa.com/developers/saropa-workspace/changelog/N.x/#vX-Y-Z instead.
 
     **Tagged changelog** — Published versions use git tag **`vx.y.z`**; compare to [current `main`](https://github.com/saropa/saropa_workspace/blob/main/CHANGELOG.md).
 
@@ -48,7 +50,7 @@ cspell:disable
 
 ## [2.13.0]
 
-The Saropa Workspace panel can now show your shortcuts as colorful square tiles. [log](https://github.com/saropa/saropa_workspace/blob/v2.13.0/CHANGELOG.md)
+The Saropa Workspace panel can now show your shortcuts as colorful square tiles. [log](https://github.com/saropa/saropa_workspace/blob/v2.13.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-13-0)
 
 ### Added
 - Panel launcher: a title-bar icon switches between rows and tiles, and the choice is remembered. Each tile has an icon, a colored border on all four sides, and text cut to fit (full text on hover). While tiles show, a second title-bar icon changes their size: small (icon only, full name and subtitle on hover; Run or Open appears on hover or keyboard focus, and is always shown on a device without hover), medium (icon and name) or large (icon, name and subtitle, the default). The size is remembered. Clicking, the Run or Open button, the right-click menu and drag and drop work as they do on rows.
@@ -56,6 +58,7 @@ The Saropa Workspace panel can now show your shortcuts as colorful square tiles.
 
 ### Changed
 - The extension's Marketplace listing now links to the [Saropa developers page](https://saropa.com/developers/).
+- The changelog now links to saropa.com, with the full release history at the top and a link beside each release.
 
 ### Fixed
 - Panel launcher: a refresh no longer closes open cards or loses keyboard focus. Focus stays on the same card, button, group header or category, and moves to the nearest card when its card is gone.
@@ -66,7 +69,7 @@ The Saropa Workspace panel can now show your shortcuts as colorful square tiles.
 
 ## [2.12.0]
 
-The Release Board now says why a light is red or amber, and the reason links to the step that fixes it. [log](https://github.com/saropa/saropa_workspace/blob/v2.12.0/CHANGELOG.md)
+The Release Board now says why a light is red or amber, and the reason links to the step that fixes it. [log](https://github.com/saropa/saropa_workspace/blob/v2.12.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-12-0)
 
 ### Changed
 - Release Board: a project marked NO-GO or UNVERIFIED now shows its first cause beside the light, on the project row and the Gantt header, even with 0 open items. NO-GO names the failing build, dependency check, lint or tests, the waiting documents that stop the release, or the red documents; UNVERIFIED names the unaccepted scan or the open documents whose severity could not be read.
@@ -80,7 +83,7 @@ The Release Board now says why a light is red or amber, and the reason links to 
 
 ## [2.11.0]
 
-A cleaner, calmer Release Board: inline blocker checkboxes replace the old modal, the Gantt layout sheds clutter, and menus stay out of the way until you need them. [log](https://github.com/saropa/saropa_workspace/blob/v2.11.0/CHANGELOG.md)
+A cleaner, calmer Release Board: inline blocker checkboxes replace the old modal, the Gantt layout sheds clutter, and menus stay out of the way until you need them. [log](https://github.com/saropa/saropa_workspace/blob/v2.11.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-11-0)
 
 ### Added
 - Release Board: choosing which items block the next release now uses inline checkboxes on the board rows with a floating save bar, replacing the VS Code QuickPick modal that was unworkable at scale.
@@ -97,7 +100,7 @@ A cleaner, calmer Release Board: inline blocker checkboxes replace the old modal
 
 ## [2.10.0]
 
-A friendly nudge to rate Saropa Workspace on the Marketplace after you have used it for a while. [log](https://github.com/saropa/saropa_workspace/blob/v2.10.0/CHANGELOG.md)
+A friendly nudge to rate Saropa Workspace on the Marketplace after you have used it for a while. [log](https://github.com/saropa/saropa_workspace/blob/v2.10.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-10-0)
 
 ### Added
 - A gentle Marketplace rating prompt now appears after the extension has been activated several times, with options to rate, defer, or permanently dismiss.
@@ -111,7 +114,7 @@ A friendly nudge to rate Saropa Workspace on the Marketplace after you have used
 
 ## [2.9.0]
 
-A simpler Severity tab in the keyword editor, editable keyword settings, and folder-watch alerts you can dismiss or mute for an hour. [log](https://github.com/saropa/saropa_workspace/blob/v2.9.0/CHANGELOG.md)
+A simpler Severity tab in the keyword editor, editable keyword settings, and folder-watch alerts you can dismiss or mute for an hour. [log](https://github.com/saropa/saropa_workspace/blob/v2.9.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-9-0)
 
 ### Added
 - Release Board: the Severity tab of the keyword editor has a simpler layout. A sticky strip at the top keeps **What would change** and the one **Save** in view (the page bar's own Save is hidden on this tab), the four levels are collapsed cards that show a one-line meaning, the count and the first five phrases (open one to edit it; opening one closes the others), the six numbers sit in one compact grid with their explanations behind an info icon, the negation and audience words share one **Phrase rules** card, and **Restore defaults** is a small link in each list header. What is saved is unchanged.
@@ -135,7 +138,7 @@ A simpler Severity tab in the keyword editor, editable keyword settings, and fol
 
 ## [2.8.0]
 
-Release Board redesign: resizable Gantt columns, a new Local layout, smarter severity rules, and security hardening flagged by CodeQL. [log](https://github.com/saropa/saropa_workspace/blob/v2.8.0/CHANGELOG.md)
+Release Board redesign: resizable Gantt columns, a new Local layout, smarter severity rules, and security hardening flagged by CodeQL. [log](https://github.com/saropa/saropa_workspace/blob/v2.8.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-8-0)
 
 ### Added
 - Release Board: the menu on a group heading now has Rename group…, Group emoji…, Group color… and Back to automatic. Each saves at once under `organize.groups` in the rules file with Undo, and Back to automatic removes the name, emoji and color you set so the board chooses them again.
@@ -167,7 +170,7 @@ Release Board redesign: resizable Gantt columns, a new Local layout, smarter sev
 
 ## [2.7.1]
 
-The Release Board Gantt is easier to read and its header is calmer. [log](https://github.com/saropa/saropa_workspace/blob/v2.7.1/CHANGELOG.md)
+The Release Board Gantt is easier to read and its header is calmer. [log](https://github.com/saropa/saropa_workspace/blob/v2.7.1/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-7-1)
 
 ### Changed
 - Release Board: in a project where you marked the blockers, a strip asks "which comes first?" in batches of up to five pair questions (A, B or Skip; Escape keeps the answers given). One write and one Undo per batch. Folders are asked first, then the documents of the top folder. The project menu has "Order the blockers..."; the row menu has "Ask where this goes..." and "Forget order answers". Answers set the order only; documents are not edited.
@@ -196,7 +199,7 @@ The Release Board Gantt is easier to read and its header is calmer. [log](https:
 
 ## [2.7.0]
 
-The Gantt key now floats over the board, and status symbols show their colors, and board rows line up better. [log](https://github.com/saropa/saropa_workspace/blob/v2.7.0/CHANGELOG.md)
+The Gantt key now floats over the board, and status symbols show their colors, and board rows line up better. [log](https://github.com/saropa/saropa_workspace/blob/v2.7.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-7-0)
 
 ### Changed
 - Board rows: a long work item name stays on one line and ends with an ellipsis; hovering shows the full name and, on a second line, its path.
@@ -212,14 +215,14 @@ The Gantt key now floats over the board, and status symbols show their colors, a
 
 ## [2.6.1]
 
-The Release Board opens again. [log](https://github.com/saropa/saropa_workspace/blob/v2.6.1/CHANGELOG.md)
+The Release Board opens again. [log](https://github.com/saropa/saropa_workspace/blob/v2.6.1/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-6-1)
 
 ### Fixed
 - The Release Board opened with an error (Cannot read properties of undefined) in 2.6.0. A failed open now closes its blank tab and shows one error message, and a saved result that cannot be drawn no longer stops the open.
 
 ## [2.6.0]
 
-The Release Board is calmer: red only for what really blocks a release, a one-line header, and fewer marks on every row. You can now hand work to an AI as a saved document. [log](https://github.com/saropa/saropa_workspace/blob/v2.6.0/CHANGELOG.md)
+The Release Board is calmer: red only for what really blocks a release, a one-line header, and fewer marks on every row. You can now hand work to an AI as a saved document. [log](https://github.com/saropa/saropa_workspace/blob/v2.6.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-6-0)
 
 ### Added
 - **Release Board: Hand off.** Choose **Hand off** in a row menu, a group or project menu, or the options menu (whole board), or tick the boxes on several rows and press **Hand off**. A side drawer previews the document as Markdown or JSON for a Fix, Plan, Review or Triage job. **Copy** saves the full document to `.saropa/handoff` in the project (never committed, the last 20 are kept) and copies one short line that tells an agent to read it; **Copy full text** copies the whole document; **Run in terminal** runs your command. New settings `releaseBoard.handoff.terminalCommand` and `releaseBoard.handoff.copyMode`. Keys, tokens and home folders are removed from the text.
@@ -260,7 +263,7 @@ The Release Board is calmer: red only for what really blocks a release, a one-li
 
 ## [2.5.0]
 
-You can now choose which files and folders the Release Board leaves out. [log](https://github.com/saropa/saropa_workspace/blob/v2.5.0/CHANGELOG.md)
+You can now choose which files and folders the Release Board leaves out. [log](https://github.com/saropa/saropa_workspace/blob/v2.5.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-5-0)
 
 ### Added
 - **Release Board: exclude files and folders.** New setting `saropaWorkspace.releaseBoard.exclude`, a list of globs matched against each path in a project. The default is `reports/**`, so generated reports no longer show on the board.
@@ -269,7 +272,7 @@ You can now choose which files and folders the Release Board leaves out. [log](h
 
 ## [2.4.0]
 
-The Release Board is tidier: icons on the Future controls, one fold style everywhere, and an icon before every section heading. [log](https://github.com/saropa/saropa_workspace/blob/v2.4.0/CHANGELOG.md)
+The Release Board is tidier: icons on the Future controls, one fold style everywhere, and an icon before every section heading. [log](https://github.com/saropa/saropa_workspace/blob/v2.4.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-4-0)
 
 ### Changed
 - **Release Board: Future tab declutter.** Wow, Reach, Effort and Risk show as small icons (hover for the full name). The Research question only appears once a research state is set, in its own multi-line box. The "Research needed" checkbox is gone; use the Research dropdown. A guessed value is now shown in italic with the normal dropdown border.
@@ -284,7 +287,7 @@ The Release Board is tidier: icons on the Future controls, one fold style everyw
 
 ## [2.3.0]
 
-The Release Board opens in its own tab group beside your files and remembers where you move it, has a Future tab for deferred and blocked work, its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start, and more daily reports now add a Dependencies mark, row notes, Tidy entries and a line in "Since you last looked", plus six new read-only report recipes, and a document's severity can be corrected from its row menu (Change severity, Back to automatic). [log](https://github.com/saropa/saropa_workspace/blob/v2.3.0/CHANGELOG.md)
+The Release Board opens in its own tab group beside your files and remembers where you move it, has a Future tab for deferred and blocked work, its Build, Lint and Tests marks now read the daily reports, with missed reports catching up at start, and more daily reports now add a Dependencies mark, row notes, Tidy entries and a line in "Since you last looked", plus six new read-only report recipes, and a document's severity can be corrected from its row menu (Change severity, Back to automatic). [log](https://github.com/saropa/saropa_workspace/blob/v2.3.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-3-0)
 
 ### Added
 - **Stop the board opening at start-up, from the board.** A checkbox **Open this board at start-up** sits in the top right corner of the board's top bar. Untick it and the board no longer opens when a window starts; it still opens from the sidebar or the command. Tick it again to restore the earlier choice (when projects are found, or always). It shows the `releaseBoard.openOnStartup` setting and follows it when you change it in Settings.
@@ -350,7 +353,7 @@ The Release Board opens in its own tab group beside your files and remembers whe
 
 ## [2.2.0]
 
-The Release Board is now always in view: a sidebar section, a status bar light and a tab that opens at window start, plus a list of what to do next, a strip of what changed since you last looked, tidy-up suggestions, one-click prompts for a chat, live error marks, a release train row and an optional overnight proof run. [log](https://github.com/saropa/saropa_workspace/blob/v2.2.0/CHANGELOG.md)
+The Release Board is now always in view: a sidebar section, a status bar light and a tab that opens at window start, plus a list of what to do next, a strip of what changed since you last looked, tidy-up suggestions, one-click prompts for a chat, live error marks, a release train row and an optional overnight proof run. [log](https://github.com/saropa/saropa_workspace/blob/v2.2.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-2-0)
 
 ### Added
 
@@ -377,7 +380,7 @@ The Release Board is now always in view: a sidebar section, a status bar light a
 
 ## [2.0.0]
 
-The Release Board arrives: an off-by-default screen that reads your bugs, docs and plans folders across projects, shows what blocks a release in red, amber and green, links documents that wait on each other, and only says GO when lint and tests are fresh and clean. [log](https://github.com/saropa/saropa_workspace/blob/v2.0.0/CHANGELOG.md)
+The Release Board arrives: an off-by-default screen that reads your bugs, docs and plans folders across projects, shows what blocks a release in red, amber and green, links documents that wait on each other, and only says GO when lint and tests are fresh and clean. [log](https://github.com/saropa/saropa_workspace/blob/v2.0.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/#v2-0-0)
 
 ### Added
 
@@ -403,7 +406,7 @@ The Release Board arrives: an off-by-default screen that reads your bugs, docs a
 
 ## [1.11.0]
 
-The Launcher panel has been restructured from six competing panes fighting for space into one flexible, resizable layout, with Mobile Remote Control folded in as a category alongside your shortcuts, recipes, watches, files, scripts, and notes. [log](https://github.com/saropa/saropa_workspace/blob/v1.11.0/CHANGELOG.md)
+The Launcher panel has been restructured from six competing panes fighting for space into one flexible, resizable layout, with Mobile Remote Control folded in as a category alongside your shortcuts, recipes, watches, files, scripts, and notes. [log](https://github.com/saropa/saropa_workspace/blob/v1.11.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-11-0)
 
 ### Added
 
@@ -423,7 +426,7 @@ The Launcher panel has been restructured from six competing panes fighting for s
 
 ## [1.10.0]
 
-A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything, and the Customize panel now lets you preview any color across the whole icon grid before committing. [log](https://github.com/saropa/saropa_workspace/blob/v1.10.0/CHANGELOG.md)
+A new Mobile Remote Control panel puts adb at your fingertips — search, run, and pin device commands without leaving VS Code — alongside a faster "Saropa: Go" way to jump to anything, and the Customize panel now lets you preview any color across the whole icon grid before committing. [log](https://github.com/saropa/saropa_workspace/blob/v1.10.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-10-0)
 
 ### Added
 
@@ -450,7 +453,7 @@ A new Mobile Remote Control panel puts adb at your fingertips — search, run, a
 
 ## [1.9.1]
 
-You can now watch a GitHub repo the same way you watch a folder — get a toast when a new issue or pull request opens, right from the Watches view. [log](https://github.com/saropa/saropa_workspace/blob/v1.9.1/CHANGELOG.md)
+You can now watch a GitHub repo the same way you watch a folder — get a toast when a new issue or pull request opens, right from the Watches view. [log](https://github.com/saropa/saropa_workspace/blob/v1.9.1/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-9-1)
 
 ### Added
 
@@ -485,7 +488,7 @@ You can now watch a GitHub repo the same way you watch a folder — get a toast 
 
 ## [1.9.0]
 
-Publish-script hardening and automation — the release tool now recovers from a diverged `origin/main` on its own, runs unattended for agents and CI, and can report its results as machine-readable JSON. Nothing user-visible in the extension itself changed. [log](https://github.com/saropa/saropa_workspace/blob/v1.9.0/CHANGELOG.md)
+Publish-script hardening and automation — the release tool now recovers from a diverged `origin/main` on its own, runs unattended for agents and CI, and can report its results as machine-readable JSON. Nothing user-visible in the extension itself changed. [log](https://github.com/saropa/saropa_workspace/blob/v1.9.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-9-0)
 
 ### Changed
 
@@ -503,7 +506,7 @@ Publish-script hardening and automation — the release tool now recovers from a
 
 ## [1.8.0]
 
-Leaner UI, smarter activation, and a batch of reliability fixes — the toolbar is decluttered, the right-click menu is faster, case-insensitive filesystems finally work everywhere, and background runs no longer hoard memory. [log](https://github.com/saropa/saropa_workspace/blob/v1.8.0/CHANGELOG.md)
+Leaner UI, smarter activation, and a batch of reliability fixes — the toolbar is decluttered, the right-click menu is faster, case-insensitive filesystems finally work everywhere, and background runs no longer hoard memory. [log](https://github.com/saropa/saropa_workspace/blob/v1.8.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-8-0)
 
 ### Changed
 
@@ -525,7 +528,7 @@ Leaner UI, smarter activation, and a batch of reliability fixes — the toolbar 
 
 ## [1.7.0]
 
-Hardening pass on the bug-sweep fixes — stale defaults, missing guards, keybinding collisions — plus ecosystem-aware auto-pins and a proper "run selected shortcut" command. [log](https://github.com/saropa/saropa_workspace/blob/v1.7.0/CHANGELOG.md)
+Hardening pass on the bug-sweep fixes — stale defaults, missing guards, keybinding collisions — plus ecosystem-aware auto-pins and a proper "run selected shortcut" command. [log](https://github.com/saropa/saropa_workspace/blob/v1.7.0/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-7-0)
 
 ### Fixed
 
@@ -548,7 +551,7 @@ Hardening pass on the bug-sweep fixes — stale defaults, missing guards, keybin
 
 ## [1.6.13]
 
-Thirteen bug fixes in one pass — package-manager detection, accessibility, i18n, sensible defaults, and cleanup of duplicated code across the board. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.13/CHANGELOG.md)
+Thirteen bug fixes in one pass — package-manager detection, accessibility, i18n, sensible defaults, and cleanup of duplicated code across the board. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.13/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-6-13)
 
 ### Fixed
 
@@ -572,7 +575,7 @@ Thirteen bug fixes in one pass — package-manager detection, accessibility, i18
 
 ## [1.6.12]
 
-Closes the remaining path where a stray Enter could relaunch a script, and adds a backstop against any repeat launch of the same shortcut. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.12/CHANGELOG.md)
+Closes the remaining path where a stray Enter could relaunch a script, and adds a backstop against any repeat launch of the same shortcut. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.12/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-6-12)
 
 ### Fixed
 
@@ -583,7 +586,7 @@ Closes the remaining path where a stray Enter could relaunch a script, and adds 
 
 ## [1.6.11]
 
-Stray Enter no longer relaunches your script. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.11/CHANGELOG.md)
+Stray Enter no longer relaunches your script. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.11/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-6-11)
 
 ### Fixed
 
@@ -593,7 +596,7 @@ Stray Enter no longer relaunches your script. [log](https://github.com/saropa/sa
 
 ## [1.6.10]
 
-Pinned Windows scripts and executable files can now be run directly without extra interpreter setup. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.10/CHANGELOG.md)
+Pinned Windows scripts and executable files can now be run directly without extra interpreter setup. [log](https://github.com/saropa/saropa_workspace/blob/v1.6.10/CHANGELOG.md) · [saropa.com](https://saropa.com/developers/saropa-workspace/changelog/1.x/#v1-6-10)
 
 ### Fixed
 
