@@ -327,20 +327,21 @@ function launcherStrings(): Record<string, string> {
     sortDesc: l10n("launcher.sortDesc"),
     sortGrouped: l10n("launcher.sortGrouped"),
     // {n} / {shown} / {total} stay literal here: the webview substitutes the live
-    // counts, so these are fetched without l10n params.
-    count: l10n("launcher.count"),
-    countFiltered: l10n("launcher.countFiltered"),
+    // counts, so these are fetched without l10n params. The passthrough marker on
+    // such lines tells the l10n checker the missing params are intentional.
+    count: l10n("launcher.count"), // l10n:passthrough
+    countFiltered: l10n("launcher.countFiltered"), // l10n:passthrough
     // BUG-009: the right-click menu's aria-label needs the acted-on item's name,
     // which only the webview client knows at open time — so the template ({name})
     // is sent once here and substituted client-side, same pattern as count/countFiltered.
-    menuAriaLabel: l10n("launcher.menu.ariaLabel"),
-    menuSubAriaLabel: l10n("launcher.menu.subAriaLabel"),
+    menuAriaLabel: l10n("launcher.menu.ariaLabel"), // l10n:passthrough
+    menuSubAriaLabel: l10n("launcher.menu.subAriaLabel"), // l10n:passthrough
     runHistoryEmpty: l10n("launcher.runHistory.empty"),
     runHistoryDisabled: l10n("launcher.runHistory.disabled"),
     runHistoryAriaLabel: l10n("launcher.runHistory.ariaLabel"),
     runHistoryRunAgain: l10n("launcher.runHistory.runAgain"),
     // {count} stays literal here, substituted client-side per row — same pattern as
     // count/countFiltered above.
-    runHistoryCount: l10n("launcher.runHistory.count"),
+    runHistoryCount: l10n("launcher.runHistory.count"), // l10n:passthrough
   };
 }
