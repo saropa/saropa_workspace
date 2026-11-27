@@ -1,18 +1,22 @@
 // Fragment of the Saropa Workspace panel webview client script. Split across src/views/launcher/*
 // only to keep each file under the line cap; concatenated by launcherScript.ts into ONE
 // <script>, so this shares the global scope launcherScriptCore.ts sets up (cssVar, codicon,
-// postOpen, and the `strings`/`items` state it declares).
+// postOpen, tileTint from launcherScriptTiles.ts, and the `strings`/`items` state it declares).
 //
 // The card builder (makeCard) and its small action-button factory (actionButton). makeCard
 // is the single largest piece of the renderer: it builds the head row (icon, name, optional
 // sub line, primary action button), the expand drawer (description + Open/Copy path/Pin/
 // Schedule buttons, each gated on the card's pane and flags), and wires the click-to-expand
 // and right-click-menu listeners.
+// The open/closed state itself lives in launcherScriptFocus.ts (setCardOpen), which keeps it
+// across repaints.
 export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
   const card = document.createElement('div');
   card.className = 'card';
   card.dataset.pane = it.pane;
   card.style.setProperty('--card-tint', cssVar(it.color, tintHexes[it.color]));
+  // Read only by the tile view's rules; set on every card so switching views repaints nothing.
+  card.style.setProperty('--tile-tint', tileTint(it));
   card.dataset.hay = (it.label + ' ' + it.sub + ' ' + (it.desc || '') + ' ' + it.section).toLowerCase();
 
   const row = document.createElement('div');
@@ -20,6 +24,10 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
 
   const ic = codicon(it.icon);
   ic.classList.add('card-ic');
+  // Read by repairIcons() once the card is in the document. The host sends defaultIcon only
+  // for a user-chosen icon; every other source falls back to the plain file glyph.
+  ic.dataset.icon = it.icon || '';
+  ic.dataset.fallback = it.defaultIcon || 'file';
   // Name the action kind on the icon (Shell command / Macro / Routine / …) instead of a
   // standing pill: the icon + color + left-border tint already encode the kind, so a hover
   // tooltip is enough and keeps the card uncluttered. File cards carry no kindLabel.
@@ -31,9 +39,17 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
 
   const body = document.createElement('div');
   body.className = 'card-body';
+  // The card's keyboard and screen reader toggle. It is this inner block, not the card,
+  // because the card holds the Run and drawer buttons, and a role that can announce
+  // expanded/collapsed (button) must not contain other controls. It holds only text.
+  body.setAttribute('role', 'button');
+  body.setAttribute('tabindex', '0');
+  body.setAttribute('aria-expanded', 'false');
   const name = document.createElement('span');
   name.className = 'card-name';
   name.textContent = it.label;
+  // Name and subtitle can be cut with an ellipsis, so the full text is on hover.
+  name.title = it.label;
   body.appendChild(name);
   // Suppress the secondary line when it would only echo the name — a root-level file
   // shortcut carries its bare filename as both label and path (e.g. CHANGELOG.md), so the
@@ -42,8 +58,12 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
     const sub = document.createElement('span');
     sub.className = 'card-sub';
     sub.textContent = it.sub;
+    sub.title = it.sub;
     body.appendChild(sub);
   }
+  // Medium and small tiles hide the subtitle (small also the name) from sight only, so the
+  // block carries both in its tooltip. Its accessible name still comes from the two spans.
+  body.title = it.sub && it.sub !== it.label ? it.label + '\\n' + it.sub : it.label;
   row.appendChild(body);
 
   // The head's primary-action button, chosen by the data layer's headAction. A script (a file
@@ -128,9 +148,17 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
   card.appendChild(drawer);
 
   // Primary click toggles the drawer (non-destructive browsing); the ▶ button and the
-  // drawer buttons carry the destructive open/run actions.
-  card.addEventListener('click', function () {
-    card.classList.toggle('expanded');
+  // drawer buttons carry the destructive open/run actions. One function for pointer and
+  // keyboard so both take the same path through setCardOpen().
+  function toggleCard() { setCardOpen(card, !card.classList.contains('expanded')); }
+  card.addEventListener('click', toggleCard);
+  // Listening on the toggle alone means keys pressed on the card's buttons never land here.
+  // Shift+F10 and the Menu key bubble from it to the card's contextmenu listener.
+  body.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') { return; }
+    // Always cancelled so Space does not scroll; a held key must not flicker the drawer.
+    e.preventDefault();
+    if (!e.repeat) { toggleCard(); }
   });
   // A card can be dragged onto a folded section's pill to file it there (a recipe or a
   // project file onto My shortcuts adopts it; any file-backed card onto Watches watches it).
@@ -183,6 +211,8 @@ export const LAUNCHER_SCRIPT_CARDS = `function makeCard(it) {
       openMenu(it, e.clientX, e.clientY);
     });
   }
+  // Reopened last: the key needs dataset.shortcutId, set above with the drag wiring.
+  if (openCards.has(cardKey(card))) { setCardOpen(card, true); }
   return card;
 }
 

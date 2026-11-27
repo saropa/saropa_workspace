@@ -868,6 +868,24 @@
         "icon": "$(settings-gear)"
       },
       {
+        "command": "saropaWorkspace.launcher.showTiles",
+        "title": "%command.launcherShowTiles.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "saropaWorkspace.launcher.showRows",
+        "title": "%command.launcherShowRows.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "saropaWorkspace.launcher.cycleTileSize",
+        "title": "%command.launcherCycleTileSize.title%",
+        "category": "%extension.displayName%",
+        "icon": "$(symbol-ruler)"
+      },
+      {
         "command": "saropaWorkspace.launcher.cycleSort",
         "title": "%command.launcherCycleSort.title%",
         "category": "%extension.displayName%",
@@ -1814,6 +1832,21 @@
           "group": "1_notes@2"
         },
         {
+          "command": "saropaWorkspace.launcher.showTiles",
+          "when": "view == saropaWorkspace.launcher && !saropaWorkspace.launcher.tileView",
+          "group": "navigation@0"
+        },
+        {
+          "command": "saropaWorkspace.launcher.showRows",
+          "when": "view == saropaWorkspace.launcher && saropaWorkspace.launcher.tileView",
+          "group": "navigation@0"
+        },
+        {
+          "command": "saropaWorkspace.launcher.cycleTileSize",
+          "when": "view == saropaWorkspace.launcher && saropaWorkspace.launcher.tileView",
+          "group": "navigation@0.5"
+        },
+        {
           "command": "saropaWorkspace.launcher.cycleSort",
           "when": "view == saropaWorkspace.launcher",
           "group": "navigation@1"
@@ -2488,6 +2521,18 @@
         },
         {
           "command": "saropaWorkspace.recipe.snapshotProcesses",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.launcher.showTiles",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.launcher.showRows",
+          "when": "false"
+        },
+        {
+          "command": "saropaWorkspace.launcher.cycleTileSize",
           "when": "false"
         },
         {

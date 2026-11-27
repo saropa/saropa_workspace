@@ -1,5 +1,5 @@
 // Unit tests for the assembled launcher client script and its fragments
-// (core, split, cards, render, folded, menu): the pieces are concatenated into one
+// (core, split, tiles, focus, cards, render, folded, menu): the pieces are concatenated into one
 // script, so the whole must parse and each fragment must be present.
 
 import { test } from "node:test";
@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import { LAUNCHER_SCRIPT } from "../views/launcherScript";
 import { LAUNCHER_SCRIPT_CORE } from "../views/launcher/launcherScriptCore";
 import { LAUNCHER_SCRIPT_SPLIT } from "../views/launcher/launcherScriptSplit";
+import { LAUNCHER_SCRIPT_TILES } from "../views/launcher/launcherScriptTiles";
+import { LAUNCHER_SCRIPT_FOCUS } from "../views/launcher/launcherScriptFocus";
 import { LAUNCHER_SCRIPT_CARDS } from "../views/launcher/launcherScriptCards";
 import { LAUNCHER_SCRIPT_RENDER } from "../views/launcher/launcherScriptRender";
 import { LAUNCHER_SCRIPT_FOLDED } from "../views/launcher/launcherScriptFolded";
@@ -16,6 +18,8 @@ import { assertScriptParses, assertNoRemoteLoads, assertSingleApiHandle } from "
 const FRAGMENTS = {
   core: LAUNCHER_SCRIPT_CORE,
   split: LAUNCHER_SCRIPT_SPLIT,
+  tiles: LAUNCHER_SCRIPT_TILES,
+  focus: LAUNCHER_SCRIPT_FOCUS,
   cards: LAUNCHER_SCRIPT_CARDS,
   render: LAUNCHER_SCRIPT_RENDER,
   folded: LAUNCHER_SCRIPT_FOLDED,

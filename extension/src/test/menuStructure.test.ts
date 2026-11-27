@@ -152,6 +152,9 @@ test("the Launcher's view/title commands are declared, scoped to the Launcher vi
   const commands = manifest.contributes?.commands ?? [];
   const viewTitle = manifest.contributes?.menus?.["view/title"] ?? [];
   const launcherCommands = [
+    "saropaWorkspace.launcher.showTiles",
+    "saropaWorkspace.launcher.showRows",
+    "saropaWorkspace.launcher.cycleTileSize",
     "saropaWorkspace.launcher.cycleSort",
     "saropaWorkspace.launcher.showRightPanel",
     "saropaWorkspace.launcher.hideRightPanel",
@@ -206,6 +209,19 @@ test("showRightPanel/hideRightPanel's view/title when-clauses are exact compleme
   );
 });
 
+test("showTiles/showRows view/title when-clauses are complementary and share one slot", () => {
+  // Exactly one of the pair may show at a time, in the same place.
+  const viewTitle = readManifest().contributes?.menus?.["view/title"] ?? [];
+  const tiles = viewTitle.find((item) => item.command === "saropaWorkspace.launcher.showTiles");
+  const rows = viewTitle.find((item) => item.command === "saropaWorkspace.launcher.showRows");
+  assert.equal(tiles?.when, "view == saropaWorkspace.launcher && !saropaWorkspace.launcher.tileView");
+  assert.equal(rows?.when, "view == saropaWorkspace.launcher && saropaWorkspace.launcher.tileView");
+  assert.equal(tiles?.group, rows?.group);
+  // The size action only means something while tiles are on screen.
+  const size = viewTitle.find((item) => item.command === "saropaWorkspace.launcher.cycleTileSize");
+  assert.equal(size?.when, rows?.when);
+});
+
 test("the Launcher-only view/title commands are hidden from the Command Palette; openSettings is not", () => {
   // cycleSort/showRightPanel/hideRightPanel only make sense with the Launcher webview's own
   // client-side state in view (a selected category, current panel visibility) and would be
@@ -221,6 +237,9 @@ test("the Launcher-only view/title commands are hidden from the Command Palette;
   );
 
   for (const command of [
+    "saropaWorkspace.launcher.showTiles",
+    "saropaWorkspace.launcher.showRows",
+    "saropaWorkspace.launcher.cycleTileSize",
     "saropaWorkspace.launcher.cycleSort",
     "saropaWorkspace.launcher.showRightPanel",
     "saropaWorkspace.launcher.hideRightPanel",

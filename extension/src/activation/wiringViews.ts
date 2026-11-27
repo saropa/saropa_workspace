@@ -240,6 +240,18 @@ function setupLauncherPanel(
     ),
     vscode.commands.registerCommand("saropaWorkspace.launcher.hideRightPanel", () =>
       launcher.toggleRightPanel()
+    ),
+    // Two ids for one action so the title icon can show the view a click switches to
+    // (complementary when-clauses on saropaWorkspace.launcher.tileView).
+    vscode.commands.registerCommand("saropaWorkspace.launcher.showTiles", () =>
+      launcher.toggleTileView()
+    ),
+    vscode.commands.registerCommand("saropaWorkspace.launcher.showRows", () =>
+      launcher.toggleTileView()
+    ),
+    // One cycling action, like cycleSort, so three sizes do not cost three title icons.
+    vscode.commands.registerCommand("saropaWorkspace.launcher.cycleTileSize", () =>
+      launcher.cycleTileSize()
     )
   );
 }

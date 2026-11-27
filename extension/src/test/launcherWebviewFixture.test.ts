@@ -19,7 +19,7 @@ test("dataMessage carries the English strings and empty lists unless overridden"
 });
 
 test("open starts the real page and openWith renders the items with the boot messages already taken", () => {
-  assert.deepEqual(open().posted, [{ type: "rightPanelVisibility", visible: false }, { type: "ready" }]);
+  assert.deepEqual(open().posted, [{ type: "rightPanelVisibility", visible: false }, { type: "tileViewState", enabled: false }, { type: "ready" }]);
   const page = openWith([item({ id: "a", label: "A" })]);
   assert.deepEqual(page.posted, []);
   assert.deepEqual(page.all(".card-name").map((n) => n.textContent), ["A"]);

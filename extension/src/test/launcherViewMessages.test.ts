@@ -118,6 +118,14 @@ test("rightPanelVisibility sets the context key from the boolean the page report
   ]);
 });
 
+test("tileViewState sets the context key only for a boolean", async () => {
+  await send({ type: "tileViewState", enabled: true });
+  await send({ type: "tileViewState", enabled: "yes" });
+  assert.deepEqual(__recordedCommands(), [
+    { command: "setContext", args: ["saropaWorkspace.launcher.tileView", true] },
+  ]);
+});
+
 test("rightPanelVisibility with a non-boolean value sets nothing", async () => {
   await send({ type: "rightPanelVisibility", visible: "yes" });
   await send({ type: "rightPanelVisibility" });

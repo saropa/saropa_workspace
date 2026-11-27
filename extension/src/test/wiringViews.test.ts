@@ -94,7 +94,8 @@ test("the launcher webview and the file decorations are registered", () => {
 
 test("the Go command, the note commands and the view commands are registered", () => {
   for (const id of ["go", "newNote", "refreshNotes", "refreshProjectFiles", "refreshScripts", "runScript", "setScriptParams",
-    "showLauncher", "launcher.cycleSort", "launcher.showRightPanel", "launcher.hideRightPanel"]) {
+    "showLauncher", "launcher.cycleSort", "launcher.showRightPanel", "launcher.hideRightPanel",
+    "launcher.showTiles", "launcher.showRows", "launcher.cycleTileSize"]) {
     assert.ok(__registeredCommands().has(`saropaWorkspace.${id}`), id);
   }
 });
@@ -148,7 +149,13 @@ test("the launcher title commands nudge the resolved launcher view", async () =>
   await run("launcher.cycleSort");
   await run("launcher.showRightPanel");
   await run("launcher.hideRightPanel");
-  assert.deepEqual(panel.webview.postedMessages, [{ type: "cycleSort" }, { type: "toggleRightPanel" }, { type: "toggleRightPanel" }]);
+  await run("launcher.showTiles");
+  await run("launcher.showRows");
+  await run("launcher.cycleTileSize");
+  assert.deepEqual(panel.webview.postedMessages, [
+    { type: "cycleSort" }, { type: "toggleRightPanel" }, { type: "toggleRightPanel" },
+    { type: "toggleTileView" }, { type: "toggleTileView" }, { type: "cycleTileSize" },
+  ]);
 });
 
 test("a change to the shortcut set republishes which files are shortcuts", async () => {

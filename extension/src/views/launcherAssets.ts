@@ -42,6 +42,7 @@
 
 import { LEFT_PANEL_LIMITS, RIGHT_PANEL_LIMITS } from "./launcher/launcherSplitLogic";
 import { LAUNCHER_STYLE_CONTROLS } from "./launcherAssetsControls";
+import { LAUNCHER_STYLE_TILES } from "./launcherAssetsTiles";
 
 /** Stylesheet for the launcher webview. */
 export const LAUNCHER_STYLE = `
@@ -250,4 +251,4 @@ header {
 .split-rsz-left { right: -5px; }
 .split-rsz-right { left: -5px; }
 /* Set on <body> for the duration of a drag (see launcherScriptSplit.ts's attachSplitResizer)
-` + LAUNCHER_STYLE_CONTROLS;
+` + LAUNCHER_STYLE_CONTROLS + LAUNCHER_STYLE_TILES;

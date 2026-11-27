@@ -253,6 +253,15 @@ test("a user-chosen icon/color overrides the file-type default", () => {
   );
   assert.equal(items[0].icon, "rocket");
   assert.equal(items[0].color, "charts.red");
+  // The page needs the replaced default in case the chosen name has no glyph.
+  assert.equal(items[0].defaultIcon, "snake");
+});
+
+test("a shortcut without a custom icon carries no defaultIcon", () => {
+  const items = buildLauncherItems(
+    asStore({ ...empty, project: [sc({ id: "p1", scope: "project", path: "a.py" })] })
+  );
+  assert.equal("defaultIcon" in items[0], false);
 });
 
 test("an action shortcut gets a kind glyph + tint when it has no custom icon", () => {

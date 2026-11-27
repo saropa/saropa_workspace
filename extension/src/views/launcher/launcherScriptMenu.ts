@@ -10,6 +10,13 @@
 export const LAUNCHER_SCRIPT_MENU = `var activeSub = null;
 var activeSubTimer = null;
 var activeSubTrigger = null;
+// What held keyboard focus when the open menu appeared, so closing the menu can hand it back.
+var menuOpener = null;
+
+function focusIsInMenu(el) {
+  return !!((activeMenu && activeMenu.contains(el)) || (activeSub && activeSub.contains(el)));
+}
+
 function closeActiveSub() {
   clearTimeout(activeSubTimer);
   // Flip the trigger's aria-expanded back to false so a screen reader's popup
@@ -73,7 +80,7 @@ function buildMenuRow(e, it) {
         cr.appendChild(ct);
         (function(cmd) {
           cr.addEventListener('click', function () {
-            closeMenu();
+            closeMenuAndRestore();
             vscode.postMessage({ type: 'command', command: cmd, id: it.id });
           });
         })(child.command);
@@ -86,6 +93,7 @@ function buildMenuRow(e, it) {
           ev.preventDefault(); ev.stopPropagation();
           closeActiveSub(); row.focus();
         }
+        else if (ev.key === 'Tab') { closeMenuAndRestore(); }
       });
       sub.style.left = '0px';
       sub.style.top = '0px';
@@ -112,7 +120,7 @@ function buildMenuRow(e, it) {
   } else {
     row.addEventListener('mouseenter', function () { closeActiveSub(); });
     row.addEventListener('click', function () {
-      closeMenu();
+      closeMenuAndRestore();
       vscode.postMessage({ type: 'command', command: e.command, id: it.id });
     });
   }
@@ -120,7 +128,11 @@ function buildMenuRow(e, it) {
 }
 
 function openMenu(it, x, y) {
+  // Read before closeMenu(). A menu opened while another is open keeps the first opener,
+  // since the focused row of the old menu is about to be removed.
+  var opener = focusIsInMenu(document.activeElement) ? menuOpener : document.activeElement;
   closeMenu();
+  menuOpener = opener;
   var menu = document.createElement('div');
   menu.className = 'menu';
   // BUG-009: the right-click menu is a plain <div>, so without an explicit role a
@@ -150,6 +162,9 @@ function openMenu(it, x, y) {
         ev.preventDefault(); focused.click();
       }
     }
+    // Not cancelled: focus goes back to the opener first, so the browser's own Tab then moves
+    // on from there.
+    else if (ev.key === 'Tab') { closeMenuAndRestore(); }
   });
   menu.style.left = '0px';
   menu.style.top = '0px';
@@ -167,16 +182,33 @@ function openMenu(it, x, y) {
 function closeMenu() {
   closeActiveSub();
   if (activeMenu) { activeMenu.remove(); activeMenu = null; }
+  // Dropped so a dismissed menu does not keep a repainted-away card alive.
+  menuOpener = null;
+}
+
+// For the dismissals that would leave focus nowhere (Escape, Tab, picking a row, scroll). An
+// outside click and a window blur use plain closeMenu(): there the user has already moved on.
+function closeMenuAndRestore() {
+  var back = menuOpener;
+  closeMenu();
+  restoreFocus(back);
 }
 
 document.addEventListener('click', function (e) {
   if (activeMenu && !activeMenu.contains(e.target) && (!activeSub || !activeSub.contains(e.target))) { closeMenu(); }
 });
 document.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape' && !activeSub) { closeMenu(); }
+  // activeMenu guard: Escape with no menu open must leave focus where it is.
+  if (e.key !== 'Escape' || !activeMenu) { return; }
+  // A submenu opened by hover has no focus in it, so its own Escape handler never runs; the
+  // first press closes it and the next one closes the menu.
+  if (activeSub) { closeActiveSub(); return; }
+  closeMenuAndRestore();
 });
 window.addEventListener('blur', closeMenu);
-root.addEventListener('scroll', closeMenu, true);
+// On window with capture: the page itself is what scrolls, and a listener on the card list
+// never heard that, leaving the fixed menu floating away from its card.
+window.addEventListener('scroll', closeMenuAndRestore, true);
 
 // Build-order step 4 (PLAN_Launcher_Restructure.md): search is already an always-visible
 // header element (not an icon-triggered popover), so the only wiring this step still owes is
@@ -215,12 +247,14 @@ window.addEventListener('message', function (event) {
   if (msg && msg.type === 'data') {
     strings = msg.strings || {};
     items = Array.isArray(msg.items) ? msg.items : [];
+    const heldCategory = focusedCategory(); // before the left panel is rebuilt
     tintHexes = msg.tintHexes || {};
     if (typeof msg.placeholder === 'string') { q.placeholder = msg.placeholder; }
     renderHeader(msg.header);
     renderCategoryList(msg.categories);
     renderRunHistory(msg.runHistory, msg.runHistoryEnabled !== false);
     render();
+    refocusCategory(heldCategory);
   } else if (msg && msg.type === 'cycleSort') {
     // Build-order step 5 (PLAN_Launcher_Restructure.md): the native view/title "cycle sort"
     // icon's nudge. Sort is per-pane, so a single title-bar icon needs a target pane to act
@@ -250,6 +284,15 @@ window.addEventListener('message', function (event) {
     // so the host has nothing to compute here — same "host pushes an unprompted instruction"
     // shape as 'cycleSort' above, just for togglePanel('right') instead.
     togglePanel('right');
+  } else if (msg && msg.type === 'toggleTileView') {
+    // The view/title rows/tiles icon; the mode is saved in this webview (launcherScriptTiles.ts).
+    closeMenuAndRestore();
+    toggleTileView();
+  } else if (msg && msg.type === 'cycleTileSize') {
+    // The view/title size icon, shown in tile view; the size is saved here like the mode. The
+    // menu is closed first because its card is about to move out from under it.
+    closeMenuAndRestore();
+    cycleTileSize();
   }
 });
 

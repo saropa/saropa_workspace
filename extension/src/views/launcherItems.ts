@@ -58,6 +58,9 @@ export interface LauncherItem {
   readonly groupIcon: string;
   readonly groupColor: string;
   readonly icon: string;
+  // The glyph the row would have had without a user-chosen icon; sent only when there is one,
+  // so the page can fall back to it if the chosen name has no glyph.
+  readonly defaultIcon?: string;
   readonly color: string;
   readonly kind: string;
   // Whether this card is a live scheduled ritual — a stored shortcut whose schedule is
@@ -164,7 +167,8 @@ function toItem(
     groupId: group.id,
     groupIcon: group.icon,
     groupColor: group.color,
-    icon: rowIcon(shortcut, kind, fileName),
+    icon: shortcut.icon || defaultRowIcon(kind, fileName),
+    ...(shortcut.icon ? { defaultIcon: defaultRowIcon(kind, fileName) } : {}),
     color: rowColor(shortcut, kind, fileName),
     kind,
     // A live scheduled ritual: a shortcut whose schedule is switched on. Mirrors the same
@@ -205,13 +209,9 @@ function fileExecutable(shortcut: Shortcut, fileName: string): boolean {
   return candidatesForExt(ext).length > 0;
 }
 
-// The row's resting glyph: a user-chosen icon wins, then the file-type or action-kind
-// default. Reuses the SAME maps the tree row tokens use (fileTypeIcon / kindIcon) so the
+// The row's glyph when the user chose none: the file-type or action-kind default. Reuses the SAME maps the tree row tokens use (fileTypeIcon / kindIcon) so the
 // launcher and the sidebar never disagree on what a .yaml or a shell shortcut looks like.
-function rowIcon(shortcut: Shortcut, kind: ShortcutKind, fileName: string): string {
-  if (shortcut.icon) {
-    return shortcut.icon;
-  }
+function defaultRowIcon(kind: ShortcutKind, fileName: string): string {
   if (kind === "file") {
     return fileTypeIcon(fileName)?.icon ?? "file";
   }

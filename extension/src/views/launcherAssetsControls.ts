@@ -116,6 +116,8 @@ body.resizing { cursor: col-resize; user-select: none; }
   min-width: 0;
 }
 .card:hover { background: var(--vscode-list-hoverBackground); }
+/* The card's focusable part is its name block (see makeCard). */
+.card-body:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .card.hidden { display: none; }
 /* Drop-to-reorder: the hovered card shows a top-border insertion indicator and the drop
    background. Only the card under the pointer highlights — can-drop is not visualized on

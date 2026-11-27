@@ -7,7 +7,7 @@ import { open, openWith, ITEMS, lastState, button } from "./launcherWebviewFixtu
 
 test("loading reports the right panel as hidden, then ready, and sizes the left panel to its default", () => {
   const page = open();
-  assert.deepEqual(page.takePosted(), [{ type: "rightPanelVisibility", visible: false }, { type: "ready" }]);
+  assert.deepEqual(page.takePosted(), [{ type: "rightPanelVisibility", visible: false }, { type: "tileViewState", enabled: false }, { type: "ready" }]);
   assert.equal(page.byId("rightPanel").classList.contains("hidden"), true);
   assert.equal(page.byId("leftPanel").classList.contains("hidden"), false);
   assert.equal(page.document.documentElement.style.getPropertyValue("--launcher-left-w"), `${LEFT_PANEL_LIMITS.defaultWidth}px`);
@@ -26,7 +26,7 @@ test("the toggleRightPanel message shows and hides the right panel and tells the
 
 test("a right panel left open last time opens again and is reported as visible", () => {
   const page = open({ state: { collapsed: {}, panels: { right: { hidden: false } } } });
-  assert.deepEqual(page.takePosted(), [{ type: "rightPanelVisibility", visible: true }, { type: "ready" }]);
+  assert.deepEqual(page.takePosted(), [{ type: "rightPanelVisibility", visible: true }, { type: "tileViewState", enabled: false }, { type: "ready" }]);
   assert.equal(page.byId("rightPanel").classList.contains("hidden"), false);
 });
 

@@ -10,6 +10,8 @@
 // template literal's framing exactly.
 import { LAUNCHER_SCRIPT_CORE } from './launcher/launcherScriptCore';
 import { LAUNCHER_SCRIPT_SPLIT } from './launcher/launcherScriptSplit';
+import { LAUNCHER_SCRIPT_TILES } from './launcher/launcherScriptTiles';
+import { LAUNCHER_SCRIPT_FOCUS } from './launcher/launcherScriptFocus';
 import { LAUNCHER_SCRIPT_CARDS } from './launcher/launcherScriptCards';
 import { LAUNCHER_SCRIPT_RENDER } from './launcher/launcherScriptRender';
 import { LAUNCHER_SCRIPT_FOLDED } from './launcher/launcherScriptFolded';
@@ -23,6 +25,8 @@ export const LAUNCHER_SCRIPT =
   '\n' +
   LAUNCHER_SCRIPT_CORE +
   LAUNCHER_SCRIPT_SPLIT +
+  LAUNCHER_SCRIPT_TILES +
+  LAUNCHER_SCRIPT_FOCUS +
   LAUNCHER_SCRIPT_CARDS +
   LAUNCHER_SCRIPT_RENDER +
   LAUNCHER_SCRIPT_FOLDED +

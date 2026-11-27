@@ -206,6 +206,19 @@ export class LauncherViewProvider implements vscode.WebviewViewProvider {
     void this.view?.webview.postMessage({ type: "toggleRightPanel" });
   }
 
+  // The view/title rows/tiles icons' shared implementation. The mode is saved inside the
+  // webview (store.tiles, launcherScriptTiles.ts), so the host only asks it to flip; the
+  // page reports back which icon to show.
+  toggleTileView(): void {
+    void this.view?.webview.postMessage({ type: "toggleTileView" });
+  }
+
+  // The view/title tile-size icon. The size lives in the webview state too, and the page
+  // validates it, so the host sends no value.
+  cycleTileSize(): void {
+    void this.view?.webview.postMessage({ type: "cycleTileSize" });
+  }
+
   // Push the current item set + UI strings to the webview. No-op until the view is
   // resolved. Async because the project-files scan does a handful of file stats (the same
   // scan the tree does); the watch + shortcut data is in-memory. The scan runs ONCE here

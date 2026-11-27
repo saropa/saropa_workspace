@@ -210,6 +210,7 @@ function makeGroup(group) {
 }
 
 function render() {
+  const held = captureFocus(); // first: closing and clearing both drop focus
   closeMenu();
   root.textContent = '';
   panesEl = document.createElement('div');
@@ -262,6 +263,7 @@ function render() {
   // category, so this now mainly covers the true "zero items anywhere" case.
   empty.classList.toggle('hidden', visibleItems().length > 0);
   applyFilter();
+  finishRender(held); // after the filter: never focus a search-hidden card
 }
 
 // Live filter: hide non-matching cards, then any group/pane left with no visible card.

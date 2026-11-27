@@ -72,6 +72,7 @@ interface LauncherMsg {
   groupId?: string;
   targetId?: string;
   visible?: boolean;
+  enabled?: boolean;
 }
 
 /**
@@ -96,6 +97,11 @@ async function handleTypedMessage(msg: LauncherMsg, ctx: LauncherMessageContext)
       "saropaWorkspace.launcher.rightPanelVisible",
       msg.visible
     );
+    return true;
+  }
+  if (msg.type === "tileViewState" && typeof msg.enabled === "boolean") {
+    // Swaps the title-bar icon between "show tiles" and "show rows" to match the page.
+    await vscode.commands.executeCommand("setContext", "saropaWorkspace.launcher.tileView", msg.enabled);
     return true;
   }
   if (msg.type === "openFolder") {

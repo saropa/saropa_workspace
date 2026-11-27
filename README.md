@@ -46,7 +46,7 @@ Saropa Workspace maps your recurring shell scripts and critical platform configu
 * **Website Shortcuts:** Add any URL — the project's GitHub page, a staging dashboard, a docs site — with **Add Website (URL)...**; a single click opens it in your browser, right beside your file and script shortcuts. Or run **Add Website Shortcuts from Project...** to pick from the addresses your repo already declares (git remote, `package.json`, `pubspec.yaml`, `mkdocs.yml`) in one checklist — no source scanning, just the known files, so the list stays short.
 * **Scoped Shortcuts:** Organize configurations into **Project Shortcuts** (shared repo-level) or **Global Shortcuts** (tied to your user profile).
 * **Unused Marker:** Unused or newly added shortcuts carry a leading dot (●) until you open or run them, so new items are easy to spot.
-* **Launcher Board:** Access your tools via a dedicated bottom panel tab with searchable text filters, collapsible sections, and responsive column layouts.
+* **Launcher Board:** Access your tools via a dedicated bottom panel tab with searchable text filters, collapsible sections, and responsive column layouts. A title-bar icon switches between rows and colorful square tiles, a second one changes the tile size (icon only, icon and name, or icon, name and subtitle), and both choices are remembered.
 
 ### ▶️ Script Execution
 * **Double-Click Runs:** Double-click a saved shortcut to trigger scripts inside the integrated terminal or a background channel.
