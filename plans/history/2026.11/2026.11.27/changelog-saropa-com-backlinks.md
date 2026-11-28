@@ -1,6 +1,6 @@
 # Changelog backlinks to saropa.com
 
-The changelog and the extension manifest carried no link to the Saropa developer pages, so every mirrored copy of the release history competed with the saropa.com original instead of pointing at it. The defect is recorded in [bugs/docs_changelog_no_backlink_to_saropa_com.md](../../../../bugs/docs_changelog_no_backlink_to_saropa_com.md).
+The changelog and the extension manifest carried no link to the Saropa developer pages, so every mirrored copy of the release history competed with the saropa.com original instead of pointing at it. The defect is recorded in [docs_changelog_no_backlink_to_saropa_com.md](docs_changelog_no_backlink_to_saropa_com.md).
 
 ## Finish Report (2026-11-27)
 
@@ -30,4 +30,4 @@ A read-only run of the full-mode audit reported no blocking failures, with the e
 - The changelog pages at `https://saropa.com/developers/saropa-workspace/changelog/` returned 404 when the links shipped, so the links do not resolve until those pages are published.
 - The manifest homepage becomes visible on the Marketplace only after the next publish.
 - The optional decision to keep archived releases only on saropa.com has not been taken.
-- The bug stays open in `bugs/` until the links resolve.
+- The bug is marked fixed and archived beside this report; the items above remain outstanding.
