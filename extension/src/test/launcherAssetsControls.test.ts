@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LAUNCHER_STYLE_CONTROLS } from "../views/launcherAssetsControls";
 import { LAUNCHER_STYLE } from "../views/launcherAssets";
+import { LAUNCHER_STYLE_TILES } from "../views/launcherAssetsTiles";
 import { LAUNCHER_SCRIPT } from "../views/launcherScript";
 
 // The first half ends inside a comment, so this sheet starts with the tail of that comment;
@@ -25,9 +26,23 @@ function ruleBody(selector: string): string | undefined {
   return undefined;
 }
 
-test("the sheet is appended unchanged to the end of the launcher stylesheet", () => {
-  assert.ok(LAUNCHER_STYLE.endsWith(LAUNCHER_STYLE_CONTROLS));
-  assert.ok(LAUNCHER_STYLE.length > LAUNCHER_STYLE_CONTROLS.length);
+// The order is first half, this sheet, tile overrides. This sheet must follow the first half
+// with nothing in between, because the first half leaves a comment open for it to close. The
+// tile sheet goes after both so its overrides win any tie with the rules they restyle.
+test("the sheet is appended unchanged after the first half, followed only by the tile overrides", () => {
+  const tail = LAUNCHER_STYLE_CONTROLS + LAUNCHER_STYLE_TILES;
+  assert.ok(LAUNCHER_STYLE.endsWith(tail));
+  const head = LAUNCHER_STYLE.slice(0, -tail.length);
+  assert.ok(head.lastIndexOf("/*") > head.lastIndexOf("*/"), "the first half stops inside a comment");
+});
+
+// Being last is only safe for the tile sheet while it cannot touch the row view.
+test("every rule in the tile sheet that follows this one is scoped to the tile view", () => {
+  const selectors = [...strip(LAUNCHER_STYLE_TILES).matchAll(/([^{}]+)\{[^{}]*\}/g)].flatMap((m) =>
+    m[1].split(",").map((s) => s.trim()),
+  );
+  assert.ok(selectors.length > 0);
+  assert.deepEqual(selectors.filter((s) => !s.startsWith("body.tiles")), []);
 });
 
 test("the first half ends inside a comment that this sheet closes", () => {
